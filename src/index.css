@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Fives Rewards theme tokens.
+ * Components must reference the `brand-*` utilities, never raw hex values.
+ */
+:root {
+	--brand-background: #14110f;
+	--brand-surface: #1f1a16;
+	--brand-surface-raised: #2a231d;
+	--brand-border: #3a3029;
+	--brand-primary: #c97b3c;
+	--brand-primary-strong: #a85f26;
+	--brand-on-primary: #17110c;
+	--brand-secondary: #e0a83c;
+	--brand-text: #f7f1e8;
+	--brand-muted: #a79b8d;
+	--brand-success: #4fa36b;
+	--brand-danger: #d9534f;
+}
+
+@theme inline {
+	--color-brand-background: var(--brand-background);
+	--color-brand-surface: var(--brand-surface);
+	--color-brand-surface-raised: var(--brand-surface-raised);
+	--color-brand-border: var(--brand-border);
+	--color-brand-primary: var(--brand-primary);
+	--color-brand-primary-strong: var(--brand-primary-strong);
+	--color-brand-on-primary: var(--brand-on-primary);
+	--color-brand-secondary: var(--brand-secondary);
+	--color-brand-text: var(--brand-text);
+	--color-brand-muted: var(--brand-muted);
+	--color-brand-success: var(--brand-success);
+	--color-brand-danger: var(--brand-danger);
+
+	--font-sans:
+		"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+
+	--radius-card: 1.25rem;
+}
+
+@layer base {
+	html {
+		-webkit-text-size-adjust: 100%;
+	}
+
+	body {
+		@apply bg-brand-background text-brand-text font-sans antialiased;
+		/* Respect notches and home indicators once installed as a PWA. */
+		padding: env(safe-area-inset-top) env(safe-area-inset-right)
+			env(safe-area-inset-bottom) env(safe-area-inset-left);
+	}
+
+	h1,
+	h2,
+	h3 {
+		@apply font-semibold tracking-tight;
+	}
+
+	:focus-visible {
+		@apply outline-brand-secondary outline-2 outline-offset-2;
+	}
+}

@@ -1,0 +1,40 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "fives-rewards",
+	"main": "./worker/index.ts",
+	"compatibility_date": "2026-09-02",
+	"compatibility_flags": ["nodejs_compat"],
+
+	"assets": {
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
+	},
+
+	"observability": {
+		"enabled": true
+	},
+
+	"vars": {
+		"APP_ENV": "development",
+		"BUSINESS_SLUG": "fives-pub-and-grill"
+	},
+
+	// Run `wrangler d1 create fives-rewards-db` and paste the returned id below.
+	// Local development (`vite dev`) works with the placeholder id.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "fives-rewards-db",
+			"database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+			"migrations_dir": "drizzle/migrations"
+		}
+	],
+
+	// Run `wrangler r2 bucket create fives-rewards-media`.
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "fives-rewards-media"
+		}
+	]
+}

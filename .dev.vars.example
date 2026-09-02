@@ -1,0 +1,9 @@
+# Local Worker secrets for `vite dev`. Copy to `.dev.vars` — never commit that file.
+# In production set these with: wrangler secret put <NAME>
+
+BETTER_AUTH_SECRET=
+TURNSTILE_SECRET_KEY=
+
+# Reserved for a later phase — not used in the MVP.
+# WHATSAPP_ACCESS_TOKEN=
+# WHATSAPP_PHONE_NUMBER_ID=
