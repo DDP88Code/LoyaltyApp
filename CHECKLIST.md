@@ -14,50 +14,50 @@
 
 # 0. Agent rules
 
-- [ ] Inspect repository before changing code.
-- [ ] Read the master prompt and this checklist.
-- [ ] Preserve useful existing work.
-- [ ] Keep project buildable after every phase.
-- [ ] Run typecheck/build after major changes.
-- [ ] Fix failures before progressing.
-- [ ] Never fabricate credentials or APIs.
-- [ ] Never expose secrets to the browser.
-- [ ] Never expose D1 directly to the browser.
-- [ ] Do not use Supabase.
-- [ ] Do not use PostgreSQL-specific SQL.
-- [ ] Do not use `coffee_count` as source of truth.
-- [ ] Do not allow customer-controlled loyalty mutations.
-- [ ] Do not destructively edit transaction history.
-- [ ] Do not build out-of-scope features.
+- [x] Inspect repository before changing code.
+- [x] Read the master prompt and this checklist.
+- [x] Preserve useful existing work.
+- [x] Keep project buildable after every phase.
+- [x] Run typecheck/build after major changes.
+- [x] Fix failures before progressing.
+- [x] Never fabricate credentials or APIs.
+- [x] Never expose secrets to the browser.
+- [x] Never expose D1 directly to the browser.
+- [x] Do not use Supabase.
+- [x] Do not use PostgreSQL-specific SQL.
+- [x] Do not use `coffee_count` as source of truth.
+- [x] Do not allow customer-controlled loyalty mutations.
+- [x] Do not destructively edit transaction history.
+- [x] Do not build out-of-scope features.
 
 ---
 
 # 1. Stack
 
 ## Frontend
-- [ ] React
-- [ ] Vite
-- [ ] TypeScript strict
-- [ ] React Router
-- [ ] Tailwind
-- [ ] TanStack Query
-- [ ] React Hook Form
-- [ ] Zod
-- [ ] Lucide
-- [ ] vite-plugin-pwa
+- [x] React
+- [x] Vite
+- [x] TypeScript strict
+- [x] React Router
+- [x] Tailwind
+- [x] TanStack Query
+- [x] React Hook Form
+- [x] Zod
+- [x] Lucide
+- [x] vite-plugin-pwa
 
 ## Backend
-- [ ] Cloudflare Worker
-- [ ] Hono
-- [ ] Wrangler
+- [x] Cloudflare Worker
+- [x] Hono
+- [x] Wrangler
 
 ## Data/Auth/Storage
-- [ ] Cloudflare D1
-- [ ] Drizzle ORM
+- [x] Cloudflare D1
+- [x] Drizzle ORM
 - [ ] Drizzle migrations
 - [ ] Better Auth
 - [ ] D1-backed sessions/auth
-- [ ] Cloudflare R2
+- [x] Cloudflare R2
 - [ ] Turnstile integration points
 
 ---
@@ -65,89 +65,89 @@
 # 2. Phase 1 — Foundation
 
 ## Repository
-- [ ] Repo inspected.
-- [ ] Existing files understood.
-- [ ] No useful work overwritten.
+- [x] Repo inspected.
+- [x] Existing files understood.
+- [x] No useful work overwritten.
 
 ## Frontend
-- [ ] React/Vite app scaffolded if needed.
-- [ ] TypeScript strict mode enabled.
-- [ ] Tailwind configured.
-- [ ] React Router configured.
-- [ ] TanStack Query configured.
-- [ ] React Hook Form installed.
-- [ ] Zod installed.
-- [ ] Lucide installed.
+- [x] React/Vite app scaffolded if needed.
+- [x] TypeScript strict mode enabled.
+- [x] Tailwind configured.
+- [x] React Router configured.
+- [x] TanStack Query configured.
+- [x] React Hook Form installed.
+- [x] Zod installed.
+- [x] Lucide installed.
 
 ## Worker
-- [ ] Cloudflare Worker created.
-- [ ] Hono configured.
-- [ ] `/api/health` works.
-- [ ] Standard API response/error shape created.
-- [ ] Environment bindings typed.
+- [x] Cloudflare Worker created.
+- [x] Hono configured.
+- [x] `/api/health` works.
+- [x] Standard API response/error shape created.
+- [x] Environment bindings typed.
 
 ## Config
-- [ ] Wrangler config created.
-- [ ] D1 binding placeholder/config created.
-- [ ] R2 binding placeholder/config created.
-- [ ] Drizzle config created.
-- [ ] `.env.example` created.
-- [ ] `.gitignore` correct.
-- [ ] README updated.
+- [x] Wrangler config created.
+- [x] D1 binding placeholder/config created.
+- [x] R2 binding placeholder/config created.
+- [x] Drizzle config created.
+- [x] `.env.example` created.
+- [x] `.gitignore` correct.
+- [x] README updated.
 
 ## PWA
-- [ ] vite-plugin-pwa configured.
-- [ ] Manifest name = Fives Rewards.
-- [ ] Short name = Fives.
-- [ ] display = standalone.
-- [ ] Placeholder icons added.
+- [x] vite-plugin-pwa configured.
+- [x] Manifest name = Fives Rewards.
+- [x] Short name = Fives.
+- [x] display = standalone.
+- [x] Placeholder icons added.
 
 ### Gate 1
-- [ ] Frontend starts.
-- [ ] Worker starts.
-- [ ] Health endpoint responds.
-- [ ] Typecheck passes.
-- [ ] Production build passes.
+- [x] Frontend starts.
+- [x] Worker starts.
+- [x] Health endpoint responds.
+- [x] Typecheck passes.
+- [x] Production build passes.
 
 ---
 
 # 3. Design system
 
 ## Theme
-- [ ] Premium pub/grill direction.
-- [ ] Charcoal/near-black.
-- [ ] Warm copper/amber/gold.
-- [ ] Warm off-white surfaces.
-- [ ] Strong headings.
-- [ ] Rounded cards.
-- [ ] Large touch targets.
+- [x] Premium pub/grill direction.
+- [x] Charcoal/near-black.
+- [x] Warm copper/amber/gold.
+- [ ] Warm off-white surfaces. *(dark-first surfaces for Customer/Staff; light Admin surfaces land in Phase 11)*
+- [x] Strong headings.
+- [x] Rounded cards.
+- [x] Large touch targets.
 
 ## Theme variables
-- [ ] `--brand-primary`
-- [ ] `--brand-secondary`
-- [ ] `--brand-background`
-- [ ] `--brand-surface`
-- [ ] `--brand-text`
-- [ ] `--brand-muted`
-- [ ] `--brand-success`
-- [ ] `--brand-danger`
+- [x] `--brand-primary`
+- [x] `--brand-secondary`
+- [x] `--brand-background`
+- [x] `--brand-surface`
+- [x] `--brand-text`
+- [x] `--brand-muted`
+- [x] `--brand-success`
+- [x] `--brand-danger`
 
 ## Shared components
-- [ ] Button
-- [ ] Card
-- [ ] Badge
+- [x] Button
+- [x] Card
+- [x] Badge
 - [ ] Modal
 - [ ] ConfirmDialog
-- [ ] Input
+- [x] Input
 - [ ] Select
 - [ ] TextArea
-- [ ] PageHeader
+- [x] PageHeader
 - [ ] BottomNavigation
 - [ ] AdminSidebar
-- [ ] LoadingState
+- [x] LoadingState
 - [ ] Skeleton
-- [ ] EmptyState
-- [ ] ErrorState
+- [x] EmptyState
+- [x] ErrorState
 - [ ] RewardCard
 - [ ] CoffeeProgress
 - [ ] PromoCard
@@ -1146,10 +1146,10 @@ Do not mark a phase complete if:
 
 # 31. Immediate next action
 
-1. [ ] Inspect repository.
-2. [ ] Read master prompt and checklist.
-3. [ ] Implement missing Phase 1 items only.
-4. [ ] Run typecheck/build.
-5. [ ] Update checklist.
-6. [ ] Report progress.
+1. [x] Inspect repository.
+2. [x] Read master prompt and checklist.
+3. [x] Implement missing Phase 1 items only.
+4. [x] Run typecheck/build.
+5. [x] Update checklist.
+6. [x] Report progress.
 7. [ ] Proceed to Phase 2 only after Gate 1 passes.
