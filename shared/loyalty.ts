@@ -90,3 +90,10 @@ export interface CustomerTransactionsPayload {
 export interface CustomerMenuPayload {
 	categories: MenuCategorySummary[];
 }
+
+/** Response for an admin-initiated ledger correction. */
+export interface AdjustmentResultPayload {
+	transactionId: string;
+	/** Only present when the adjusted program is the coffee stamp program. */
+	coffee: CoffeeProgress | null;
+}

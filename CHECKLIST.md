@@ -602,11 +602,11 @@ Redemption:
 - [x] location set.
 
 Adjustments:
-- [ ] Admin-only.
-- [ ] Reason required.
-- [ ] Adjustment/reversal transaction.
-- [ ] Audit log.
-- [ ] Historical transactions never overwritten.
+- [x] Admin-only.
+- [x] Reason required.
+- [x] Adjustment/reversal transaction.
+- [x] Audit log.
+- [x] Historical transactions never overwritten.
 
 ### Gate 8
 - [x] Duplicate reward issuance test passes.

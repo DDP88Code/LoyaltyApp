@@ -182,6 +182,19 @@ Scanning is behind a `ScannerService` interface
 browser-camera implementation (`qr-scanner`) can later be swapped for a
 Capacitor/native barcode scanner without touching call sites.
 
+## Admin loyalty adjustments
+
+`POST /api/admin/customers/:customerId/adjustments` (admin/owner only) lets
+staff-management correct a mistake without ever editing ledger history —
+[worker/lib/loyalty.ts](worker/lib/loyalty.ts)'s `createLoyaltyAdjustment` only
+ever **inserts**; no code path anywhere updates or deletes a
+`loyalty_transactions` row. A reason (5–500 characters) is required, the
+`transactionType` is either `adjustment` or `reversal`, and the request is
+idempotent on a client-generated `idempotencyKey` — a retried submission
+returns the original transaction rather than creating (or auditing) a second
+one. Every successful adjustment writes an `audit_logs` row alongside the
+ledger entry.
+
 ### Test users
 
 Never commit credentials. Create test accounts locally by registering through

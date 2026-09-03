@@ -7,7 +7,9 @@ import type {
 } from "@shared/loyalty";
 import { newId } from "@worker/db/ids";
 import type { Db } from "@worker/db/client";
+import type { Role } from "@shared/roles";
 import {
+	auditLogs,
 	customerRewards,
 	loyaltyPrograms,
 	loyaltyTransactions,
@@ -423,5 +425,78 @@ export async function redeemCustomerReward(
 			"This reward is no longer available to redeem.",
 		);
 	}
+}
+
+export interface CreateLoyaltyAdjustmentParams {
+	businessId: string;
+	customerId: string;
+	programId: string;
+	locationId: string;
+	/** The admin/owner profile making the change; also recorded as the approver. */
+	staffId: string;
+	/** Better Auth user id of the same actor, for the audit log. */
+	actorUserId: string;
+	actorRole: Role;
+	transactionType: "adjustment" | "reversal";
+	quantity: number;
+	reason: string;
+	billReference: string | null;
+	idempotencyKey: string;
+}
+
+/**
+ * A manual, audited ledger correction. Nothing here ever updates or deletes an
+ * existing row — a mistake is corrected by writing a new compensating entry,
+ * same as every other transaction type.
+ */
+export async function createLoyaltyAdjustment(
+	db: Db,
+	params: CreateLoyaltyAdjustmentParams,
+): Promise<{ transactionId: string }> {
+	const transactionId = newId();
+	const inserted = await db
+		.insert(loyaltyTransactions)
+		.values({
+			id: transactionId,
+			businessId: params.businessId,
+			locationId: params.locationId,
+			customerId: params.customerId,
+			staffId: params.staffId,
+			programId: params.programId,
+			transactionType: params.transactionType,
+			quantity: params.quantity,
+			billReference: params.billReference,
+			reason: params.reason,
+			approvedBy: params.staffId,
+			idempotencyKey: params.idempotencyKey,
+		})
+		.onConflictDoNothing()
+		.returning({ id: loyaltyTransactions.id });
+
+	if (inserted.length === 0) {
+		// A retried submission of the same action — the original entry already
+		// exists and is returned as-is, so no second audit log is written either.
+		const existing = await db.query.loyaltyTransactions.findFirst({
+			where: eq(loyaltyTransactions.idempotencyKey, params.idempotencyKey),
+		});
+		return { transactionId: existing?.id ?? transactionId };
+	}
+
+	await db.insert(auditLogs).values({
+		businessId: params.businessId,
+		actorUserId: params.actorUserId,
+		actorRole: params.actorRole,
+		action: `admin.loyalty_${params.transactionType}`,
+		entityType: "loyalty_transaction",
+		entityId: transactionId,
+		newValueJson: {
+			customerId: params.customerId,
+			programId: params.programId,
+			quantity: params.quantity,
+			reason: params.reason,
+		},
+	});
+
+	return { transactionId };
 }
 
