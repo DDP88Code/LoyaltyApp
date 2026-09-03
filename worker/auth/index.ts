@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { authSchemaOptions } from "@worker/auth/config";
 import { getDb } from "@worker/db/client";
 import * as schema from "@worker/db/schema";
+import { issueWelcomeReward } from "@worker/lib/loyalty";
 
 const DAY_SECONDS = 60 * 60 * 24;
 
@@ -46,7 +47,7 @@ function createAuth(env: Env, baseURL: string) {
 						}
 						// Role is hard-coded, never taken from the request. Public
 						// registration can only ever produce a customer.
-						await db
+						const [profile] = await db
 							.insert(schema.profiles)
 							.values({
 								authUserId: createdUser.id,
@@ -55,7 +56,12 @@ function createAuth(env: Env, baseURL: string) {
 								email: createdUser.email,
 								role: "customer",
 							})
-							.onConflictDoNothing();
+							.onConflictDoNothing()
+							.returning();
+
+						if (profile) {
+							await issueWelcomeReward(db, business.id, profile.id);
+						}
 					},
 				},
 			},

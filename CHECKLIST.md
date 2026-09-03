@@ -364,30 +364,30 @@ Every protected endpoint:
 
 # 7. Loyalty ledger
 
-- [ ] No `coffee_count` source-of-truth field.
+- [x] No `coffee_count` source-of-truth field.
 - [ ] Every earn creates ledger transaction.
 - [ ] Bonus creates ledger transaction.
 - [ ] Redemption creates ledger transaction.
 - [ ] Adjustment creates ledger transaction.
 - [ ] Reversal creates ledger transaction.
-- [ ] Coffee progress derived from ledger.
-- [ ] Idempotency protection implemented.
+- [x] Coffee progress derived from ledger.
+- [x] Idempotency protection implemented.
 
 ---
 
 # 8. Coffee program
 
 Seed:
-- [ ] Fives Coffee Rewards.
-- [ ] type = stamp.
-- [ ] currency code = COFFEE.
-- [ ] threshold = 10.
-- [ ] reward = Free Coffee.
-- [ ] active.
+- [x] Fives Coffee Rewards.
+- [x] type = stamp.
+- [x] currency code = COFFEE.
+- [x] threshold = 10.
+- [x] reward = Free Coffee.
+- [x] active.
 
 Rules:
-- [ ] Threshold comes from DB.
-- [ ] No hard-coded 10 in UI/business logic.
+- [x] Threshold comes from DB.
+- [x] No hard-coded 10 in UI/business logic.
 - [ ] Reward issuance uses unique issuance key.
 - [ ] Multiple reward cycles supported.
 - [ ] Multiple unredeemed free coffees supported.
@@ -403,18 +403,18 @@ Tests:
 # 9. Welcome voucher
 
 Seed:
-- [ ] Welcome to Fives.
-- [ ] voucher.
-- [ ] value = 5000 cents.
-- [ ] validity = 30 days.
-- [ ] welcome flag true.
-- [ ] active true.
+- [x] Welcome to Fives.
+- [x] voucher.
+- [x] value = 5000 cents.
+- [x] validity = 30 days.
+- [x] welcome flag true.
+- [x] active true.
 
 Registration:
-- [ ] Issued automatically.
-- [ ] Issued once only.
-- [ ] Expiry correct.
-- [ ] Visible immediately.
+- [x] Issued automatically.
+- [x] Issued once only.
+- [x] Expiry correct.
+- [x] Visible immediately.
 - [ ] Admin can disable/change later.
 
 ---
@@ -422,60 +422,60 @@ Registration:
 # 10. Phase 5 — Customer shell
 
 Navigation:
-- [ ] Home
-- [ ] Rewards
-- [ ] Fives Code
-- [ ] Menu
-- [ ] Profile
-- [ ] Fives Code visually prominent.
+- [x] Home
+- [x] Rewards
+- [x] Fives Code
+- [x] Menu
+- [x] Profile
+- [x] Fives Code visually prominent.
 
 Home:
-- [ ] Greeting.
-- [ ] Coffee progress.
-- [ ] Visual progress/stamps.
-- [ ] Remaining coffees text.
-- [ ] Reward-ready state.
-- [ ] Show Fives Code CTA.
-- [ ] Available rewards preview.
-- [ ] Active promotion.
-- [ ] Menu shortcut.
+- [x] Greeting.
+- [x] Coffee progress.
+- [x] Visual progress/stamps.
+- [x] Remaining coffees text.
+- [x] Reward-ready state.
+- [x] Show Fives Code CTA.
+- [x] Available rewards preview.
+- [x] Active promotion.
+- [x] Menu shortcut.
 
 Rewards:
-- [ ] Coffee Rewards.
-- [ ] Available Rewards.
+- [x] Coffee Rewards.
+- [x] Available Rewards.
 - [ ] Vouchers.
-- [ ] Redeemed.
-- [ ] Expired.
-- [ ] Transaction History.
-- [ ] Future points hidden unless active.
+- [x] Redeemed.
+- [x] Expired.
+- [x] Transaction History.
+- [x] Future points hidden unless active.
 
 Menu:
-- [ ] Categories.
-- [ ] Search.
+- [x] Categories.
+- [x] Search.
 - [ ] Images.
-- [ ] Name/description/price.
-- [ ] Popular badge.
-- [ ] Vegetarian badge.
-- [ ] Spicy badge.
-- [ ] Sold-out/unavailable state.
-- [ ] No ordering/payment.
+- [x] Name/description/price.
+- [x] Popular badge.
+- [x] Vegetarian badge.
+- [x] Spicy badge.
+- [x] Sold-out/unavailable state.
+- [x] No ordering/payment.
 
 Profile:
-- [ ] Name.
-- [ ] Email.
-- [ ] Mobile.
-- [ ] Birthday.
-- [ ] Marketing preference.
-- [ ] Notification preference.
-- [ ] Edit profile.
-- [ ] Terms/privacy.
-- [ ] Logout.
-- [ ] Account deletion request.
+- [x] Name.
+- [x] Email.
+- [x] Mobile.
+- [x] Birthday.
+- [x] Marketing preference.
+- [x] Notification preference.
+- [x] Edit profile.
+- [x] Terms/privacy.
+- [x] Logout.
+- [x] Account deletion request.
 
 ### Gate 5
-- [ ] Mobile navigation works.
-- [ ] Customer routes protected.
-- [ ] No loyalty mutation exposed to Customer UI.
+- [x] Mobile navigation works.
+- [x] Customer routes protected.
+- [x] No loyalty mutation exposed to Customer UI.
 
 ---
 

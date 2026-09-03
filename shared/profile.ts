@@ -44,3 +44,7 @@ export const updateProfileSchema = z
 	});
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+export interface AccountDeletionRequestPayload {
+	requested: true;
+}

@@ -5,14 +5,24 @@ import {
 	RequireAuth,
 	RequireRole,
 } from "@/features/auth/guards";
+import { CustomerLayout } from "@/features/customer/CustomerLayout";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { PhasePlaceholderPage } from "@/pages/PhasePlaceholderPage";
+import { PrivacyPage } from "@/pages/PrivacyPage";
 import { RegisterPage } from "@/pages/RegisterPage";
+import { TermsPage } from "@/pages/TermsPage";
+import { FivesCodePage } from "@/pages/customer/FivesCodePage";
+import { HomePage } from "@/pages/customer/HomePage";
+import { MenuPage } from "@/pages/customer/MenuPage";
+import { ProfilePage } from "@/pages/customer/ProfilePage";
+import { RewardsPage } from "@/pages/customer/RewardsPage";
 
 export const router = createBrowserRouter([
 	{ path: "/", element: <LandingPage /> },
+	{ path: "/terms", element: <TermsPage /> },
+	{ path: "/privacy", element: <PrivacyPage /> },
 	{
 		element: <RedirectIfSignedIn />,
 		children: [
@@ -26,19 +36,23 @@ export const router = createBrowserRouter([
 		element: <RequireAuth />,
 		children: [
 			{
-				element: <AppShell />,
+				element: <RequireRole allow={["customer"]} />,
 				children: [
 					{
-						element: <RequireRole allow={["customer"]} />,
+						element: <CustomerLayout />,
 						children: [
-							{
-								path: "/app/*",
-								element: (
-									<PhasePlaceholderPage title="Fives Rewards" phase="Phase 5" />
-								),
-							},
+							{ path: "/app", element: <HomePage /> },
+							{ path: "/app/rewards", element: <RewardsPage /> },
+							{ path: "/app/fives-code", element: <FivesCodePage /> },
+							{ path: "/app/menu", element: <MenuPage /> },
+							{ path: "/app/profile", element: <ProfilePage /> },
 						],
 					},
+				],
+			},
+			{
+				element: <AppShell />,
+				children: [
 					{
 						element: <RequireRole allow={["staff", "admin", "owner"]} />,
 						children: [

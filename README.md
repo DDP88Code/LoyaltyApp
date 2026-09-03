@@ -95,6 +95,35 @@ Input is parsed by Zod through [worker/middleware/validate.ts](worker/middleware
 which returns `422` with per-field messages and never echoes the submitted value
 back to the caller.
 
+## Customer app
+
+Routes under `/app` (React Router, mobile-first bottom navigation): Home,
+Rewards, Fives Code (Phase 6), Menu, Profile. Backed by
+[worker/routes/customer.ts](worker/routes/customer.ts):
+
+| Endpoint                                      | Purpose |
+| ---------------------------------------------- | ------- |
+| `GET /api/customer/home`                       | Greeting, coffee progress, reward preview, active promotion |
+| `GET /api/customer/rewards`                    | Coffee progress plus available/redeemed/expired rewards |
+| `GET /api/customer/transactions?limit&offset`  | Read-only ledger history |
+| `GET /api/customer/menu`                       | Categories and items (view-only, no ordering) |
+| `GET/PATCH /api/customer/profile`              | View and edit the signed-in profile |
+| `POST /api/customer/account/deletion-request`  | Logs an audit entry for staff to action |
+
+Coffee progress is never a stored counter. [worker/lib/loyalty.ts](worker/lib/loyalty.ts)
+sums every `loyalty_transactions` row for the customer and program and derives
+`current = total % threshold` and `cyclesCompleted = floor(total / threshold)` on
+every read — 12 lifetime units against a threshold of 10 is "2/10, one reward
+issued", not a value anyone ever decrements.
+
+A reward past its `expires_at` is shown as `expired` without writing back to the
+row; the periodic job that would flip `status` in the database is a Phase 8
+concern, so until then this is a read-time projection only.
+
+The welcome voucher is issued from the same Better Auth `user.create` hook that
+creates the profile ([worker/auth/index.ts](worker/auth/index.ts)), using
+`issuance_key = welcome:<profileId>` so a retried signup can never grant it twice.
+
 ### Test users
 
 Never commit credentials. Create test accounts locally by registering through
