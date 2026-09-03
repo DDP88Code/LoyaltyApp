@@ -33,12 +33,27 @@ export function useSession() {
 }
 
 /** Better Auth returns errors in its own shape, so unwrap them into one message. */
-function assertOk(result: { error?: { message?: string } | null }) {
-	if (result.error) {
-		throw new Error(
-			result.error.message ?? "Something went wrong. Please try again.",
-		);
+function readAuthMessage(value: unknown): string | null {
+	if (!value || typeof value !== "object") return null;
+	const message = (value as { message?: unknown }).message;
+	if (typeof message === "string" && message.trim().length > 0) {
+		return message;
 	}
+	const statusText = (value as { statusText?: unknown }).statusText;
+	if (typeof statusText === "string" && statusText.trim().length > 0) {
+		return statusText;
+	}
+	return null;
+}
+
+function assertOk(result: unknown) {
+	if (!result || typeof result !== "object") return;
+	const error = (result as { error?: unknown }).error;
+	if (!error) return;
+	throw new Error(
+		readAuthMessage(error) ??
+			"Something went wrong. Please try again.",
+	);
 }
 
 /**

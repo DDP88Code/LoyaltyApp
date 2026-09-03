@@ -15,7 +15,7 @@ import { ApiClientError, apiFetch } from "@/lib/api";
 import { getStoredJson, setStoredJson } from "@/lib/storage";
 import { sessionQueryKey } from "@/features/auth/useSession";
 
-const MENU_CACHE_KEY = "fives:customer:menu:v1";
+const MENU_CACHE_KEY = "fives:customer:menu:v2";
 
 interface CachedMenuRecord {
 	fetchedAt: number;

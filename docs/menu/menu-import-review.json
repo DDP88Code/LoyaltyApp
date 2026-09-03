@@ -1,0 +1,484 @@
+{
+  "source": {
+    "pdf": "docs/menu/Fives Pinehurst Menu.pdf",
+    "pagesRead": [1, 2, 3, 4, 5, 6],
+    "extractedAt": "2026-09-03"
+  },
+  "globalNotices": {
+    "preparedFresh": "Preparing fresh food from scratch; service time may increase when busy.",
+    "subjectToAvailability": "Some items on the menu are subject to availability.",
+    "allergenWarning": "Food may contain or come into contact with common allergens.",
+    "gratuity": "A discretionary gratuity service charge may be added."
+  },
+  "categories": [
+    {
+      "menuGroup": "food",
+      "name": "Light Meals",
+      "layout": "visual",
+      "sourcePage": 1,
+      "items": [
+        {
+          "item": "Trinchado",
+          "description": "Chicken or matured rump steak cubes with in-house made secret trinchado sauce (180g).",
+          "price": null,
+          "variants": [
+            { "name": "Chicken", "priceCents": 10000 },
+            { "name": "Matured rump steak", "priceCents": 11500 }
+          ],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": true,
+          "reviewNotes": "Price pairing appears ordered as listed option 1/2 from R100/R115; confirm with owner."
+        },
+        {
+          "item": "Prego Roll",
+          "description": "100% chicken or rump steak on a traditional Portuguese roll, marinated in our secret sauce, topped with onions (paired great with an egg).",
+          "price": null,
+          "variants": [
+            { "name": "Chicken", "priceCents": 9500 },
+            { "name": "Rump steak", "priceCents": 12000 }
+          ],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": true,
+          "reviewNotes": "Price pairing appears ordered as listed option 1/2 from R95/R120; confirm with owner."
+        },
+        {
+          "item": "Prego Especial",
+          "description": "Traditional Portuguese infused flavored rump steak topped with a fried egg, ham, lettuce, tomato and cheese. Served in a Portuguese roll.",
+          "price": 13500,
+          "variants": [],
+          "flags": { "new": true, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Tuna Steak Roll",
+          "description": "Tuna steak marinated in a delicious lemon garlic butter, topped with onions.",
+          "price": 13500,
+          "variants": [],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": true },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Chicken Wings",
+          "description": "Slow grilled chicken wings with an option of Lemon & Herb / Peri-Peri or BBQ.",
+          "price": 8500,
+          "variants": [],
+          "optionNotes": "Sauce options: Lemon & Herb, Peri-Peri, BBQ.",
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Chicken Strips & Fries",
+          "description": "Crispy chicken strips, served with fries and sweet chill mayo sauce.",
+          "price": 9500,
+          "variants": [],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Breakfast Gourmet Bun",
+          "description": "Bacon and egg to your liking, cheese, caramelized onions and rocket, with a base of creamy mayo served on a gourmet bun (served all day).",
+          "price": 7000,
+          "variants": [],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Breakfast Wrap",
+          "description": "Scrambled eggs with bacon bits, avocado, caramelized onion, cream cheese and rocket (strictly served until 12pm).",
+          "price": 11000,
+          "variants": [],
+          "flags": { "new": true, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Mains",
+      "layout": "visual",
+      "sourcePage": 1,
+      "items": [
+        {
+          "item": "Espetada Rump Skewer 300g",
+          "description": "Matured aged rump steak prepared in an authentic Portuguese style with coarse salt and bay leaves, drenched in garlic butter.",
+          "price": 18500,
+          "variants": [],
+          "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Espetada Chicken Skewer 300g",
+          "description": "Chicken fillet cubes grilled with your choice of sauce (Lemon & Herb / Peri-Peri / BBQ / Jozi's Creamy Garlic).",
+          "price": 17500,
+          "variants": [],
+          "optionNotes": "Sauce options: Lemon & Herb, Peri-Peri, BBQ, Jozi's Creamy Garlic.",
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        {
+          "item": "Espetada Kingklip Skewer 300g",
+          "description": "Fresh kingklip charred to perfection, grilled with lemon garlic butter, accompanied with a variety of peppers and red onion.",
+          "price": 19500,
+          "variants": [],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": true },
+          "sourcePage": 1,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Sides & Sauces",
+      "layout": "compact",
+      "sourcePage": 1,
+      "items": [
+        {
+          "item": "Milho Frito",
+          "description": "100 year old family recipe, brought over from Madeira Island by our grandmother.",
+          "price": 6000,
+          "variants": [],
+          "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": true },
+          "sourcePage": 1,
+          "needsReview": false
+        },
+        { "item": "Fries", "description": "", "price": 4500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false },
+        { "item": "Salad", "description": "", "price": 8500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false },
+        { "item": "Free Range Egg", "description": "", "price": 1500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false },
+        { "item": "Portuguese Roll", "description": "", "price": 1100, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false },
+        { "item": "Trinchado Sauce", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": true, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false },
+        { "item": "Jozi's Creamy Garlic Sauce", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 1, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Burgers",
+      "layout": "visual",
+      "sourcePage": 2,
+      "items": [
+        {
+          "item": "Siuuu! CR7",
+          "description": "Mild Portuguese peri-peri chicken fillet, stacked with grilled chorizo, crispy milho frito, mature cheddar cheese, fried egg, garnished with Portuguese parsley. Served with a 5pc milho frito.",
+          "price": 16000,
+          "variants": [],
+          "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": true, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "Creamy Garlic Classic",
+          "description": "Flame-grilled chicken fillet basted in creamy garlic, layered with crispy bacon, sweet grilled pineapple, peppadew, avocado, rocket and cheese. Served with fries.",
+          "price": 14500,
+          "variants": [],
+          "flags": { "new": true, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "5aSide",
+          "description": "200g flame-grilled pure beef BBQ burger, basted in signature BBQ sauce layered with bacon, fresh avocado, cheese, tangy gherkins, tomato, red onion, finished with a drizzle of smokey BBQ and creamy mayo. Served with crispy fries.",
+          "price": 14500,
+          "variants": [],
+          "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "Jozi's Sweet Side",
+          "description": "Flame-grilled chicken fillet basted in sweet tikka, marinated in signature basting, with cheese, bacon, sweet pineapple and crunchy shredded cabbage. Served with crispy fries.",
+          "price": 13500,
+          "variants": [],
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": true, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "The Benchwarmer",
+          "description": "Flame-grilled 200g pure beef patty, topped with cheese, lettuce, tomato and a signature cool-ranch drizzle. Served with fries.",
+          "price": 12500,
+          "variants": [],
+          "flags": { "new": true, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "Two Cheezy Joe's",
+          "description": "The legendary Cheezy Joe's 100g pure beef or 100% chicken fillet burgers, drizzled with creamy mayo and rich smokey BBQ sauce, topped with cheese (two burgers).",
+          "price": 9000,
+          "variants": [],
+          "optionNotes": "Choice of beef or chicken fillet.",
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Wraps",
+      "layout": "visual",
+      "sourcePage": 2,
+      "items": [
+        {
+          "item": "Philly Cheese Steak Wrap",
+          "description": "Loaded with tender shaved rump steak, a triple cheese melt, grilled onions and peppers - big flavour from the first bite to the last.",
+          "price": 13500,
+          "variants": [],
+          "flags": { "new": true, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "Crummy Chicken Wrap",
+          "description": "Crispy crumbed chicken fillet paired with sweet pineapple, tangy peppadew, fresh rocket and cream cheese, drizzled with tangy mayo and sweet chilli.",
+          "price": 12500,
+          "variants": [],
+          "flags": { "new": true, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        },
+        {
+          "item": "Chicken Wrap",
+          "description": "Chicken breast, cream cheese, sour cream, avocado, shredded cabbage, caramelized onion, pineapple and rocket.",
+          "price": 12500,
+          "variants": [],
+          "optionNotes": "Choose sauce: Sweet Tikka, Jozi's Creamy Garlic, Lemon & Herb, Peri-Peri, BBQ.",
+          "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 2,
+          "needsReview": false
+        }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "On The Go",
+      "layout": "compact",
+      "sourcePage": 2,
+      "items": [
+        { "item": "Footlong Hotdog", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 2, "needsReview": false },
+        { "item": "Grilled Russian Roll", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 2, "needsReview": false },
+        { "item": "Boerewors Roll", "description": "", "price": 4500, "variants": [], "optionNotes": "With or without onions.", "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 2, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Pizzas",
+      "layout": "visual",
+      "sourcePage": 3,
+      "categoryOptionNotes": "Extras listed but no prices in source PDF: Ham, Bacon, Chicken, Salami, Chorizo, Steak, Avo, Pineapple, Peppadews, Caramelized Onions, Mushrooms, Feta, Olives.",
+      "items": [
+        { "item": "Gabi", "description": "Classic margherita", "price": 11000, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Aleci", "description": "Ham & mushroom", "price": 13500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Avi", "description": "Rump steak & avocado", "price": 15000, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Amelia", "description": "Vegetarian", "price": 14500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Elandro", "description": "Bacon & avocado", "price": 14500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Mase", "description": "Salami & mushroom", "price": 14500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Giuli", "description": "Chicken, feta & peppadew", "price": 14500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": true, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Siana", "description": "Bacon & pineapple", "price": 15000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Bella", "description": "Sweet tikka chicken & pineapple", "price": 15000, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "Catti", "description": "Russian & caramelized onion", "price": 14000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "The Jackster", "description": "BBQ chicken, caramelized onion, pineapple & avocado", "price": 17000, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "The Maria de Carne", "description": "Chicken, bacon, pineapple, peppadew, feta, mushrooms & avocado", "price": 18500, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": true, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false },
+        { "item": "The T.O.P", "description": "Mild peri-peri chicken, chorizo, cocktail tomatoes, olives, feta & avocado", "price": 19500, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": true, "subjectToAvailability": false }, "sourcePage": 3, "needsReview": false }
+      ],
+      "needsReview": true,
+      "reviewNotes": "Pizza extras are listed without prices in source PDF. Keep as options-only until owner provides pricing."
+    },
+    {
+      "menuGroup": "food",
+      "name": "Kiddies",
+      "layout": "compact",
+      "sourcePage": 5,
+      "items": [
+        { "item": "Ham & Cheese Toastie", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Chicken Nuggets", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Footlong Hotdog", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Boerewors Roll", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Cheese Burger", "description": "", "price": 4500, "variants": [], "optionNotes": "Choice of chicken or beef.", "flags": { "new": false, "popular": true, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Fries", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Water", "description": "", "price": 2200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Energade", "description": "", "price": 2500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false },
+        { "item": "Soda / Fruto Juice", "description": "", "price": 2700, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 5, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "food",
+      "name": "Toasties",
+      "layout": "compact",
+      "sourcePage": 6,
+      "items": [
+        { "item": "Cheese", "description": "", "price": 2500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 6, "needsReview": false },
+        { "item": "Cheese Tomato Onion", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 6, "needsReview": false },
+        { "item": "Ham & Cheese", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 6, "needsReview": false },
+        { "item": "Ham Cheese Tomato", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 6, "needsReview": false },
+        { "item": "Bacon Egg Cheese", "description": "", "price": 4500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": false, "spicy": false, "subjectToAvailability": false }, "sourcePage": 6, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "On Tap",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Super Bock", "description": "", "price": 7000, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Stella Artois", "description": "", "price": 6500, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Castle Lite", "description": "", "price": 5500, "variants": [], "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Beers",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Castle Lite/Lager", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Black Label", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Heineken/Silver/0.0", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Windhoek Draught", "description": "", "price": 5300, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Corona", "description": "", "price": 4300, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Stella Artois", "description": "", "price": 4300, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Super Bock Green", "description": "", "price": 4500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Ciders",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Savana Dry/Light/0.0", "description": "", "price": 4200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Hunters Gold/Dry/Extreme", "description": "", "price": 4200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Smirnoff Spin/Storm/Pinetwist", "description": "", "price": 4200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Brutal Fruit", "description": "", "price": 4200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Flying Fish", "description": "", "price": 4200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Caribbean Twist", "description": "", "price": 4500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Kopperberg", "description": "", "price": 5500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Gin",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Strettons", "description": "", "price": 2800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Gordons", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Tanqueray / Seville", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Bombay", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Brandy",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Olofbergh / Klipdrift", "description": "", "price": 2800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Klipdrift Premium", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Richelieu", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "KWV 5Y", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "KWV 10Y", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "1920", "description": "", "price": 4000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Vodka",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Smirnoff 1818", "description": "", "price": 2800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Skyy", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Cruz Watermelon", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Cruz Vintage Black", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Rum",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Southern Comfort", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Spiced Gold", "description": "", "price": 3000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Red Heart", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Captain Morgan Dark", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Bacardi White", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Malibu", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Kraken", "description": "", "price": 4300, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Whiskey",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Bells / J&B", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Pogues", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Jameson", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Johnnie Walker Red", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Johnnie Walker Black", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Jack Daniels", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Glenmorangie", "description": "", "price": 5000, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Tullamore Dew", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Proper 12", "description": "", "price": 3800, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Macallan 12Y", "description": "", "price": 9500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Shooters",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        { "item": "Jagermeister / Jose Cuervo", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Caramel Vodka", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Cactus Jack", "description": "", "price": 3200, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Portuguese Poncha", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Ponchos", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false },
+        { "item": "Shanky's Whip", "description": "", "price": 3500, "variants": [], "flags": { "new": false, "popular": false, "vegetarian": true, "spicy": false, "subjectToAvailability": false }, "sourcePage": 4, "needsReview": false }
+      ]
+    },
+    {
+      "menuGroup": "drinks",
+      "name": "Double Up Specials",
+      "layout": "compact",
+      "sourcePage": 4,
+      "items": [
+        {
+          "item": "2 x Brandy / Rum / Whiskey / Vodka / Gin",
+          "description": "Includes pouring chasers (Coke / Coke Zero / Tonic / Soda Water / Lemonade).",
+          "price": 8000,
+          "variants": [],
+          "flags": { "new": false, "popular": true, "vegetarian": true, "spicy": false, "subjectToAvailability": false },
+          "sourcePage": 4,
+          "needsReview": false
+        }
+      ]
+    }
+  ],
+  "manualReview": [
+    {
+      "topic": "Variant price pairing",
+      "needsReview": true,
+      "items": ["Trinchado", "Prego Roll"],
+      "note": "Two prices are listed for two proteins. Assumed first option maps to first price."
+    },
+    {
+      "topic": "Pizza extras pricing",
+      "needsReview": true,
+      "items": ["Pizza extras list"],
+      "note": "Extras are listed without prices in source PDF."
+    }
+  ]
+}

@@ -102,6 +102,17 @@ export function AdminDashboardPage() {
 					</div>
 				</AdminPanel>
 			</section>
+
+			<section className="mt-4">
+				<AdminPanel title="Metric Definitions" description="Production dashboard scope for member and reward counters.">
+					<ul className="grid gap-1 text-sm text-brand-muted">
+						<li>Total Members: profiles where role = customer.</li>
+						<li>Active Members: profiles where role = customer and active = true.</li>
+						<li>New Members This Month: customer profiles created in the current month.</li>
+						<li>Outstanding Rewards: customer rewards with status = available.</li>
+					</ul>
+				</AdminPanel>
+			</section>
 		</main>
 	);
 }

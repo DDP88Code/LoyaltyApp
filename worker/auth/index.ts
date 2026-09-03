@@ -1,11 +1,13 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { eq } from "drizzle-orm";
 import { authSchemaOptions } from "@worker/auth/config";
 import { getDb } from "@worker/db/client";
 import * as schema from "@worker/db/schema";
-import { issueWelcomeReward } from "@worker/lib/loyalty";
+import {
+	ensureAuthUserProfile,
+	ensureAuthUserProfileById,
+} from "@worker/lib/provisioning";
 
 const DAY_SECONDS = 60 * 60 * 24;
 
@@ -36,31 +38,23 @@ function createAuth(env: Env, baseURL: string) {
 			user: {
 				create: {
 					after: async (createdUser) => {
-						const business = await db.query.businesses.findFirst({
-							where: eq(schema.businesses.slug, env.BUSINESS_SLUG),
-						});
-						if (!business) {
+						try {
+							await ensureAuthUserProfile(db, env, {
+								id: createdUser.id,
+								name: createdUser.name,
+								email: createdUser.email,
+							});
+						} catch (error) {
+							console.error("Auth sign-up provisioning failed", {
+								userId: createdUser.id,
+								email: createdUser.email,
+								error:
+									error instanceof Error ? error.message : String(error),
+							});
 							throw new APIError("INTERNAL_SERVER_ERROR", {
 								message:
 									"Registration is unavailable. Please try again shortly.",
 							});
-						}
-						// Role is hard-coded, never taken from the request. Public
-						// registration can only ever produce a customer.
-						const [profile] = await db
-							.insert(schema.profiles)
-							.values({
-								authUserId: createdUser.id,
-								businessId: business.id,
-								fullName: createdUser.name,
-								email: createdUser.email,
-								role: "customer",
-							})
-							.onConflictDoNothing()
-							.returning();
-
-						if (profile) {
-							await issueWelcomeReward(db, business.id, profile.id);
 						}
 					},
 				},
@@ -68,9 +62,24 @@ function createAuth(env: Env, baseURL: string) {
 			session: {
 				create: {
 					before: async (newSession) => {
-						const profile = await db.query.profiles.findFirst({
-							where: eq(schema.profiles.authUserId, newSession.userId),
-						});
+						let profile;
+						try {
+							profile = await ensureAuthUserProfileById(
+								db,
+								env,
+								newSession.userId,
+							);
+						} catch (error) {
+							console.error("Auth session provisioning failed", {
+								userId: newSession.userId,
+								error:
+									error instanceof Error ? error.message : String(error),
+							});
+							throw new APIError("INTERNAL_SERVER_ERROR", {
+								message:
+									"Sign-in is unavailable. Please try again shortly.",
+							});
+						}
 						if (profile && !profile.active) {
 							throw new APIError("FORBIDDEN", {
 								message:

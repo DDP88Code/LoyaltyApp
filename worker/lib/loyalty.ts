@@ -10,6 +10,7 @@ import type { Db } from "@worker/db/client";
 import type { Role } from "@shared/roles";
 import {
 	auditLogs,
+	appSettings,
 	customerRewards,
 	loyaltyPrograms,
 	loyaltyTransactions,
@@ -185,6 +186,17 @@ export async function issueWelcomeReward(
 	businessId: string,
 	customerId: string,
 ): Promise<void> {
+	const welcomeEnabled = await db.query.appSettings.findFirst({
+		where: and(
+			eq(appSettings.businessId, businessId),
+			eq(appSettings.key, "welcome_reward_enabled"),
+		),
+		columns: { valueJson: true },
+	});
+	if (typeof welcomeEnabled?.valueJson === "boolean" && !welcomeEnabled.valueJson) {
+		return;
+	}
+
 	const welcome = await db.query.rewardDefinitions.findFirst({
 		where: and(
 			eq(rewardDefinitions.businessId, businessId),

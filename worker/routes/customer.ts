@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionPayload } from "@shared/api";
@@ -16,7 +16,14 @@ import {
 	updateProfileSchema,
 } from "@shared/profile";
 import { getDb } from "@worker/db/client";
-import { auditLogs, menuCategories, menuItems, profiles, promotions } from "@worker/db/schema";
+import {
+	auditLogs,
+	menuCategories,
+	menuItems,
+	menuItemVariants,
+	profiles,
+	promotions,
+} from "@worker/db/schema";
 import { ok } from "@worker/lib/http";
 import {
 	getCoffeeProgress,
@@ -199,13 +206,45 @@ export const customer = new Hono<AppEnv>()
 						eq(menuItems.active, true),
 					),
 				)
-				.orderBy(asc(menuItems.sortOrder)),
+				.orderBy(asc(menuItems.sortOrder), asc(menuItems.name)),
 		]);
+
+		const variantRows =
+			itemRows.length === 0
+				? []
+				: await db
+					.select()
+					.from(menuItemVariants)
+					.where(
+						and(
+							eq(menuItemVariants.active, true),
+							inArray(
+								menuItemVariants.menuItemId,
+								itemRows.map((item) => item.id),
+							),
+						),
+					)
+					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
+
+		const variantsByItemId = new Map<
+			string,
+			{ id: string; name: string; priceCents: number }[]
+		>();
+		for (const variant of variantRows) {
+			const list = variantsByItemId.get(variant.menuItemId) ?? [];
+			list.push({
+				id: variant.id,
+				name: variant.name,
+				priceCents: variant.priceCents,
+			});
+			variantsByItemId.set(variant.menuItemId, list);
+		}
 
 		const categories: MenuCategorySummary[] = categoryRows.map((category) => ({
 			id: category.id,
 			name: category.name,
 			description: category.description,
+			menuGroup: category.menuGroup,
 			imageKey: category.imageKey,
 			items: itemRows
 				.filter((item) => item.categoryId === category.id)
@@ -213,12 +252,16 @@ export const customer = new Hono<AppEnv>()
 					id: item.id,
 					name: item.name,
 					description: item.description,
+					optionNotes: item.optionNotes,
 					priceCents: item.priceCents,
 					imageKey: item.imageKey,
 					popular: item.popular,
 					vegetarian: item.vegetarian,
 					spicy: item.spicy,
+					isNew: item.isNew,
+					subjectToAvailability: item.subjectToAvailability,
 					available: item.available,
+					variants: variantsByItemId.get(item.id) ?? [],
 				})),
 		}));
 

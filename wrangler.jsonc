@@ -33,5 +33,28 @@
 			"binding": "MEDIA",
 			"bucket_name": "fives-rewards-media"
 		}
-	]
+	],
+
+	"env": {
+		"production": {
+			"vars": {
+				"APP_ENV": "production",
+				"BUSINESS_SLUG": "fives-pub-and-grill"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "fives-rewards-db",
+					"database_id": "e1d41192-7b5b-47b1-9a61-65bdf43a2e8b",
+					"migrations_dir": "drizzle/migrations"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "MEDIA",
+					"bucket_name": "fives-rewards-media"
+				}
+			]
+		}
+	}
 }

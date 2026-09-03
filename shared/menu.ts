@@ -1,9 +1,23 @@
+export type MenuGroup = "food" | "drinks";
+
 export interface AdminMenuCategory {
 	id: string;
 	businessId: string;
 	name: string;
 	description: string | null;
+	menuGroup: MenuGroup;
 	imageKey: string | null;
+	sortOrder: number;
+	active: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface AdminMenuItemVariant {
+	id: string;
+	menuItemId: string;
+	name: string;
+	priceCents: number;
 	sortOrder: number;
 	active: boolean;
 	createdAt: string;
@@ -16,6 +30,7 @@ export interface AdminMenuItem {
 	categoryId: string;
 	name: string;
 	description: string;
+	optionNotes: string;
 	priceCents: number;
 	imageKey: string | null;
 	active: boolean;
@@ -23,6 +38,9 @@ export interface AdminMenuItem {
 	popular: boolean;
 	vegetarian: boolean;
 	spicy: boolean;
+	isNew: boolean;
+	subjectToAvailability: boolean;
+	variants: AdminMenuItemVariant[];
 	sortOrder: number;
 	createdAt: string;
 	updatedAt: string;

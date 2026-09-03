@@ -195,3 +195,43 @@ export interface AdminSettingsPayload {
 	welcomeRewardEnabled: boolean;
 	loyaltyCodeTtlSeconds: number;
 }
+
+export interface AdminSettingsUpdateInput {
+	welcomeRewardEnabled?: boolean;
+	loyaltyCodeTtlSeconds?: number;
+}
+
+export interface ReportSummaryMetrics {
+	totalMembers: number;
+	newMembersInRange: number;
+	coffeeTransactions: number;
+	coffeesPurchased: number;
+	rewardsIssued: number;
+	rewardsRedeemed: number;
+	outstandingRewards: number;
+	redemptionRatePercent: number;
+}
+
+export interface ReportStaffActivity {
+	staffId: string;
+	staffName: string;
+	staffRole: Role;
+	totalTransactions: number;
+	earnTransactions: number;
+	coffeesAdded: number;
+	redeemTransactions: number;
+	adjustmentTransactions: number;
+	reversalTransactions: number;
+}
+
+export interface AdminReportsPayload {
+	from: string;
+	to: string;
+	locationId: string | null;
+	metrics: ReportSummaryMetrics;
+	newMembersOverTime: DayValuePoint[];
+	coffeePurchasesOverTime: DayValuePoint[];
+	rewardsIssuedOverTime: DayValuePoint[];
+	rewardsRedeemedOverTime: DayValuePoint[];
+	staffActivity: ReportStaffActivity[];
+}

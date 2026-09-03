@@ -38,6 +38,7 @@ can reach the Worker.
 | ------------------------- | --------------------------------------------- |
 | `npm run dev`             | Dev server (SPA + Worker together)            |
 | `npm run build`           | Production build                              |
+| `npm run build:prod`      | Production build with `CLOUDFLARE_ENV=production` |
 | `npm run preview`         | Build, then serve via the Workers runtime     |
 | `npm run typecheck`       | Typecheck app, Worker and build configs       |
 | `npm run cf-typegen`      | Regenerate `worker-configuration.d.ts`        |
@@ -45,7 +46,9 @@ can reach the Worker.
 | `npm run db:migrate:local`| Apply migrations to the local D1              |
 | `npm run db:seed:local`   | Seed development data (dev server must be up) |
 | `npm run auth:generate`   | Regenerate the Better Auth tables in the schema |
+| `npm run test:auth`       | Auth regression smoke (signup/provisioning/session/logout) |
 | `npm run deploy`          | Build and deploy the Worker                   |
+| `npm run deploy:prod`     | Production-targeted build, then deploy to Wrangler `production` env |
 
 Run `npm run cf-typegen` after any change to `wrangler.jsonc`.
 
@@ -63,6 +66,9 @@ Rules the server enforces regardless of what the browser sends:
 
 - Public registration always creates `customer`. The role is hard-coded in the
   Worker's user-creation hook, so a `role` field in the request body is ignored.
+- If an auth user exists without an app profile (for example after a failed
+  provisioning hook), the Worker now auto-reconciles the profile and welcome
+  reward at session creation / session use, so the account can recover safely.
 - A deactivated profile is refused a new session and its existing sessions stop
   working on the next request.
 - Route guards in React are a navigation convenience only. Every request is
@@ -254,6 +260,32 @@ npm run db:migrate:remote
 ```
 
 Bindings: `DB` (D1), `MEDIA` (R2), `ASSETS` (static assets).
+
+## Production deploy + first admin bootstrap
+
+Set production Worker secrets once:
+
+```bash
+npx wrangler secret put BETTER_AUTH_SECRET --env production
+npx wrangler secret put TURNSTILE_SECRET_KEY --env production
+```
+
+Deploy production with one command:
+
+```bash
+npm run deploy:prod
+```
+
+Bootstrap your first admin (or owner) account:
+
+1. Register normally on `/register` at your deployed URL.
+2. Promote that account in D1 with one command:
+
+```bash
+npx wrangler d1 execute fives-rewards-db --remote --env production --command "UPDATE profiles SET role='admin', active=1 WHERE email='YOUR_EMAIL@example.com'"
+```
+
+Use `role='owner'` instead of `role='admin'` if you want full role-elevation control in Admin Staff management.
 
 ## Environment and secrets
 

@@ -3,7 +3,9 @@ import type {
 	AdminMenuCategoriesPayload,
 	AdminMenuCategory,
 	AdminMenuItem,
+	AdminMenuItemVariant,
 	AdminMenuItemsPayload,
+	MenuGroup,
 	MenuImageDeletePayload,
 	MenuImageUploadPayload,
 } from "@shared/menu";
@@ -15,6 +17,7 @@ const itemsQueryKey = ["admin", "menu", "items"] as const;
 interface CategoryInput {
 	name: string;
 	description: string | null;
+	menuGroup: MenuGroup;
 	imageKey: string | null;
 	sortOrder: number;
 	active: boolean;
@@ -24,6 +27,7 @@ interface ItemInput {
 	categoryId: string;
 	name: string;
 	description: string;
+	optionNotes: string | null;
 	priceCents: number;
 	imageKey: string | null;
 	active: boolean;
@@ -31,6 +35,11 @@ interface ItemInput {
 	popular: boolean;
 	vegetarian: boolean;
 	spicy: boolean;
+	isNew: boolean;
+	subjectToAvailability: boolean;
+	variants: Array<
+		Pick<AdminMenuItemVariant, "name" | "priceCents" | "sortOrder" | "active">
+	>;
 	sortOrder: number;
 }
 

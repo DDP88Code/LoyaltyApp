@@ -14,7 +14,6 @@ import { AdminPanel } from "@/features/admin/core/widgets";
 const PAGE_SIZE = 20;
 
 const NEW_STAFF: StaffInput = {
-	authUserId: "",
 	fullName: "",
 	email: "",
 	mobileNumber: null,
@@ -29,6 +28,7 @@ export function AdminStaffPage() {
 	const [form, setForm] = useState<StaffInput>(NEW_STAFF);
 	const [editingId, setEditingId] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState<string | null>(null);
 
 	const staffQuery = useAdminStaff({ search, limit: PAGE_SIZE, offset });
 	const createStaff = useCreateStaff();
@@ -51,15 +51,21 @@ export function AdminStaffPage() {
 	const locations = staffQuery.data.locations;
 
 	function loadForEdit(staffId: string) {
+		setError(null);
+		setSuccess(null);
 		setEditingId(staffId);
 		const member = rows.find((row) => row.id === staffId);
 		if (!member) return;
+		if (member.role === "owner") {
+			setEditingId("");
+			setError("Owner accounts cannot be edited from this form.");
+			return;
+		}
 		setForm({
-			authUserId: "",
 			fullName: member.fullName,
 			email: member.email,
-			mobileNumber: member.mobileNumber,
-			role: member.role === "customer" ? "staff" : member.role,
+			mobileNumber: member.mobileNumber ?? null,
+			role: member.role === "admin" ? "admin" : "staff",
 			assignedLocationId: member.assignedLocationId,
 			active: member.active,
 		});
@@ -67,11 +73,16 @@ export function AdminStaffPage() {
 
 	async function save() {
 		setError(null);
+		setSuccess(null);
 		try {
 			if (editingId) {
 				await updateStaff.mutateAsync({ id: editingId, ...form });
+				setSuccess("Staff profile updated.");
 			} else {
 				await createStaff.mutateAsync(form);
+				setSuccess(
+					"Staff access assigned. If the account already existed, it has been promoted by email.",
+				);
 			}
 			setForm(NEW_STAFF);
 			setEditingId("");
@@ -85,11 +96,14 @@ export function AdminStaffPage() {
 		<main className="mx-auto w-full max-w-7xl p-6">
 			<PageHeader
 				title="Staff"
-				subtitle="List, create/invite profiles, assign locations, and protect role elevation."
+				subtitle="Assign staff access by email, set locations, and enforce role elevation controls."
 			/>
 
 			<div className="grid gap-4 xl:grid-cols-[340px_1fr]">
-				<AdminPanel title="Staff list">
+				<AdminPanel
+					title="Staff list"
+					description="Use create for new assignments, or select a staff/admin profile to edit."
+				>
 					<Input
 						label="Search"
 						value={search}
@@ -145,14 +159,10 @@ export function AdminStaffPage() {
 				<AdminPanel title={editingId ? "Edit staff profile" : "Create staff profile"}>
 					<div className="grid gap-3 md:grid-cols-2">
 						{!editingId && (
-							<Input
-								label="Auth user id"
-								value={form.authUserId}
-								onChange={(event) =>
-									setForm((value) => ({ ...value, authUserId: event.target.value }))
-								}
-								hint="Better Auth user id to link this staff profile."
-							/>
+							<p className="md:col-span-2 rounded-lg border border-brand-border bg-brand-background/30 p-3 text-sm text-brand-muted">
+								Enter an existing account email to promote/assign it. If the email has not registered yet,
+								 ask them to sign up first, then retry.
+							</p>
 						)}
 						<Input
 							label="Full name"
@@ -194,7 +204,6 @@ export function AdminStaffPage() {
 							>
 								<option value="staff">staff</option>
 								<option value="admin">admin</option>
-								<option value="owner">owner</option>
 							</select>
 						</div>
 						<div className="grid gap-1">
@@ -234,17 +243,20 @@ export function AdminStaffPage() {
 					</div>
 
 					{error && <p className="mt-2 text-sm text-brand-danger">{error}</p>}
+					{success && <p className="mt-2 text-sm text-brand-success">{success}</p>}
 					<div className="mt-3 flex gap-2">
 						<Button
 							loading={createStaff.isPending || updateStaff.isPending}
 							onClick={() => void save()}
 						>
-							{editingId ? "Save profile" : "Create profile"}
+							{editingId ? "Save profile" : "Assign staff access"}
 						</Button>
 						{editingId && (
 							<Button
 								variant="outline"
 								onClick={() => {
+									setError(null);
+									setSuccess(null);
 									setEditingId("");
 									setForm(NEW_STAFF);
 								}}

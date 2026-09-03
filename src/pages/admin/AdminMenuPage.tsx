@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { Link } from "react-router";
+import type { MenuGroup } from "@shared/menu";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
@@ -22,28 +24,41 @@ import { formatCents } from "@/lib/money";
 interface CategoryFormState {
 	name: string;
 	description: string;
+	menuGroup: MenuGroup;
 	sortOrder: number;
 	active: boolean;
 	imageKey: string | null;
+}
+
+interface VariantFormState {
+	name: string;
+	priceRand: string;
+	sortOrder: number;
+	active: boolean;
 }
 
 interface ItemFormState {
 	categoryId: string;
 	name: string;
 	description: string;
-	priceCents: number;
+	optionNotes: string;
+	priceRand: string;
 	sortOrder: number;
 	active: boolean;
 	available: boolean;
 	popular: boolean;
 	vegetarian: boolean;
 	spicy: boolean;
+	isNew: boolean;
+	subjectToAvailability: boolean;
 	imageKey: string | null;
+	variants: VariantFormState[];
 }
 
 const EMPTY_CATEGORY_FORM: CategoryFormState = {
 	name: "",
 	description: "",
+	menuGroup: "food",
 	sortOrder: 0,
 	active: true,
 	imageKey: null,
@@ -53,19 +68,36 @@ const EMPTY_ITEM_FORM: ItemFormState = {
 	categoryId: "",
 	name: "",
 	description: "",
-	priceCents: 0,
+	optionNotes: "",
+	priceRand: "0.00",
 	sortOrder: 0,
 	active: true,
 	available: true,
 	popular: false,
 	vegetarian: false,
 	spicy: false,
+	isNew: false,
+	subjectToAvailability: false,
 	imageKey: null,
+	variants: [],
 };
 
 function messageFromError(error: unknown): string {
 	if (error instanceof Error) return error.message;
 	return "Something went wrong. Please try again.";
+}
+
+function centsToRandInput(value: number): string {
+	return (value / 100).toFixed(2);
+}
+
+function parseRandToCents(value: string): number | null {
+	const normalized = value.replace(/,/g, ".").trim();
+	if (!normalized) return null;
+	const parsed = Number.parseFloat(normalized);
+	if (!Number.isFinite(parsed)) return null;
+	if (parsed < 0) return null;
+	return Math.round(parsed * 100);
 }
 
 function ToggleRow({
@@ -118,6 +150,15 @@ export function AdminMenuPage() {
 
 	const [formError, setFormError] = useState<string | null>(null);
 
+	const orderedCategories = useMemo(
+		() =>
+			[...categories].sort((a, b) => {
+				if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+				return a.name.localeCompare(b.name);
+			}),
+		[categories],
+	);
+
 	const selectedCategory = useMemo(
 		() => categories.find((category) => category.id === selectedCategoryId) ?? null,
 		[categories, selectedCategoryId],
@@ -126,6 +167,16 @@ export function AdminMenuPage() {
 		() => items.find((item) => item.id === selectedItemId) ?? null,
 		[items, selectedItemId],
 	);
+
+	const selectedCategoryItems = useMemo(() => {
+		if (!selectedCategory) return [];
+		return items
+			.filter((item) => item.categoryId === selectedCategory.id)
+			.sort((a, b) => {
+				if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+				return a.name.localeCompare(b.name);
+			});
+	}, [items, selectedCategory]);
 
 	useEffect(() => {
 		if (!selectedCategory) {
@@ -137,6 +188,7 @@ export function AdminMenuPage() {
 		setCategoryForm({
 			name: selectedCategory.name,
 			description: selectedCategory.description ?? "",
+			menuGroup: selectedCategory.menuGroup,
 			sortOrder: selectedCategory.sortOrder,
 			active: selectedCategory.active,
 			imageKey: selectedCategory.imageKey,
@@ -159,14 +211,23 @@ export function AdminMenuPage() {
 			categoryId: selectedItem.categoryId,
 			name: selectedItem.name,
 			description: selectedItem.description,
-			priceCents: selectedItem.priceCents,
+			optionNotes: selectedItem.optionNotes,
+			priceRand: centsToRandInput(selectedItem.priceCents),
 			sortOrder: selectedItem.sortOrder,
 			active: selectedItem.active,
 			available: selectedItem.available,
 			popular: selectedItem.popular,
 			vegetarian: selectedItem.vegetarian,
 			spicy: selectedItem.spicy,
+			isNew: selectedItem.isNew,
+			subjectToAvailability: selectedItem.subjectToAvailability,
 			imageKey: selectedItem.imageKey,
+			variants: selectedItem.variants.map((variant) => ({
+				name: variant.name,
+				priceRand: centsToRandInput(variant.priceCents),
+				sortOrder: variant.sortOrder,
+				active: variant.active,
+			})),
 		});
 		setItemImageFile(null);
 		setRemoveItemImage(false);
@@ -204,6 +265,7 @@ export function AdminMenuPage() {
 			const payload = {
 				name: categoryForm.name.trim(),
 				description: categoryForm.description.trim() || null,
+				menuGroup: categoryForm.menuGroup,
 				sortOrder: categoryForm.sortOrder,
 				active: categoryForm.active,
 				imageKey: nextImageKey,
@@ -237,6 +299,36 @@ export function AdminMenuPage() {
 			return;
 		}
 
+		const itemPriceCents = parseRandToCents(itemForm.priceRand);
+		if (itemPriceCents === null) {
+			setFormError("Item price must be a valid Rand amount.");
+			return;
+		}
+
+		const variantPayload: Array<{
+			name: string;
+			priceCents: number;
+			sortOrder: number;
+			active: boolean;
+		}> = [];
+		for (const [index, variant] of itemForm.variants.entries()) {
+			if (!variant.name.trim()) {
+				setFormError(`Variant ${index + 1} needs a name.`);
+				return;
+			}
+			const priceCents = parseRandToCents(variant.priceRand);
+			if (priceCents === null) {
+				setFormError(`Variant ${index + 1} has an invalid Rand price.`);
+				return;
+			}
+			variantPayload.push({
+				name: variant.name.trim(),
+				priceCents,
+				sortOrder: variant.sortOrder,
+				active: variant.active,
+			});
+		}
+
 		let uploadedKey: string | null = null;
 		try {
 			uploadedKey = await maybeUploadImage(itemImageFile);
@@ -250,14 +342,18 @@ export function AdminMenuPage() {
 				categoryId: itemForm.categoryId,
 				name: itemForm.name.trim(),
 				description: itemForm.description.trim(),
-				priceCents: itemForm.priceCents,
+				optionNotes: itemForm.optionNotes.trim() || null,
+				priceCents: itemPriceCents,
 				sortOrder: itemForm.sortOrder,
 				active: itemForm.active,
 				available: itemForm.available,
 				popular: itemForm.popular,
 				vegetarian: itemForm.vegetarian,
 				spicy: itemForm.spicy,
+				isNew: itemForm.isNew,
+				subjectToAvailability: itemForm.subjectToAvailability,
 				imageKey: nextImageKey,
+				variants: variantPayload,
 			};
 
 			if (selectedItemId) {
@@ -277,6 +373,49 @@ export function AdminMenuPage() {
 		}
 	}
 
+	async function onMoveCategory(direction: -1 | 1) {
+		if (!selectedCategory) return;
+		const index = orderedCategories.findIndex((row) => row.id === selectedCategory.id);
+		const target = orderedCategories[index + direction];
+		if (!target) return;
+
+		setFormError(null);
+		try {
+			await updateCategory.mutateAsync({
+				id: selectedCategory.id,
+				sortOrder: target.sortOrder,
+			});
+			await updateCategory.mutateAsync({
+				id: target.id,
+				sortOrder: selectedCategory.sortOrder,
+			});
+		} catch (error) {
+			setFormError(messageFromError(error));
+		}
+	}
+
+	async function onMoveItem(direction: -1 | 1) {
+		if (!selectedItem) return;
+		const sorted = selectedCategoryItems;
+		const index = sorted.findIndex((row) => row.id === selectedItem.id);
+		const target = sorted[index + direction];
+		if (!target) return;
+
+		setFormError(null);
+		try {
+			await updateItem.mutateAsync({
+				id: selectedItem.id,
+				sortOrder: target.sortOrder,
+			});
+			await updateItem.mutateAsync({
+				id: target.id,
+				sortOrder: selectedItem.sortOrder,
+			});
+		} catch (error) {
+			setFormError(messageFromError(error));
+		}
+	}
+
 	const loadingInitial = categoriesQuery.isPending || itemsQuery.isPending;
 	const loadingMutation =
 		createCategory.isPending ||
@@ -289,7 +428,7 @@ export function AdminMenuPage() {
 		<main className="mx-auto w-full max-w-6xl p-6">
 			<PageHeader
 				title="Menu Management"
-				subtitle="Categories, items, sold-out status, and secure menu image uploads."
+				subtitle="Food/drinks categories, premium item details, variants, sold-out controls, and secure image uploads."
 				actions={
 					<Link
 						to="/admin/promotions"
@@ -319,7 +458,7 @@ export function AdminMenuPage() {
 					<Card>
 						<CardTitle>Category Editor</CardTitle>
 						<CardDescription>
-							Create, rename, reorder, and activate or deactivate categories.
+							Create, group, reorder, and activate/deactivate categories.
 						</CardDescription>
 
 						<div className="mt-4 flex flex-col gap-3">
@@ -333,9 +472,9 @@ export function AdminMenuPage() {
 								onChange={(event) => setSelectedCategoryId(event.target.value)}
 							>
 								<option value="">Create new category</option>
-								{categories.map((category) => (
+								{orderedCategories.map((category) => (
 									<option key={category.id} value={category.id}>
-										{category.name}
+										{category.menuGroup.toUpperCase()} - {category.name}
 									</option>
 								))}
 							</select>
@@ -350,8 +489,12 @@ export function AdminMenuPage() {
 									}))
 								}
 							/>
-							<Input
-								label="Description"
+
+							<label className="text-sm font-medium" htmlFor="categoryDescription">
+								Description
+							</label>
+							<textarea
+								id="categoryDescription"
 								value={categoryForm.description}
 								onChange={(event) =>
 									setCategoryForm((current) => ({
@@ -359,18 +502,27 @@ export function AdminMenuPage() {
 										description: event.target.value,
 									}))
 								}
+								rows={3}
+								className="rounded-xl border border-brand-border bg-brand-surface px-3 py-2 text-sm"
 							/>
-							<Input
-								label="Sort order"
-								type="number"
-								value={categoryForm.sortOrder}
+
+							<label className="text-sm font-medium" htmlFor="categoryGroup">
+								Primary group
+							</label>
+							<select
+								id="categoryGroup"
+								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
+								value={categoryForm.menuGroup}
 								onChange={(event) =>
 									setCategoryForm((current) => ({
 										...current,
-										sortOrder: Number(event.target.value || 0),
+										menuGroup: event.target.value as MenuGroup,
 									}))
 								}
-							/>
+							>
+								<option value="food">Food</option>
+								<option value="drinks">Drinks</option>
+							</select>
 
 							<ToggleRow
 								label="Active"
@@ -409,18 +561,31 @@ export function AdminMenuPage() {
 								/>
 							)}
 
-							<div className="flex gap-3">
+							<div className="flex flex-wrap gap-3">
 								<Button
 									onClick={() => void onSaveCategory()}
 									loading={loadingMutation}
 								>
 									{selectedCategoryId ? "Save category" : "Create category"}
 								</Button>
+								<Button variant="outline" onClick={() => setSelectedCategoryId("")}>
+									New
+								</Button>
 								<Button
 									variant="outline"
-									onClick={() => setSelectedCategoryId("")}
+									disabled={!selectedCategory}
+									onClick={() => void onMoveCategory(-1)}
 								>
-									New
+									<ArrowUp className="size-4" aria-hidden />
+									Move up
+								</Button>
+								<Button
+									variant="outline"
+									disabled={!selectedCategory}
+									onClick={() => void onMoveCategory(1)}
+								>
+									<ArrowDown className="size-4" aria-hidden />
+									Move down
 								</Button>
 							</div>
 						</div>
@@ -429,7 +594,7 @@ export function AdminMenuPage() {
 					<Card>
 						<CardTitle>Item Editor</CardTitle>
 						<CardDescription>
-							Create, edit, sort, and control sold-out availability.
+							Create, edit, reorder, and manage sold-out/visibility state with variants.
 						</CardDescription>
 
 						{categories.length === 0 ? (
@@ -470,9 +635,9 @@ export function AdminMenuPage() {
 										}))
 									}
 								>
-									{categories.map((category) => (
+									{orderedCategories.map((category) => (
 										<option key={category.id} value={category.id}>
-											{category.name}
+											{category.menuGroup.toUpperCase()} - {category.name}
 										</option>
 									))}
 								</select>
@@ -487,8 +652,12 @@ export function AdminMenuPage() {
 										}))
 									}
 								/>
-								<Input
-									label="Description"
+
+								<label className="text-sm font-medium" htmlFor="itemDescription">
+									Description
+								</label>
+								<textarea
+									id="itemDescription"
 									value={itemForm.description}
 									onChange={(event) =>
 										setItemForm((current) => ({
@@ -496,29 +665,134 @@ export function AdminMenuPage() {
 											description: event.target.value,
 										}))
 									}
+									rows={4}
+									className="rounded-xl border border-brand-border bg-brand-surface px-3 py-2 text-sm"
 								/>
-								<Input
-									label="Price (cents)"
-									type="number"
-									value={itemForm.priceCents}
+
+								<label className="text-sm font-medium" htmlFor="itemOptionNotes">
+									Options/notes (non-priced choices)
+								</label>
+								<textarea
+									id="itemOptionNotes"
+									value={itemForm.optionNotes}
 									onChange={(event) =>
 										setItemForm((current) => ({
 											...current,
-											priceCents: Number(event.target.value || 0),
+											optionNotes: event.target.value,
 										}))
 									}
+									rows={3}
+									className="rounded-xl border border-brand-border bg-brand-surface px-3 py-2 text-sm"
 								/>
+
 								<Input
-									label="Sort order"
-									type="number"
-									value={itemForm.sortOrder}
+									label="Price (R)"
+									type="text"
+									value={itemForm.priceRand}
 									onChange={(event) =>
 										setItemForm((current) => ({
 											...current,
-											sortOrder: Number(event.target.value || 0),
+											priceRand: String(event.target.value),
 										}))
 									}
+									hint="Shown as Rand in admin; stored as cents in D1."
 								/>
+
+								<div className="rounded-xl border border-brand-border p-3">
+									<div className="mb-2 flex items-center justify-between gap-2">
+										<p className="text-sm font-semibold">Variants</p>
+										<Button
+											variant="outline"
+											onClick={() =>
+												setItemForm((current) => ({
+													...current,
+													variants: [
+														...current.variants,
+														{
+															name: "",
+															priceRand: "0.00",
+															sortOrder: current.variants.length,
+															active: true,
+														},
+													],
+												}))
+											}
+										>
+											Add variant
+										</Button>
+									</div>
+									{itemForm.variants.length === 0 ? (
+										<p className="text-sm text-brand-muted">No variants yet.</p>
+									) : (
+										<div className="grid gap-3">
+											{itemForm.variants.map((variant, index) => (
+												<div key={`variant-${index}`} className="rounded-lg border border-brand-border p-3">
+													<div className="grid gap-2 md:grid-cols-2">
+														<Input
+															label={`Variant ${index + 1} name`}
+															value={variant.name}
+															onChange={(event) =>
+																setItemForm((current) => ({
+																	...current,
+																	variants: current.variants.map((row, rowIndex) =>
+																		rowIndex === index
+																			? { ...row, name: String(event.target.value) }
+																			: row,
+																	),
+																}))
+															}
+														/>
+														<Input
+															label="Price (R)"
+															type="text"
+															value={variant.priceRand}
+															onChange={(event) =>
+																setItemForm((current) => ({
+																	...current,
+																	variants: current.variants.map((row, rowIndex) =>
+																		rowIndex === index
+																			? { ...row, priceRand: String(event.target.value) }
+																			: row,
+																	),
+																}))
+															}
+														/>
+													</div>
+													<div className="mt-2 flex flex-wrap gap-2">
+														<ToggleRow
+															label="Variant active"
+															checked={variant.active}
+															onChange={(checked) =>
+																setItemForm((current) => ({
+																	...current,
+																	variants: current.variants.map((row, rowIndex) =>
+																		rowIndex === index ? { ...row, active: checked } : row,
+																	),
+																}))
+															}
+														/>
+														<Button
+															variant="outline"
+															onClick={() =>
+																setItemForm((current) => ({
+																	...current,
+																	variants: current.variants
+																		.filter((_, rowIndex) => rowIndex !== index)
+																		.map((row, rowIndex) => ({
+																			...row,
+																			sortOrder: rowIndex,
+																		})),
+																}))
+															}
+														>
+															Remove
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
 
 								<div className="grid grid-cols-2 gap-2">
 									<ToggleRow
@@ -556,6 +830,23 @@ export function AdminMenuPage() {
 											setItemForm((current) => ({ ...current, spicy: checked }))
 										}
 									/>
+									<ToggleRow
+										label="New"
+										checked={itemForm.isNew}
+										onChange={(checked) =>
+											setItemForm((current) => ({ ...current, isNew: checked }))
+										}
+									/>
+									<ToggleRow
+										label="Subject to availability"
+										checked={itemForm.subjectToAvailability}
+										onChange={(checked) =>
+											setItemForm((current) => ({
+												...current,
+												subjectToAvailability: checked,
+											}))
+										}
+									/>
 								</div>
 
 								{itemForm.imageKey && !removeItemImage && !itemImageFile && (
@@ -587,18 +878,31 @@ export function AdminMenuPage() {
 									/>
 								)}
 
-								<div className="flex gap-3">
+								<div className="flex flex-wrap gap-3">
 									<Button
 										onClick={() => void onSaveItem()}
 										loading={loadingMutation}
 									>
 										{selectedItemId ? "Save item" : "Create item"}
 									</Button>
+									<Button variant="outline" onClick={() => setSelectedItemId("")}>
+										New
+									</Button>
 									<Button
 										variant="outline"
-										onClick={() => setSelectedItemId("")}
+										disabled={!selectedItem}
+										onClick={() => void onMoveItem(-1)}
 									>
-										New
+										<ArrowUp className="size-4" aria-hidden />
+										Move up
+									</Button>
+									<Button
+										variant="outline"
+										disabled={!selectedItem}
+										onClick={() => void onMoveItem(1)}
+									>
+										<ArrowDown className="size-4" aria-hidden />
+										Move down
 									</Button>
 								</div>
 							</div>
@@ -608,50 +912,71 @@ export function AdminMenuPage() {
 					<Card className="lg:col-span-2">
 						<CardTitle>Live Menu Snapshot</CardTitle>
 						<CardDescription>
-							This list reflects current category and item status, including sold-out.
+							Current customer-visible menu grouped by FOOD and DRINKS.
 						</CardDescription>
 
-						{categories.length === 0 ? (
+						{orderedCategories.length === 0 ? (
 							<EmptyState
 								title="No categories yet"
 								description="Create your first menu category above."
 							/>
 						) : (
-							<div className="mt-4 space-y-6">
-								{categories.map((category) => (
-									<section key={category.id}>
-										<div className="mb-2 flex items-center gap-2">
-											<p className="font-semibold">{category.name}</p>
-											{!category.active && <Badge tone="danger">Inactive</Badge>}
-										</div>
-										<div className="grid gap-2 md:grid-cols-2">
-											{items
-												.filter((item) => item.categoryId === category.id)
-												.map((item) => (
-													<div
-														key={item.id}
-														className="rounded-xl border border-brand-border p-3"
-													>
-														<div className="flex items-center justify-between gap-3">
-															<p className="font-medium">{item.name}</p>
-															<p className="text-sm text-brand-muted">
-																{formatCents(item.priceCents)}
-															</p>
+							<div className="mt-4 space-y-8">
+								{(["food", "drinks"] as const).map((group) => {
+									const grouped = orderedCategories.filter(
+										(category) => category.menuGroup === group,
+									);
+									if (grouped.length === 0) return null;
+									return (
+										<section key={group}>
+											<h4 className="mb-3 text-xs tracking-[0.35em] text-brand-secondary uppercase">
+												{group}
+											</h4>
+											<div className="space-y-6">
+												{grouped.map((category) => (
+													<section key={category.id}>
+														<div className="mb-2 flex items-center gap-2">
+															<p className="font-semibold">{category.name}</p>
+															{!category.active && <Badge tone="danger">Inactive</Badge>}
 														</div>
-														<div className="mt-2 flex flex-wrap gap-1.5">
-															{!item.active && <Badge tone="danger">Inactive</Badge>}
-															{!item.available && <Badge tone="danger">Sold out</Badge>}
-															{item.popular && <Badge tone="primary">Popular</Badge>}
-															{item.vegetarian && (
-																<Badge tone="success">Vegetarian</Badge>
-															)}
-															{item.spicy && <Badge tone="danger">Spicy</Badge>}
+														<div className="grid gap-2 md:grid-cols-2">
+															{items
+																.filter((item) => item.categoryId === category.id)
+																.sort((a, b) => a.sortOrder - b.sortOrder)
+																.map((item) => (
+																	<div
+																		key={item.id}
+																		className="rounded-xl border border-brand-border p-3"
+																	>
+																		<div className="flex items-center justify-between gap-3">
+																			<p className="font-medium">{item.name}</p>
+																			<p className="text-sm text-brand-muted">
+																				{formatCents(item.priceCents)}
+																			</p>
+																		</div>
+																		<div className="mt-2 flex flex-wrap gap-1.5">
+																			{!item.active && <Badge tone="danger">Inactive</Badge>}
+																			{!item.available && <Badge tone="danger">Sold out</Badge>}
+																			{item.isNew && <Badge tone="primary">New</Badge>}
+																			{item.subjectToAvailability && <Badge>Subject to availability</Badge>}
+																			{item.popular && <Badge tone="primary">Popular</Badge>}
+																			{item.vegetarian && <Badge tone="success">Vegetarian</Badge>}
+																			{item.spicy && <Badge tone="danger">Spicy</Badge>}
+																		</div>
+																		{item.variants.length > 0 && (
+																			<p className="mt-2 text-xs text-brand-muted">
+																				Variants: {item.variants.map((variant) => `${variant.name} (${formatCents(variant.priceCents)})`).join(" | ")}
+																			</p>
+																		)}
+																	</div>
+																))}
 														</div>
-													</div>
+													</section>
 												))}
-										</div>
-									</section>
-								))}
+											</div>
+										</section>
+									);
+								})}
 							</div>
 						)}
 					</Card>

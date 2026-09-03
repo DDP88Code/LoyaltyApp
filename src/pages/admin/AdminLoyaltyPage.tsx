@@ -16,6 +16,7 @@ export function AdminLoyaltyPage() {
 	const updateReward = useUpdateRewardDefinition();
 	const [selectedProgramId, setSelectedProgramId] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState<string | null>(null);
 
 	const selectedProgram = useMemo(
 		() =>
@@ -52,6 +53,8 @@ export function AdminLoyaltyPage() {
 	const selectedReward = rewards.find((reward) => reward.id === rewardId) ?? null;
 
 	function loadProgram(programId: string) {
+		setError(null);
+		setSuccess(null);
 		setSelectedProgramId(programId);
 		const program = programs.find((row) => row.id === programId);
 		if (!program) return;
@@ -68,6 +71,7 @@ export function AdminLoyaltyPage() {
 	async function saveProgram() {
 		if (!selectedProgramId) return;
 		setError(null);
+		setSuccess(null);
 		try {
 			const nextValidDays = validDays.trim() ? Number(validDays) : null;
 			if (validDays.trim() && Number.isNaN(nextValidDays)) {
@@ -97,6 +101,7 @@ export function AdminLoyaltyPage() {
 			}
 
 			await programsQuery.refetch();
+			setSuccess("Program settings saved.");
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not save program.");
 		}
@@ -132,7 +137,14 @@ export function AdminLoyaltyPage() {
 						</ul>
 					</AdminPanel>
 
-					<AdminPanel title="Program editor">
+					<AdminPanel
+						title="Program editor"
+						description={
+							selectedProgram
+								? `Editing ${selectedProgram.name}`
+								: "Select a program to edit activation, threshold, reward, and validity."
+						}
+					>
 						{!selectedProgram ? (
 							<EmptyState title="Select a program to edit" />
 						) : (
@@ -234,6 +246,7 @@ export function AdminLoyaltyPage() {
 								</div>
 
 								{error && <p className="text-sm text-brand-danger">{error}</p>}
+								{success && <p className="text-sm text-brand-success">{success}</p>}
 								<Button
 									loading={updateProgram.isPending || updateReward.isPending}
 									onClick={() => void saveProgram()}

@@ -7,7 +7,9 @@ import type {
 	AdminLoyaltyProgramsPayload,
 	AdminRewardDefinition,
 	AdminRewardDefinitionsPayload,
+	AdminReportsPayload,
 	AdminSettingsPayload,
+	AdminSettingsUpdateInput,
 	AdminStaffListPayload,
 	AdminTransactionsPayload,
 } from "@shared/admin";
@@ -25,6 +27,7 @@ const transactionsQueryKey = ["admin", "transactions"] as const;
 const staffQueryKey = ["admin", "staff"] as const;
 const auditQueryKey = ["admin", "audit"] as const;
 const settingsQueryKey = ["admin", "settings"] as const;
+const reportsQueryKey = ["admin", "reports"] as const;
 
 function invalidateAdminPages(queryClient: ReturnType<typeof useQueryClient>) {
 	void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
@@ -37,6 +40,7 @@ function invalidateAdminPages(queryClient: ReturnType<typeof useQueryClient>) {
 	void queryClient.invalidateQueries({ queryKey: staffQueryKey });
 	void queryClient.invalidateQueries({ queryKey: auditQueryKey });
 	void queryClient.invalidateQueries({ queryKey: settingsQueryKey });
+	void queryClient.invalidateQueries({ queryKey: reportsQueryKey });
 	void queryClient.invalidateQueries({ queryKey: ["customer", "home"] });
 	void queryClient.invalidateQueries({ queryKey: ["customer", "rewards"] });
 }
@@ -249,11 +253,10 @@ export function useAdminStaff(query: StaffQuery) {
 }
 
 export interface StaffInput {
-	authUserId: string;
 	fullName: string;
 	email: string;
 	mobileNumber: string | null;
-	role: "staff" | "admin" | "owner";
+	role: "staff" | "admin";
 	assignedLocationId: string | null;
 	active: boolean;
 }
@@ -308,5 +311,33 @@ export function useAdminSettings() {
 	return useQuery({
 		queryKey: settingsQueryKey,
 		queryFn: () => apiFetch<AdminSettingsPayload>("/api/admin/settings"),
+	});
+}
+
+export function useUpdateAdminSettings() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (input: AdminSettingsUpdateInput) =>
+			apiFetch<AdminSettingsPayload>("/api/admin/settings", {
+				method: "PATCH",
+				body: JSON.stringify(input),
+			}),
+		onSuccess: () => invalidateAdminPages(queryClient),
+	});
+}
+
+export interface ReportsQuery {
+	from?: string;
+	to?: string;
+	locationId?: string;
+}
+
+export function useAdminReports(query: ReportsQuery) {
+	return useQuery({
+		queryKey: [...reportsQueryKey, query],
+		queryFn: () =>
+			apiFetch<AdminReportsPayload>(
+				`/api/admin/reports${toQueryString({ ...query })}`,
+			),
 	});
 }

@@ -94,6 +94,22 @@ function Expect-HttpStatus([ScriptBlock]$action, [int]$status) {
 	}
 }
 
+function Get-D1FirstRow([string]$sql) {
+	$result = npx wrangler d1 execute fives-rewards-db --local --command $sql --json | ConvertFrom-Json
+	if ($result -isnot [System.Array]) {
+		$result = @($result)
+	}
+	if ($result.Count -lt 1 -or $result[0].results.Count -lt 1) {
+		throw "D1 query returned no rows: $sql"
+	}
+	return $result[0].results[0]
+}
+
+function Get-D1Count([string]$sql) {
+	$row = Get-D1FirstRow $sql
+	return [int]$row.value
+}
+
 function Ensure-UserWithRole(
 	[string]$email,
 	[string]$name,
@@ -150,7 +166,28 @@ function Resolve-ByQr($staffSession, [string]$qrToken) {
 	return Invoke-Json "Post" "/api/staff/loyalty-code/resolve" $staffSession @{ qrToken = $qrToken }
 }
 
-Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession) | Out-Null
+$seedOne = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession)
+$seedTwo = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession)
+$businessId = [string]$seedOne.data.businessId
+
+Assert-True (-not [string]::IsNullOrWhiteSpace($businessId)) "Seed did not return business id"
+Assert-True ($businessId -eq [string]$seedTwo.data.businessId) "Seed business id changed between runs"
+
+$businessCount = Get-D1Count "SELECT COUNT(*) as value FROM businesses WHERE id = '$businessId'"
+$locationCount = Get-D1Count "SELECT COUNT(*) as value FROM locations WHERE business_id = '$businessId' AND name = 'Fives Main Branch'"
+$welcomeRewardCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND welcome_reward = 1"
+$freeCoffeeCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND name = 'Free Coffee'"
+$coffeeProgramCount = Get-D1Count "SELECT COUNT(*) as value FROM loyalty_programs WHERE business_id = '$businessId' AND currency_code = 'COFFEE'"
+
+Assert-True ($businessCount -eq 1) "Expected exactly one business row"
+Assert-True ($locationCount -eq 1) "Expected exactly one default location"
+Assert-True ($welcomeRewardCount -eq 1) "Expected exactly one welcome reward definition"
+Assert-True ($freeCoffeeCount -eq 1) "Expected exactly one Free Coffee reward definition"
+Assert-True ($coffeeProgramCount -eq 1) "Expected exactly one coffee loyalty program"
+
+$coffeeProgramRow = Get-D1FirstRow "SELECT lp.qualifying_purchases_required as threshold, rd.name as rewardName FROM loyalty_programs lp LEFT JOIN reward_definitions rd ON rd.id = lp.reward_definition_id WHERE lp.business_id = '$businessId' AND lp.currency_code = 'COFFEE' LIMIT 1"
+Assert-True (([int]$coffeeProgramRow.threshold) -eq 10) "Default coffee threshold should be 10 after seed reconciliation"
+Assert-True (([string]$coffeeProgramRow.rewardName) -eq "Free Coffee") "Coffee program should reference Free Coffee"
 
 $adminSession = Ensure-UserWithRole "admin@example.test" "Admin User" "admin" $password
 $staffEmail = "phase13.staff@example.test"
@@ -183,6 +220,17 @@ if (-not $escalationBlocked) {
 
 $journeyCustomerId = Get-CustomerId $journeySession
 $otherCustomerId = Get-CustomerId $otherSession
+
+$dashboard = Invoke-Json "Get" "/api/admin/dashboard?days=30" $adminSession
+$expectedTotalMembers = Get-D1Count "SELECT COUNT(*) as value FROM profiles WHERE business_id = '$businessId' AND role = 'customer'"
+$expectedActiveMembers = Get-D1Count "SELECT COUNT(*) as value FROM profiles WHERE business_id = '$businessId' AND role = 'customer' AND active = 1"
+$expectedNewMembersThisMonth = Get-D1Count "SELECT COUNT(*) as value FROM profiles WHERE business_id = '$businessId' AND role = 'customer' AND strftime('%Y-%m', created_at / 1000, 'unixepoch') = strftime('%Y-%m', 'now')"
+$expectedOutstandingRewards = Get-D1Count "SELECT COUNT(*) as value FROM customer_rewards WHERE business_id = '$businessId' AND status = 'available'"
+
+Assert-True (([int]$dashboard.data.metrics.totalMembers) -eq $expectedTotalMembers) "Dashboard total members does not match customer-role count"
+Assert-True (([int]$dashboard.data.metrics.activeMembers) -eq $expectedActiveMembers) "Dashboard active members does not match active customer-role count"
+Assert-True (([int]$dashboard.data.metrics.newMembersThisMonth) -eq $expectedNewMembersThisMonth) "Dashboard new members does not match monthly customer-role count"
+Assert-True (([int]$dashboard.data.metrics.outstandingRewards) -eq $expectedOutstandingRewards) "Dashboard outstanding rewards does not match available rewards count"
 
 $staffContext = Invoke-Json "Get" "/api/staff/context" $staffSession
 Assert-True ($staffContext.data.locations.Count -gt 0) "No staff location available"

@@ -25,7 +25,11 @@ import type {
 	AdminLoyaltyProgramsPayload,
 	AdminRewardDefinition,
 	AdminRewardDefinitionsPayload,
+	AdminReportsPayload,
+	AdminSettingsUpdateInput,
 	AdminSettingsPayload,
+	ReportStaffActivity,
+	ReportSummaryMetrics,
 	AdminStaffListPayload,
 	AdminStaffMember,
 	AdminTransactionRecord,
@@ -45,7 +49,9 @@ import type {
 	AdminMenuCategoriesPayload,
 	AdminMenuCategory,
 	AdminMenuItem,
+	AdminMenuItemVariant,
 	AdminMenuItemsPayload,
+	MenuGroup,
 	MenuImageDeletePayload,
 	MenuImageUploadPayload,
 } from "@shared/menu";
@@ -65,11 +71,18 @@ import {
 	loyaltyPrograms,
 	loyaltyTransactions,
 	menuCategories,
+	menuItemVariants,
 	menuItems,
 	profiles,
 	promotions,
 	rewardDefinitions,
+	user,
 } from "@worker/db/schema";
+import {
+	SETTINGS_CODE_TTL_KEY,
+	SETTINGS_WELCOME_REWARD_KEY,
+	ensureMvpDefaults,
+} from "@worker/lib/defaults";
 import { ApiError, ok } from "@worker/lib/http";
 import { createLoyaltyAdjustment, getCoffeeProgress } from "@worker/lib/loyalty";
 import {
@@ -85,10 +98,10 @@ import { validate } from "@worker/middleware/validate";
 import type { AppEnv } from "@worker/types";
 
 const STAFF_ROLES = ["staff", "admin", "owner"] as const;
+const STAFF_ASSIGNABLE_ROLES = ["staff", "admin"] as const;
 const TRANSACTION_FILTER_TYPES = TRANSACTION_TYPES;
 const DEFAULT_DASHBOARD_DAYS = 30;
-const SETTINGS_WELCOME_REWARD_KEY = "welcome_reward_enabled";
-const SETTINGS_CODE_TTL_KEY = "loyalty_code_ttl_seconds";
+const MENU_GROUPS: readonly MenuGroup[] = ["food", "drinks"];
 
 const listQuerySchema = z.object({
 	search: z.string().trim().max(80).optional(),
@@ -117,6 +130,12 @@ const transactionsQuerySchema = z.object({
 	to: z.coerce.date().optional(),
 	limit: z.coerce.number().int().min(1).max(100).default(25),
 	offset: z.coerce.number().int().min(0).default(0),
+});
+
+const reportsQuerySchema = z.object({
+	from: z.coerce.date().optional(),
+	to: z.coerce.date().optional(),
+	locationId: z.string().trim().max(64).optional(),
 });
 
 const loyaltyProgramUpdateSchema = z
@@ -165,11 +184,10 @@ const staffListQuerySchema = z.object({
 });
 
 const staffCreateSchema = z.object({
-	authUserId: z.string().trim().min(8).max(128),
 	fullName: z.string().trim().min(2).max(120),
 	email: z.string().trim().email().max(160),
 	mobileNumber: z.string().trim().max(30).nullable().optional(),
-	role: z.enum(STAFF_ROLES).default("staff"),
+	role: z.enum(STAFF_ASSIGNABLE_ROLES).default("staff"),
 	assignedLocationId: z.string().trim().max(64).nullable().optional(),
 	active: z.boolean().default(true),
 });
@@ -198,6 +216,15 @@ const auditListQuerySchema = z.object({
 	offset: z.coerce.number().int().min(0).default(0),
 });
 
+const settingsUpdateSchema = z
+	.object({
+		welcomeRewardEnabled: z.boolean().optional(),
+		loyaltyCodeTtlSeconds: z.coerce.number().int().min(60).max(3600).optional(),
+	})
+	.refine((input) => Object.keys(input).length > 0, {
+		message: "At least one field must be provided.",
+	});
+
 const createAdjustmentSchema = z.object({
 	programId: z.string().min(1).max(64),
 	locationId: z.string().min(1).max(64),
@@ -216,11 +243,28 @@ const createAdjustmentSchema = z.object({
 	billReference: z.string().trim().max(120).nullable().optional(),
 	// Client-generated per confirmed action, so a retried tap never double-adjusts.
 	idempotencyKey: z.string().trim().min(8).max(128),
+}).superRefine((input, ctx) => {
+	if (input.transactionType === "adjustment" && input.quantity <= 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["quantity"],
+			message: "Adjustment adds coffee, so quantity must be positive.",
+		});
+	}
+
+	if (input.transactionType === "reversal" && input.quantity >= 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["quantity"],
+			message: "Reversal subtracts coffee, so quantity must be negative.",
+		});
+	}
 });
 
 const createCategorySchema = z.object({
 	name: z.string().trim().min(2).max(80),
 	description: z.string().trim().max(280).nullable().optional(),
+	menuGroup: z.enum(MENU_GROUPS).default("food"),
 	imageKey: z.string().trim().max(300).nullable().optional(),
 	sortOrder: z.number().int().min(0).max(10_000).default(0),
 	active: z.boolean().default(true),
@@ -236,10 +280,18 @@ const listItemsQuerySchema = z.object({
 	categoryId: z.string().trim().max(64).optional(),
 });
 
-const createItemSchema = z.object({
+const menuItemVariantSchema = z.object({
+	name: z.string().trim().min(1).max(80),
+	priceCents: z.number().int().min(0).max(1_000_000),
+	sortOrder: z.number().int().min(0).max(10_000).default(0),
+	active: z.boolean().default(true),
+});
+
+const createItemBaseSchema = z.object({
 	categoryId: z.string().trim().min(1).max(64),
 	name: z.string().trim().min(2).max(120),
 	description: z.string().trim().max(500).default(""),
+	optionNotes: z.string().trim().max(500).nullable().optional(),
 	priceCents: z.number().int().min(0).max(1_000_000),
 	imageKey: z.string().trim().max(300).nullable().optional(),
 	active: z.boolean().default(true),
@@ -247,15 +299,51 @@ const createItemSchema = z.object({
 	popular: z.boolean().default(false),
 	vegetarian: z.boolean().default(false),
 	spicy: z.boolean().default(false),
+	isNew: z.boolean().default(false),
+	subjectToAvailability: z.boolean().default(false),
+	variants: z.array(menuItemVariantSchema).max(30).default([]),
 	sortOrder: z.number().int().min(0).max(10_000).default(0),
 });
 
-const updateItemSchema = createItemSchema
-	.omit({ categoryId: true })
+const createItemSchema = createItemBaseSchema.superRefine((input, ctx) => {
+	const seen = new Set<string>();
+	for (const [index, variant] of input.variants.entries()) {
+		const key = variant.name.trim().toLowerCase();
+		if (seen.has(key)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["variants", index, "name"],
+				message: "Variant names must be unique per item.",
+			});
+			continue;
+		}
+		seen.add(key);
+	}
+});
+
+const updateItemSchema = createItemBaseSchema
+	.omit({ categoryId: true, variants: true })
 	.extend({ categoryId: z.string().trim().min(1).max(64).optional() })
+	.extend({ variants: z.array(menuItemVariantSchema).max(30).optional() })
 	.partial()
 	.refine((input) => Object.keys(input).length > 0, {
 		message: "At least one field must be provided.",
+	})
+	.superRefine((input, ctx) => {
+		if (!input.variants) return;
+		const seen = new Set<string>();
+		for (const [index, variant] of input.variants.entries()) {
+			const key = variant.name.trim().toLowerCase();
+			if (seen.has(key)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["variants", index, "name"],
+					message: "Variant names must be unique per item.",
+				});
+				continue;
+			}
+			seen.add(key);
+		}
 	});
 
 const deleteMediaSchema = z.object({
@@ -302,6 +390,7 @@ function toAdminCategory(
 		businessId: row.businessId,
 		name: row.name,
 		description: row.description,
+		menuGroup: row.menuGroup,
 		imageKey: row.imageKey,
 		sortOrder: row.sortOrder,
 		active: row.active,
@@ -310,13 +399,32 @@ function toAdminCategory(
 	};
 }
 
-function toAdminItem(row: typeof menuItems.$inferSelect): AdminMenuItem {
+function toAdminVariant(
+	row: typeof menuItemVariants.$inferSelect,
+): AdminMenuItemVariant {
+	return {
+		id: row.id,
+		menuItemId: row.menuItemId,
+		name: row.name,
+		priceCents: row.priceCents,
+		sortOrder: row.sortOrder,
+		active: row.active,
+		createdAt: row.createdAt.toISOString(),
+		updatedAt: row.updatedAt.toISOString(),
+	};
+}
+
+function toAdminItem(
+	row: typeof menuItems.$inferSelect,
+	variants: AdminMenuItemVariant[] = [],
+): AdminMenuItem {
 	return {
 		id: row.id,
 		businessId: row.businessId,
 		categoryId: row.categoryId,
 		name: row.name,
 		description: row.description,
+		optionNotes: row.optionNotes,
 		priceCents: row.priceCents,
 		imageKey: row.imageKey,
 		active: row.active,
@@ -324,6 +432,9 @@ function toAdminItem(row: typeof menuItems.$inferSelect): AdminMenuItem {
 		popular: row.popular,
 		vegetarian: row.vegetarian,
 		spicy: row.spicy,
+		isNew: row.isNew,
+		subjectToAvailability: row.subjectToAvailability,
+		variants,
 		sortOrder: row.sortOrder,
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
@@ -612,6 +723,45 @@ async function getSettingValue(
 	});
 }
 
+async function upsertSettingValue(
+	db: ReturnType<typeof getDb>,
+	businessId: string,
+	key: string,
+	valueJson: unknown,
+) {
+	const existing = await getSettingValue(db, businessId, key);
+	if (existing) {
+		await db
+			.update(appSettings)
+			.set({ valueJson })
+			.where(eq(appSettings.id, existing.id));
+		return;
+	}
+
+	await db.insert(appSettings).values({
+		businessId,
+		key,
+		valueJson,
+	});
+}
+
+function normalizeReportDateRange(input: {
+	from?: Date;
+	to?: Date;
+}): { from: Date; to: Date; toInclusive: Date } {
+	const now = new Date();
+	const today = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	);
+	const from = input.from ?? new Date(today.getTime() - 29 * 86_400_000);
+	const to = input.to ?? today;
+	if (to.getTime() < from.getTime()) {
+		throw new ApiError("validation_failed", "End date must be after start date.");
+	}
+	const toInclusive = new Date(to.getTime() + 86_399_999);
+	return { from, to, toInclusive };
+}
+
 function isRoleElevation(
 	fromRole: (typeof STAFF_ROLES)[number],
 	toRole: (typeof STAFF_ROLES)[number],
@@ -678,6 +828,7 @@ export const admin = new Hono<AppEnv>()
 		const profile = c.get("profile");
 		const db = getDb(c.env);
 		const { days } = c.req.valid("query");
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const now = new Date();
 		const today = new Date(
@@ -892,6 +1043,7 @@ export const admin = new Hono<AppEnv>()
 	.get("/lookups", async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const [customerRows, staffRows, locationRows, programRows] = await Promise.all([
 			db
@@ -1199,6 +1351,7 @@ export const admin = new Hono<AppEnv>()
 	.get("/loyalty/programs", async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const [programRows, locationRows, rewardRows] = await Promise.all([
 			db
@@ -1374,7 +1527,9 @@ export const admin = new Hono<AppEnv>()
 
 	.get("/rewards", async (c) => {
 		const profile = c.get("profile");
-		const rows = await getDb(c.env)
+		const db = getDb(c.env);
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
+		const rows = await db
 			.select()
 			.from(rewardDefinitions)
 			.where(eq(rewardDefinitions.businessId, profile.businessId))
@@ -1546,10 +1701,27 @@ export const admin = new Hono<AppEnv>()
 			.from(customerRewards)
 			.where(eq(customerRewards.rewardDefinitionId, existing.id));
 
+		const [programUsage] = await db
+			.select({ value: count() })
+			.from(loyaltyPrograms)
+			.where(
+				and(
+					eq(loyaltyPrograms.businessId, profile.businessId),
+					eq(loyaltyPrograms.rewardDefinitionId, existing.id),
+				),
+			);
+
 		if ((usage?.value ?? 0) > 0) {
 			throw new ApiError(
 				"conflict",
 				"That reward has already been issued to customers and cannot be deleted.",
+			);
+		}
+
+		if ((programUsage?.value ?? 0) > 0) {
+			throw new ApiError(
+				"conflict",
+				"That reward is linked to a loyalty program and cannot be deleted.",
 			);
 		}
 
@@ -1614,10 +1786,267 @@ export const admin = new Hono<AppEnv>()
 		return ok<AdminTransactionsPayload>(c, payload);
 	})
 
+	.get("/reports", validate("query", reportsQuerySchema), async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const query = c.req.valid("query");
+
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
+
+		if (query.locationId) {
+			await requireLocationInBusiness(db, profile.businessId, query.locationId);
+		}
+
+		const range = normalizeReportDateRange(query);
+		const dayKeys = enumerateDays(range.from, range.to);
+
+		const txWhere = and(
+			eq(loyaltyTransactions.businessId, profile.businessId),
+			query.locationId
+				? eq(loyaltyTransactions.locationId, query.locationId)
+				: undefined,
+			gte(loyaltyTransactions.createdAt, range.from),
+			lte(loyaltyTransactions.createdAt, range.toInclusive),
+		);
+
+		const issuedWhere = and(
+			eq(customerRewards.businessId, profile.businessId),
+			gte(customerRewards.issuedAt, range.from),
+			lte(customerRewards.issuedAt, range.toInclusive),
+		);
+
+		const redeemedWhere = and(
+			eq(customerRewards.businessId, profile.businessId),
+			eq(customerRewards.status, "redeemed"),
+			gte(customerRewards.redeemedAt, range.from),
+			lte(customerRewards.redeemedAt, range.toInclusive),
+			query.locationId
+				? eq(customerRewards.locationId, query.locationId)
+				: undefined,
+		);
+
+		const [
+			[totalMembersRow],
+			[newMembersRow],
+			[coffeeTxRow],
+			[coffeeQtyRow],
+			[issuedRow],
+			[redeemedRow],
+			[outstandingRow],
+			memberRows,
+			coffeeRows,
+			issuedRows,
+			redeemedRows,
+			staffRows,
+		] = await Promise.all([
+			db
+				.select({ value: count() })
+				.from(profiles)
+				.where(
+					and(
+						eq(profiles.businessId, profile.businessId),
+						eq(profiles.role, "customer"),
+					),
+				),
+			db
+				.select({ value: count() })
+				.from(profiles)
+				.where(
+					and(
+						eq(profiles.businessId, profile.businessId),
+						eq(profiles.role, "customer"),
+						gte(profiles.createdAt, range.from),
+						lte(profiles.createdAt, range.toInclusive),
+					),
+				),
+			db
+				.select({ value: count() })
+				.from(loyaltyTransactions)
+				.where(and(txWhere, eq(loyaltyTransactions.transactionType, "earn"))),
+			db
+				.select({
+					value: sql<number>`coalesce(sum(${loyaltyTransactions.quantity}), 0)`,
+				})
+				.from(loyaltyTransactions)
+				.where(and(txWhere, eq(loyaltyTransactions.transactionType, "earn"))),
+			db.select({ value: count() }).from(customerRewards).where(issuedWhere),
+			db.select({ value: count() }).from(customerRewards).where(redeemedWhere),
+			db
+				.select({ value: count() })
+				.from(customerRewards)
+				.where(
+					and(
+						eq(customerRewards.businessId, profile.businessId),
+						eq(customerRewards.status, "available"),
+					),
+				),
+			db
+				.select({ createdAt: profiles.createdAt })
+				.from(profiles)
+				.where(
+					and(
+						eq(profiles.businessId, profile.businessId),
+						eq(profiles.role, "customer"),
+						gte(profiles.createdAt, range.from),
+						lte(profiles.createdAt, range.toInclusive),
+					),
+				),
+			db
+				.select({
+					createdAt: loyaltyTransactions.createdAt,
+					quantity: loyaltyTransactions.quantity,
+				})
+				.from(loyaltyTransactions)
+				.where(and(txWhere, eq(loyaltyTransactions.transactionType, "earn"))),
+			db
+				.select({ issuedAt: customerRewards.issuedAt })
+				.from(customerRewards)
+				.where(issuedWhere),
+			db
+				.select({ redeemedAt: customerRewards.redeemedAt })
+				.from(customerRewards)
+				.where(redeemedWhere),
+			db
+				.select({
+					staffId: loyaltyTransactions.staffId,
+					transactionType: loyaltyTransactions.transactionType,
+					quantity: loyaltyTransactions.quantity,
+				})
+				.from(loyaltyTransactions)
+				.where(and(txWhere, sql`${loyaltyTransactions.staffId} is not null`)),
+		]);
+
+		const metrics: ReportSummaryMetrics = {
+			totalMembers: totalMembersRow?.value ?? 0,
+			newMembersInRange: newMembersRow?.value ?? 0,
+			coffeeTransactions: coffeeTxRow?.value ?? 0,
+			coffeesPurchased: coffeeQtyRow?.value ?? 0,
+			rewardsIssued: issuedRow?.value ?? 0,
+			rewardsRedeemed: redeemedRow?.value ?? 0,
+			outstandingRewards: outstandingRow?.value ?? 0,
+			redemptionRatePercent:
+				(issuedRow?.value ?? 0) > 0
+					? Math.round(((redeemedRow?.value ?? 0) / (issuedRow?.value ?? 0)) * 10_000) /
+						100
+					: 0,
+		};
+
+		const memberMap = new Map<string, number>();
+		for (const row of memberRows) {
+			const day = asDateKey(row.createdAt);
+			memberMap.set(day, (memberMap.get(day) ?? 0) + 1);
+		}
+
+		const coffeeMap = new Map<string, number>();
+		for (const row of coffeeRows) {
+			const day = asDateKey(row.createdAt);
+			coffeeMap.set(day, (coffeeMap.get(day) ?? 0) + row.quantity);
+		}
+
+		const issuedMap = new Map<string, number>();
+		for (const row of issuedRows) {
+			const day = asDateKey(row.issuedAt);
+			issuedMap.set(day, (issuedMap.get(day) ?? 0) + 1);
+		}
+
+		const redeemedMap = new Map<string, number>();
+		for (const row of redeemedRows) {
+			if (!row.redeemedAt) continue;
+			const day = asDateKey(row.redeemedAt);
+			redeemedMap.set(day, (redeemedMap.get(day) ?? 0) + 1);
+		}
+
+		const staffIds = Array.from(
+			new Set(
+				staffRows
+					.map((row) => row.staffId)
+					.filter((value): value is string => typeof value === "string"),
+			),
+		);
+		const staffProfiles =
+			staffIds.length > 0
+				? await db
+					.select({
+						id: profiles.id,
+						fullName: profiles.fullName,
+						role: profiles.role,
+					})
+					.from(profiles)
+					.where(
+						and(
+							eq(profiles.businessId, profile.businessId),
+							inArray(profiles.id, staffIds),
+						),
+					)
+				: [];
+		const staffProfileById = new Map(staffProfiles.map((row) => [row.id, row]));
+
+		const staffActivityById = new Map<string, ReportStaffActivity>();
+		for (const row of staffRows) {
+			if (!row.staffId) continue;
+			const staffProfile = staffProfileById.get(row.staffId);
+			if (!staffProfile || !isStaffScopedRole(staffProfile.role)) continue;
+
+			const current =
+				staffActivityById.get(row.staffId) ??
+				({
+					staffId: row.staffId,
+					staffName: staffProfile.fullName,
+					staffRole: staffProfile.role,
+					totalTransactions: 0,
+					earnTransactions: 0,
+					coffeesAdded: 0,
+					redeemTransactions: 0,
+					adjustmentTransactions: 0,
+					reversalTransactions: 0,
+				} satisfies ReportStaffActivity);
+
+			current.totalTransactions += 1;
+			if (row.transactionType === "earn") {
+				current.earnTransactions += 1;
+				current.coffeesAdded += row.quantity;
+			}
+			if (row.transactionType === "redeem") current.redeemTransactions += 1;
+			if (row.transactionType === "adjustment") current.adjustmentTransactions += 1;
+			if (row.transactionType === "reversal") current.reversalTransactions += 1;
+
+			staffActivityById.set(row.staffId, current);
+		}
+
+		const payload: AdminReportsPayload = {
+			from: range.from.toISOString(),
+			to: range.to.toISOString(),
+			locationId: query.locationId ?? null,
+			metrics,
+			newMembersOverTime: dayKeys.map((date) => ({
+				date,
+				value: memberMap.get(date) ?? 0,
+			})),
+			coffeePurchasesOverTime: dayKeys.map((date) => ({
+				date,
+				value: coffeeMap.get(date) ?? 0,
+			})),
+			rewardsIssuedOverTime: dayKeys.map((date) => ({
+				date,
+				value: issuedMap.get(date) ?? 0,
+			})),
+			rewardsRedeemedOverTime: dayKeys.map((date) => ({
+				date,
+				value: redeemedMap.get(date) ?? 0,
+			})),
+			staffActivity: Array.from(staffActivityById.values()).sort(
+				(a, b) => b.totalTransactions - a.totalTransactions,
+			),
+		};
+
+		return ok<AdminReportsPayload>(c, payload);
+	})
+
 	.get("/staff", validate("query", staffListQuerySchema), async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
 		const { search, limit, offset } = c.req.valid("query");
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const where = and(
 			eq(profiles.businessId, profile.businessId),
@@ -1691,11 +2120,12 @@ export const admin = new Hono<AppEnv>()
 		const profile = c.get("profile");
 		const db = getDb(c.env);
 		const input = c.req.valid("json");
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
-		if (input.role !== "staff" && profile.role !== "owner") {
+		if (input.role === "admin" && profile.role !== "owner") {
 			throw new ApiError(
 				"forbidden",
-				"Only owners can create admin or owner staff profiles.",
+				"Only owners can create admin staff profiles.",
 			);
 		}
 
@@ -1703,64 +2133,114 @@ export const admin = new Hono<AppEnv>()
 			await requireLocationInBusiness(db, profile.businessId, input.assignedLocationId);
 		}
 
-		const existingByAuth = await db.query.profiles.findFirst({
-			where: eq(profiles.authUserId, input.authUserId),
+		const normalizedEmail = input.email.trim().toLowerCase();
+		const authMatch = await db.query.user.findFirst({
+			where: sql`lower(${user.email}) = ${normalizedEmail}`,
+			columns: { id: true, name: true, email: true },
 		});
-		if (existingByAuth) {
+
+		let target = await db.query.profiles.findFirst({
+			where: and(
+				eq(profiles.businessId, profile.businessId),
+				sql`lower(${profiles.email}) = ${normalizedEmail}`,
+			),
+		});
+
+		if (!target && authMatch) {
+			const [createdProfile] = await db
+				.insert(profiles)
+				.values({
+					authUserId: authMatch.id,
+					businessId: profile.businessId,
+					fullName: input.fullName || authMatch.name || authMatch.email,
+					email: authMatch.email,
+					mobileNumber: input.mobileNumber ?? null,
+					role: "customer",
+					active: true,
+				})
+				.onConflictDoNothing()
+				.returning();
+
+			target =
+				createdProfile ??
+				(await db.query.profiles.findFirst({
+					where: and(
+						eq(profiles.businessId, profile.businessId),
+						eq(profiles.authUserId, authMatch.id),
+					),
+				}));
+		}
+
+		if (!target) {
 			throw new ApiError(
-				"conflict",
-				"A profile already exists for that auth user id.",
+				"validation_failed",
+				"No account exists for this email yet. Ask the user to sign up first, then assign staff access.",
 			);
 		}
 
-		const [created] = await db
-			.insert(profiles)
-			.values({
-				authUserId: input.authUserId,
-				businessId: profile.businessId,
+		if (target.role === "owner" && profile.role !== "owner") {
+			throw new ApiError("forbidden", "Only owners can modify owner profiles.");
+		}
+
+		const [updated] = await db
+			.update(profiles)
+			.set({
 				fullName: input.fullName,
 				email: input.email,
 				mobileNumber: input.mobileNumber ?? null,
 				role: input.role,
 				active: input.active,
+				updatedAt: new Date(),
 			})
+			.where(eq(profiles.id, target.id))
 			.returning();
 
-		if (!created) {
-			throw new ApiError("internal_error", "Failed to create staff profile.");
+		if (!updated) {
+			throw new ApiError("internal_error", "Failed to update staff profile.");
 		}
 
+		const locationSettingKey = `staff:${updated.id}:assigned_location_id`;
 		if (input.assignedLocationId) {
-			await db.insert(appSettings).values({
-				businessId: profile.businessId,
-				key: `staff:${created.id}:assigned_location_id`,
-				valueJson: input.assignedLocationId,
-			});
+			await upsertSettingValue(
+				db,
+				profile.businessId,
+				locationSettingKey,
+				input.assignedLocationId,
+			);
+		} else {
+			const current = await getSettingValue(db, profile.businessId, locationSettingKey);
+			if (current) {
+				await db.delete(appSettings).where(eq(appSettings.id, current.id));
+			}
 		}
 
 		await db.insert(auditLogs).values({
 			businessId: profile.businessId,
 			actorUserId: profile.authUserId,
 			actorRole: profile.role,
-			action: "admin.staff.created",
+			action: "admin.staff.assigned",
 			entityType: "profile",
-			entityId: created.id,
-			newValueJson: created,
-			metadataJson: { assignedLocationId: input.assignedLocationId ?? null },
+			entityId: updated.id,
+			oldValueJson: target,
+			newValueJson: updated,
+			metadataJson: {
+				assignedLocationId: input.assignedLocationId ?? null,
+				authLinked: Boolean(authMatch),
+			},
 		});
 
 		return ok<AdminStaffMember>(
 			c,
 			{
-				id: created.id,
-				fullName: created.fullName,
-				email: created.email,
-				mobileNumber: created.mobileNumber,
-				role: created.role,
-				active: created.active,
+				id: updated.id,
+				fullName: updated.fullName,
+				email: updated.email,
+				mobileNumber: updated.mobileNumber,
+				role: updated.role,
+				active: updated.active,
 				assignedLocationId: input.assignedLocationId ?? null,
 				assignedLocationName: null,
-				createdAt: created.createdAt.toISOString(),
+				createdAt: updated.createdAt.toISOString(),
 			},
 			201,
 		);
@@ -1771,6 +2251,7 @@ export const admin = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const staffId = c.req.param("staffId");
 		const input = c.req.valid("json");
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const existing = await db.query.profiles.findFirst({
 			where: and(
@@ -1938,6 +2419,7 @@ export const admin = new Hono<AppEnv>()
 	.get("/settings", async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
 		const [welcomeSetting, ttlSetting] = await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
@@ -1952,6 +2434,70 @@ export const admin = new Hono<AppEnv>()
 			loyaltyCodeTtlSeconds:
 				typeof ttlSetting?.valueJson === "number" ? ttlSetting.valueJson : 600,
 		};
+
+		return ok<AdminSettingsPayload>(c, payload);
+	})
+
+	.patch("/settings", validate("json", settingsUpdateSchema), async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const input: AdminSettingsUpdateInput = c.req.valid("json");
+		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
+
+		const previous = await Promise.all([
+			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
+			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
+		]);
+
+		if (input.welcomeRewardEnabled !== undefined) {
+			await upsertSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_WELCOME_REWARD_KEY,
+				input.welcomeRewardEnabled,
+			);
+		}
+
+		if (input.loyaltyCodeTtlSeconds !== undefined) {
+			await upsertSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_CODE_TTL_KEY,
+				input.loyaltyCodeTtlSeconds,
+			);
+		}
+
+		const [welcomeSetting, ttlSetting] = await Promise.all([
+			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
+			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
+		]);
+
+		const payload: AdminSettingsPayload = {
+			welcomeRewardEnabled:
+				typeof welcomeSetting?.valueJson === "boolean"
+					? welcomeSetting.valueJson
+					: true,
+			loyaltyCodeTtlSeconds:
+				typeof ttlSetting?.valueJson === "number" ? ttlSetting.valueJson : 600,
+		};
+
+		await db.insert(auditLogs).values({
+			businessId: profile.businessId,
+			actorUserId: profile.authUserId,
+			actorRole: profile.role,
+			action: "admin.settings.updated",
+			entityType: "app_settings",
+			entityId: SETTINGS_WELCOME_REWARD_KEY,
+			oldValueJson: {
+				welcomeRewardEnabled:
+					typeof previous[0]?.valueJson === "boolean"
+						? previous[0].valueJson
+						: true,
+				loyaltyCodeTtlSeconds:
+					typeof previous[1]?.valueJson === "number" ? previous[1].valueJson : 600,
+			},
+			newValueJson: payload,
+		});
 
 		return ok<AdminSettingsPayload>(c, payload);
 	})
@@ -1985,6 +2531,7 @@ export const admin = new Hono<AppEnv>()
 					businessId: profile.businessId,
 					name: input.name,
 					description: input.description ?? null,
+					menuGroup: input.menuGroup,
 					imageKey: input.imageKey ?? null,
 					sortOrder: input.sortOrder,
 					active: input.active,
@@ -2030,6 +2577,7 @@ export const admin = new Hono<AppEnv>()
 					.set({
 						name: input.name,
 						description: input.description,
+						menuGroup: input.menuGroup,
 						imageKey: input.imageKey,
 						sortOrder: input.sortOrder,
 						active: input.active,
@@ -2060,19 +2608,42 @@ export const admin = new Hono<AppEnv>()
 	.get("/menu/items", validate("query", listItemsQuerySchema), async (c) => {
 		const { businessId } = c.get("profile");
 		const { categoryId } = c.req.valid("query");
+		const db = getDb(c.env);
 
 		const where = and(
 			eq(menuItems.businessId, businessId),
 			categoryId ? eq(menuItems.categoryId, categoryId) : undefined,
 		);
 
-		const rows = await getDb(c.env)
+		const rows = await db
 			.select()
 			.from(menuItems)
 			.where(where)
 			.orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
 
-		return ok<AdminMenuItemsPayload>(c, { items: rows.map(toAdminItem) });
+		const itemIds = rows.map((item) => item.id);
+		const variantRows =
+			itemIds.length === 0
+				? []
+				: await db
+					.select()
+					.from(menuItemVariants)
+					.where(inArray(menuItemVariants.menuItemId, itemIds))
+					.orderBy(
+						asc(menuItemVariants.sortOrder),
+						asc(menuItemVariants.name),
+					);
+
+		const variantsByItemId = new Map<string, AdminMenuItemVariant[]>();
+		for (const row of variantRows) {
+			const list = variantsByItemId.get(row.menuItemId) ?? [];
+			list.push(toAdminVariant(row));
+			variantsByItemId.set(row.menuItemId, list);
+		}
+
+		return ok<AdminMenuItemsPayload>(c, {
+			items: rows.map((item) => toAdminItem(item, variantsByItemId.get(item.id) ?? [])),
+		});
 	})
 
 	.post("/menu/items", validate("json", createItemSchema), async (c) => {
@@ -2094,29 +2665,61 @@ export const admin = new Hono<AppEnv>()
 			assertOwnedMenuMediaKey(profile.businessId, input.imageKey);
 		}
 
-		const [created] = await db
-			.insert(menuItems)
-			.values({
-				businessId: profile.businessId,
-				categoryId: category.id,
-				name: input.name,
-				description: input.description,
-				priceCents: input.priceCents,
-				imageKey: input.imageKey ?? null,
-				active: input.active,
-				available: input.available,
-				popular: input.popular,
-				vegetarian: input.vegetarian,
-				spicy: input.spicy,
-				sortOrder: input.sortOrder,
-			})
-			.returning();
+		try {
+			const created = await db.transaction(async (tx) => {
+				const [item] = await tx
+					.insert(menuItems)
+					.values({
+						businessId: profile.businessId,
+						categoryId: category.id,
+						name: input.name,
+						description: input.description,
+						optionNotes: input.optionNotes ?? "",
+						priceCents: input.priceCents,
+						imageKey: input.imageKey ?? null,
+						active: input.active,
+						available: input.available,
+						popular: input.popular,
+						vegetarian: input.vegetarian,
+						spicy: input.spicy,
+						isNew: input.isNew,
+						subjectToAvailability: input.subjectToAvailability,
+						sortOrder: input.sortOrder,
+					})
+					.returning();
 
-		if (!created) {
-			throw new ApiError("internal_error", "Failed to create menu item.");
+				if (!item) {
+					throw new ApiError("internal_error", "Failed to create menu item.");
+				}
+
+				if (input.variants.length > 0) {
+					await tx.insert(menuItemVariants).values(
+						input.variants.map((variant) => ({
+							menuItemId: item.id,
+							name: variant.name,
+							priceCents: variant.priceCents,
+							sortOrder: variant.sortOrder,
+							active: variant.active,
+						})),
+					);
+				}
+
+				const variants = await tx
+					.select()
+					.from(menuItemVariants)
+					.where(eq(menuItemVariants.menuItemId, item.id))
+					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
+
+				return toAdminItem(item, variants.map(toAdminVariant));
+			});
+
+			return ok<AdminMenuItem>(c, created, 201);
+		} catch (error) {
+			rethrowAsConflict(
+				error,
+				"Could not save this item. Check duplicate names or variants.",
+			);
 		}
-
-		return ok<AdminMenuItem>(c, toAdminItem(created), 201);
 	})
 
 	.patch("/menu/items/:itemId", validate("json", updateItemSchema), async (c) => {
@@ -2151,38 +2754,83 @@ export const admin = new Hono<AppEnv>()
 			assertOwnedMenuMediaKey(profile.businessId, input.imageKey);
 		}
 
-		const [updated] = await db
-			.update(menuItems)
-			.set({
-				categoryId: input.categoryId,
-				name: input.name,
-				description: input.description,
-				priceCents: input.priceCents,
-				imageKey: input.imageKey,
-				active: input.active,
-				available: input.available,
-				popular: input.popular,
-				vegetarian: input.vegetarian,
-				spicy: input.spicy,
-				sortOrder: input.sortOrder,
-			})
-			.where(eq(menuItems.id, existing.id))
-			.returning();
+		try {
+			const updated = await db.transaction(async (tx) => {
+				const [row] = await tx
+					.update(menuItems)
+					.set({
+						categoryId: input.categoryId,
+						name: input.name,
+						description: input.description,
+						optionNotes:
+							input.optionNotes === null ? "" : input.optionNotes,
+						priceCents: input.priceCents,
+						imageKey: input.imageKey,
+						active: input.active,
+						available: input.available,
+						popular: input.popular,
+						vegetarian: input.vegetarian,
+						spicy: input.spicy,
+						isNew: input.isNew,
+						subjectToAvailability: input.subjectToAvailability,
+						sortOrder: input.sortOrder,
+					})
+					.where(eq(menuItems.id, existing.id))
+					.returning();
 
-		if (!updated) {
-			throw new ApiError("internal_error", "Failed to update menu item.");
+				if (!row) {
+					throw new ApiError("internal_error", "Failed to update menu item.");
+				}
+
+				if (input.variants !== undefined) {
+					await tx
+						.delete(menuItemVariants)
+						.where(eq(menuItemVariants.menuItemId, existing.id));
+
+					if (input.variants.length > 0) {
+						await tx.insert(menuItemVariants).values(
+							input.variants.map((variant) => ({
+								menuItemId: existing.id,
+								name: variant.name,
+								priceCents: variant.priceCents,
+								sortOrder: variant.sortOrder,
+								active: variant.active,
+							})),
+						);
+					}
+				}
+
+				const variants = await tx
+					.select()
+					.from(menuItemVariants)
+					.where(eq(menuItemVariants.menuItemId, existing.id))
+					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
+
+				return {
+					item: row,
+					variants: variants.map(toAdminVariant),
+				};
+			});
+
+			if (
+				input.imageKey !== undefined &&
+				existing.imageKey &&
+				existing.imageKey !== updated.item.imageKey &&
+				!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
+			) {
+				await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
+			}
+
+			return ok<AdminMenuItem>(
+				c,
+				toAdminItem(updated.item, updated.variants),
+			);
+		} catch (error) {
+			rethrowAsConflict(
+				error,
+				"Could not update this item. Check duplicate names or variants.",
+			);
 		}
-
-		if (
-			input.imageKey !== undefined &&
-			existing.imageKey &&
-			existing.imageKey !== updated.imageKey &&
-			!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
-		) {
-			await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
-		}
-
-		return ok<AdminMenuItem>(c, toAdminItem(updated));
 	})
 
 	.post("/menu/media/upload", async (c) => {

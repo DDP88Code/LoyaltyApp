@@ -5,6 +5,7 @@ import { getAuth } from "@worker/auth";
 import { getDb } from "@worker/db/client";
 import { profiles } from "@worker/db/schema";
 import { ApiError } from "@worker/lib/http";
+import { ensureAuthUserProfileById } from "@worker/lib/provisioning";
 import { requestOrigin } from "@worker/lib/session";
 import type { AppEnv } from "@worker/types";
 
@@ -15,14 +16,26 @@ import type { AppEnv } from "@worker/types";
 export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
 	const auth = getAuth(c.env, requestOrigin(c.req.url));
 	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	const db = getDb(c.env);
 
 	if (!session) {
 		throw new ApiError("unauthenticated", "Please sign in to continue.");
 	}
 
-	const profile = await getDb(c.env).query.profiles.findFirst({
+	let profile = await db.query.profiles.findFirst({
 		where: eq(profiles.authUserId, session.user.id),
 	});
+
+	if (!profile) {
+		try {
+			profile = await ensureAuthUserProfileById(db, c.env, session.user.id);
+		} catch (error) {
+			console.error("Session profile reconciliation failed", {
+				userId: session.user.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
 
 	if (!profile) {
 		throw new ApiError(

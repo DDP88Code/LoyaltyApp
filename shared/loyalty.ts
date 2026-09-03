@@ -1,5 +1,6 @@
 import type { SessionUser } from "./api";
 import type { CustomerRewardStatus, RewardType, TransactionType } from "./domain";
+import type { MenuGroup } from "./menu";
 
 /** Derived from the ledger on every read — never stored as a running total. */
 export interface CoffeeProgress {
@@ -48,18 +49,27 @@ export interface MenuItemSummary {
 	id: string;
 	name: string;
 	description: string;
+	optionNotes: string;
 	priceCents: number;
 	imageKey: string | null;
 	popular: boolean;
 	vegetarian: boolean;
 	spicy: boolean;
+	isNew: boolean;
+	subjectToAvailability: boolean;
 	available: boolean;
+	variants: {
+		id: string;
+		name: string;
+		priceCents: number;
+	}[];
 }
 
 export interface MenuCategorySummary {
 	id: string;
 	name: string;
 	description: string | null;
+	menuGroup: MenuGroup;
 	imageKey: string | null;
 	items: MenuItemSummary[];
 }

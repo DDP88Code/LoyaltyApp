@@ -32,7 +32,9 @@ export function AdminRewardsPage() {
 	const deleteReward = useDeleteRewardDefinition();
 	const [selectedRewardId, setSelectedRewardId] = useState("");
 	const [form, setForm] = useState<RewardDefinitionInput>(EMPTY_FORM);
+	const [valueRand, setValueRand] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState<string | null>(null);
 
 	const selectedReward = useMemo(
 		() => rewardsQuery.data?.rewards.find((reward) => reward.id === selectedRewardId) ?? null,
@@ -55,9 +57,14 @@ export function AdminRewardsPage() {
 	const rewards = rewardsQuery.data.rewards;
 
 	function selectReward(rewardId: string) {
+		setError(null);
+		setSuccess(null);
 		setSelectedRewardId(rewardId);
 		const reward = rewards.find((row) => row.id === rewardId);
 		if (!reward) return;
+		setValueRand(
+			reward.valueCents == null ? "" : (reward.valueCents / 100).toFixed(2),
+		);
 		setForm({
 			name: reward.name,
 			description: reward.description,
@@ -74,11 +81,29 @@ export function AdminRewardsPage() {
 
 	async function save() {
 		setError(null);
+		setSuccess(null);
 		try {
+			const hasRandValue = valueRand.trim().length > 0;
+			const parsedRand = hasRandValue ? Number(valueRand.trim()) : null;
+			if (hasRandValue && (parsedRand === null || !Number.isFinite(parsedRand) || parsedRand < 0)) {
+				throw new Error("Value must be a valid Rand amount, for example 50 or 50.00.");
+			}
+			const nextValueCents =
+				parsedRand == null ? null : Math.round(parsedRand * 100);
+
 			if (selectedRewardId) {
-				await updateReward.mutateAsync({ id: selectedRewardId, ...form });
+				await updateReward.mutateAsync({
+					id: selectedRewardId,
+					...form,
+					valueCents: nextValueCents,
+				});
+				setSuccess("Reward updated.");
 			} else {
-				await createReward.mutateAsync(form);
+				await createReward.mutateAsync({
+					...form,
+					valueCents: nextValueCents,
+				});
+				setSuccess("Reward created.");
 			}
 			await rewardsQuery.refetch();
 		} catch (cause) {
@@ -89,10 +114,13 @@ export function AdminRewardsPage() {
 	async function remove() {
 		if (!selectedRewardId) return;
 		setError(null);
+		setSuccess(null);
 		try {
 			await deleteReward.mutateAsync(selectedRewardId);
 			setSelectedRewardId("");
 			setForm(EMPTY_FORM);
+			setValueRand("");
+			setSuccess("Reward deleted.");
 			await rewardsQuery.refetch();
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not delete reward.");
@@ -112,8 +140,11 @@ export function AdminRewardsPage() {
 					<Button
 						variant="outline"
 						onClick={() => {
+							setError(null);
+							setSuccess(null);
 							setSelectedRewardId("");
 							setForm(EMPTY_FORM);
+							setValueRand("");
 						}}
 					>
 						New reward
@@ -140,7 +171,14 @@ export function AdminRewardsPage() {
 					)}
 				</AdminPanel>
 
-				<AdminPanel title={selectedReward ? "Edit reward" : "Create reward"}>
+				<AdminPanel
+					title={selectedReward ? "Edit reward" : "Create reward"}
+					description={
+						selectedReward
+							? `Editing ${selectedReward.name}`
+							: "Create mode: enter details and save to add a new reward."
+					}
+				>
 					<div className="grid gap-3 md:grid-cols-2">
 						<Input
 							label="Name"
@@ -174,15 +212,15 @@ export function AdminRewardsPage() {
 							</select>
 						</div>
 						<Input
-							label="Value cents"
+							label="Value (Rand)"
 							type="number"
-							value={form.valueCents?.toString() ?? ""}
+							step="0.01"
+							min="0"
+							value={valueRand}
 							onChange={(event) =>
-								setForm((v) => ({
-									...v,
-									valueCents: event.target.value ? Number(event.target.value) : null,
-								}))
+								setValueRand(event.target.value)
 							}
+							hint="Example: 50.00 will be stored as 5000 cents."
 						/>
 						<Input
 							label="Points cost"
@@ -245,6 +283,7 @@ export function AdminRewardsPage() {
 					</div>
 
 					{error && <p className="mt-3 text-sm text-brand-danger">{error}</p>}
+					{success && <p className="mt-3 text-sm text-brand-success">{success}</p>}
 					<div className="mt-4 flex gap-2">
 						<Button loading={pending} onClick={() => void save()}>
 							{selectedReward ? "Save reward" : "Create reward"}
