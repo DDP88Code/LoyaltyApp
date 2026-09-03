@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { AppShell } from "@/features/auth/AppShell";
 import {
 	RedirectIfSignedIn,
@@ -14,6 +14,7 @@ import { PhasePlaceholderPage } from "@/pages/PhasePlaceholderPage";
 import { PrivacyPage } from "@/pages/PrivacyPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { TermsPage } from "@/pages/TermsPage";
+import { AdminMenuPage } from "@/pages/admin/AdminMenuPage";
 import { FivesCodePage } from "@/pages/customer/FivesCodePage";
 import { HomePage } from "@/pages/customer/HomePage";
 import { MenuPage } from "@/pages/customer/MenuPage";
@@ -67,6 +68,8 @@ export const router = createBrowserRouter([
 					{
 						element: <RequireRole allow={["admin", "owner"]} />,
 						children: [
+							{ path: "/admin", element: <Navigate to="/admin/menu" replace /> },
+							{ path: "/admin/menu", element: <AdminMenuPage /> },
 							{
 								path: "/admin/*",
 								element: <PhasePlaceholderPage title="Admin" phase="Phase 11" />,

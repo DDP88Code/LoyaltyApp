@@ -619,37 +619,37 @@ Adjustments:
 # 14. Phase 9 — Menu + R2
 
 R2:
-- [ ] Bucket binding configured.
-- [ ] Authorised upload endpoint.
-- [ ] Object keys stored in D1.
-- [ ] Secure retrieval strategy.
-- [ ] File type validation.
-- [ ] File size validation.
-- [ ] Replace/delete handled safely.
+- [x] Bucket binding configured.
+- [x] Authorised upload endpoint.
+- [x] Object keys stored in D1.
+- [x] Secure retrieval strategy.
+- [x] File type validation.
+- [x] File size validation.
+- [x] Replace/delete handled safely.
 
 Admin categories:
-- [ ] Create.
-- [ ] Edit.
-- [ ] Activate/deactivate.
-- [ ] Sort.
+- [x] Create.
+- [x] Edit.
+- [x] Activate/deactivate.
+- [x] Sort.
 
 Admin items:
-- [ ] Name.
-- [ ] Description.
-- [ ] Price cents.
-- [ ] Category.
-- [ ] Image.
-- [ ] Available.
-- [ ] Active.
-- [ ] Popular.
-- [ ] Vegetarian.
-- [ ] Spicy.
-- [ ] Sort order.
+- [x] Name.
+- [x] Description.
+- [x] Price cents.
+- [x] Category.
+- [x] Image.
+- [x] Available.
+- [x] Active.
+- [x] Popular.
+- [x] Vegetarian.
+- [x] Spicy.
+- [x] Sort order.
 
 ### Gate 9
-- [ ] Admin menu changes appear in Customer Menu.
-- [ ] Sold-out state works.
-- [ ] R2 uploads protected.
+- [x] Admin menu changes appear in Customer Menu.
+- [x] Sold-out state works.
+- [x] R2 uploads protected.
 
 ---
 
@@ -797,20 +797,20 @@ Do not integrate live WhatsApp.
 
 ---
 
-# 18. POS abstraction
+# 18. POS abstraction (LEAVE THIS ALONE, WE ARE NOT INTEGRATING WITH POS)
 
 Do not integrate real POS.
 
-- [ ] `POSProvider` created.
-- [ ] `ManualPOSProvider` created.
-- [ ] `linkCustomerToBill` interface prepared.
-- [ ] `getBill` prepared.
-- [ ] `awardFromClosedBill` prepared.
-- [ ] `applyVoucher` prepared.
-- [ ] `validateBillReference` prepared.
-- [ ] MVP manually adds coffee.
-- [ ] Optional bill reference supported.
-- [ ] No fabricated POS API.
+'- [ ] `POSProvider` created.
+'- [ ] `ManualPOSProvider` created.
+'- [ ] `linkCustomerToBill` interface prepared.
+'- [ ] `getBill` prepared.
+'- [ ] `awardFromClosedBill` prepared.
+'- [ ] `applyVoucher` prepared.
+'- [ ] `validateBillReference` prepared.
+'- [ ] MVP manually adds coffee.
+'- [ ] Optional bill reference supported.
+'- [ ] No fabricated POS API.
 
 ---
 

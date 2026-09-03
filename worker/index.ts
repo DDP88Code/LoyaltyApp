@@ -7,6 +7,7 @@ import { admin } from "@worker/routes/admin";
 import { customer } from "@worker/routes/customer";
 import { dev } from "@worker/routes/dev";
 import { health } from "@worker/routes/health";
+import { media } from "@worker/routes/media";
 import { me } from "@worker/routes/me";
 import { staff } from "@worker/routes/staff";
 import type { AppEnv } from "@worker/types";
@@ -22,6 +23,7 @@ const api = new Hono<AppEnv>()
 	.route("/customer", customer)
 	.route("/staff", staff)
 	.route("/admin", admin)
+	.route("/media", media)
 	.route("/dev", dev)
 	// Any unmatched /api path is an API error, never an SPA document.
 	.all("*", (c) =>

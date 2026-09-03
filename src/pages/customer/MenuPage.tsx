@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import { useCustomerMenu } from "@/features/customer/api";
+import { mediaObjectUrl } from "@/lib/media";
 import { formatCents } from "@/lib/money";
 
 export function MenuPage() {
@@ -63,9 +64,18 @@ export function MenuPage() {
 									key={item.id}
 									className="flex gap-3 rounded-card border border-brand-border bg-brand-surface p-4"
 								>
-									<div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-brand-surface-raised text-brand-muted">
-										<UtensilsCrossed className="size-6" aria-hidden />
-									</div>
+									{item.imageKey ? (
+										<img
+											src={mediaObjectUrl(item.imageKey)}
+											alt={item.name}
+											className="size-16 shrink-0 rounded-xl object-cover"
+											loading="lazy"
+										/>
+									) : (
+										<div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-brand-surface-raised text-brand-muted">
+											<UtensilsCrossed className="size-6" aria-hidden />
+										</div>
+									)}
 									<div className="min-w-0 flex-1">
 										<div className="flex items-start justify-between gap-2">
 											<p className="font-medium">{item.name}</p>

@@ -19,6 +19,8 @@ export async function apiFetch<T>(
 	init: RequestInit = {},
 ): Promise<T> {
 	let response: Response;
+	const isFormData =
+		typeof FormData !== "undefined" && init.body instanceof FormData;
 
 	try {
 		response = await fetch(`${BASE_URL}${path}`, {
@@ -27,7 +29,9 @@ export async function apiFetch<T>(
 			...init,
 			headers: {
 				Accept: "application/json",
-				...(init.body ? { "Content-Type": "application/json" } : {}),
+				...(init.body && !isFormData
+					? { "Content-Type": "application/json" }
+					: {}),
 				...init.headers,
 			},
 		});
