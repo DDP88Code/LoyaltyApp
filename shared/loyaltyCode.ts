@@ -22,6 +22,11 @@ export interface StaffResolvedCustomerPayload {
 	availableVouchers: RewardSummary[];
 }
 
+/** Same as above, plus how many rewards this specific action just issued. */
+export interface CoffeeEarnResultPayload extends StaffResolvedCustomerPayload {
+	newlyIssuedCount: number;
+}
+
 export const resolveLoyaltyCodeSchema = z
 	.object({
 		otp: z

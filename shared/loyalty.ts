@@ -27,7 +27,8 @@ export interface TransactionSummary {
 	id: string;
 	transactionType: TransactionType;
 	quantity: number;
-	programName: string;
+	/** `null` when the transaction isn't tied to a stamp/points program (e.g. a voucher redemption). */
+	programName: string | null;
 	billReference: string | null;
 	notes: string | null;
 	createdAt: string;

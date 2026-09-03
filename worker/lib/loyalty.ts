@@ -1,10 +1,11 @@
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { COFFEE_CURRENCY_CODE } from "@shared/domain";
 import type {
 	CoffeeProgress,
 	RewardSummary,
 	TransactionSummary,
 } from "@shared/loyalty";
+import { newId } from "@worker/db/ids";
 import type { Db } from "@worker/db/client";
 import {
 	customerRewards,
@@ -12,6 +13,7 @@ import {
 	loyaltyTransactions,
 	rewardDefinitions,
 } from "@worker/db/schema";
+import { ApiError } from "@worker/lib/http";
 
 const DAY_MS = 86_400_000;
 
@@ -152,7 +154,7 @@ export async function listCustomerTransactions(
 				programName: loyaltyPrograms.name,
 			})
 			.from(loyaltyTransactions)
-			.innerJoin(
+			.leftJoin(
 				loyaltyPrograms,
 				eq(loyaltyTransactions.programId, loyaltyPrograms.id),
 			)
@@ -205,3 +207,221 @@ export async function issueWelcomeReward(
 		})
 		.onConflictDoNothing();
 }
+
+export interface RecordCoffeeEarnParams {
+	businessId: string;
+	locationId: string;
+	customerId: string;
+	staffId: string;
+	quantity: number;
+	billReference: string | null;
+	idempotencyKey: string;
+}
+
+/**
+ * Records a qualifying coffee purchase and issues any reward the customer has
+ * now newly earned. The earn's own `idempotency_key` makes a retried request a
+ * no-op; the totals below and after that key are only ever advanced once.
+ */
+export async function recordCoffeeEarn(
+	db: Db,
+	params: RecordCoffeeEarnParams,
+): Promise<{ issuedRewardIds: string[] }> {
+	const program = await db.query.loyaltyPrograms.findFirst({
+		where: and(
+			eq(loyaltyPrograms.businessId, params.businessId),
+			eq(loyaltyPrograms.currencyCode, COFFEE_CURRENCY_CODE),
+			eq(loyaltyPrograms.active, true),
+		),
+	});
+	if (!program) {
+		throw new ApiError(
+			"bad_request",
+			"No active coffee program is configured for this business.",
+		);
+	}
+
+	// Computed before the insert so a duplicate (idempotency-key-conflict) call
+	// leaves it unchanged rather than double-counting.
+	const [beforeRow] = await db
+		.select({
+			total: sql<number>`coalesce(sum(${loyaltyTransactions.quantity}), 0)`,
+		})
+		.from(loyaltyTransactions)
+		.where(
+			and(
+				eq(loyaltyTransactions.customerId, params.customerId),
+				eq(loyaltyTransactions.programId, program.id),
+			),
+		);
+	const beforeTotal = beforeRow?.total ?? 0;
+
+	const inserted = await db
+		.insert(loyaltyTransactions)
+		.values({
+			businessId: params.businessId,
+			locationId: params.locationId,
+			customerId: params.customerId,
+			staffId: params.staffId,
+			programId: program.id,
+			transactionType: "earn",
+			quantity: params.quantity,
+			billReference: params.billReference,
+			idempotencyKey: params.idempotencyKey,
+		})
+		.onConflictDoNothing()
+		.returning({ id: loyaltyTransactions.id });
+
+	const wasNewInsert = inserted.length > 0;
+	const afterTotal = wasNewInsert ? beforeTotal + params.quantity : beforeTotal;
+
+	const issuedRewardIds: string[] = [];
+	const threshold = program.qualifyingPurchasesRequired;
+
+	if (wasNewInsert && threshold && threshold > 0 && program.rewardDefinitionId) {
+		const beforeCycles = Math.floor(beforeTotal / threshold);
+		const afterCycles = Math.floor(afterTotal / threshold);
+
+		if (afterCycles > beforeCycles) {
+			const reward = await db.query.rewardDefinitions.findFirst({
+				where: eq(rewardDefinitions.id, program.rewardDefinitionId),
+			});
+			const expiresAt = reward?.validDays
+				? new Date(Date.now() + reward.validDays * DAY_MS)
+				: null;
+
+			for (let cycle = beforeCycles + 1; cycle <= afterCycles; cycle++) {
+				const [row] = await db
+					.insert(customerRewards)
+					.values({
+						businessId: params.businessId,
+						customerId: params.customerId,
+						rewardDefinitionId: program.rewardDefinitionId,
+						expiresAt,
+						// Deterministic per cycle, so a race can never issue the same one twice.
+						issuanceKey: `stamp:${program.id}:${params.customerId}:${cycle}`,
+					})
+					.onConflictDoNothing()
+					.returning({ id: customerRewards.id });
+				if (row) issuedRewardIds.push(row.id);
+			}
+		}
+	}
+
+	return { issuedRewardIds };
+}
+
+export interface RedeemCustomerRewardParams {
+	businessId: string;
+	customerId: string;
+	rewardId: string;
+	staffId: string;
+	locationId: string;
+	billReference: string | null;
+}
+
+/**
+ * Redeems one reward instance. The ledger's unique `idempotency_key`
+ * (`redeem:<rewardId>`) is the single source of truth for "has this reward
+ * already been redeemed" — a losing concurrent call fails there and never
+ * touches `customer_rewards`, so the reward can never be redeemed twice.
+ */
+export async function redeemCustomerReward(
+	db: Db,
+	params: RedeemCustomerRewardParams,
+): Promise<void> {
+	const now = new Date();
+
+	const existing = await db
+		.select({
+			id: customerRewards.id,
+			status: customerRewards.status,
+			expiresAt: customerRewards.expiresAt,
+			rewardDefinitionId: customerRewards.rewardDefinitionId,
+			name: rewardDefinitions.name,
+		})
+		.from(customerRewards)
+		.innerJoin(
+			rewardDefinitions,
+			eq(customerRewards.rewardDefinitionId, rewardDefinitions.id),
+		)
+		.where(
+			and(
+				eq(customerRewards.id, params.rewardId),
+				eq(customerRewards.customerId, params.customerId),
+				eq(customerRewards.businessId, params.businessId),
+			),
+		)
+		.then((rows) => rows[0]);
+
+	if (!existing) {
+		throw new ApiError("not_found", "That reward was not found.");
+	}
+	if (
+		existing.status !== "available" ||
+		(existing.expiresAt !== null && existing.expiresAt.getTime() < now.getTime())
+	) {
+		throw new ApiError(
+			"conflict",
+			"This reward is no longer available to redeem.",
+		);
+	}
+
+	// Not tied to a stamp/points program for a reward like the welcome voucher.
+	const program = await db.query.loyaltyPrograms.findFirst({
+		where: eq(loyaltyPrograms.rewardDefinitionId, existing.rewardDefinitionId),
+	});
+
+	const transactionId = newId();
+	const inserted = await db
+		.insert(loyaltyTransactions)
+		.values({
+			id: transactionId,
+			businessId: params.businessId,
+			locationId: params.locationId,
+			customerId: params.customerId,
+			staffId: params.staffId,
+			programId: program?.id ?? null,
+			transactionType: "redeem",
+			quantity: 0,
+			billReference: params.billReference,
+			notes: `Redeemed: ${existing.name}`,
+			idempotencyKey: `redeem:${params.rewardId}`,
+		})
+		.onConflictDoNothing()
+		.returning({ id: loyaltyTransactions.id });
+
+	if (inserted.length === 0) {
+		throw new ApiError("conflict", "This reward has already been redeemed.");
+	}
+
+	// The WHERE clause repeats the availability guard as the true compare-and-
+	// swap: only a row still `available` and unexpired can transition here.
+	const updated = await db
+		.update(customerRewards)
+		.set({
+			status: "redeemed",
+			redeemedAt: now,
+			redeemedBy: params.staffId,
+			locationId: params.locationId,
+			redemptionTransactionId: transactionId,
+		})
+		.where(
+			and(
+				eq(customerRewards.id, params.rewardId),
+				eq(customerRewards.customerId, params.customerId),
+				eq(customerRewards.businessId, params.businessId),
+				eq(customerRewards.status, "available"),
+				or(isNull(customerRewards.expiresAt), gt(customerRewards.expiresAt, now)),
+			),
+		)
+		.returning({ id: customerRewards.id });
+
+	if (updated.length === 0) {
+		throw new ApiError(
+			"conflict",
+			"This reward is no longer available to redeem.",
+		);
+	}
+}
+

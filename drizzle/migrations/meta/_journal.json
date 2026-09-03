@@ -15,6 +15,13 @@
       "when": 1788413543846,
       "tag": "0001_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788418314437,
+      "tag": "0002_coffee_earn_redeem",
+      "breakpoints": true
     }
   ]
 }

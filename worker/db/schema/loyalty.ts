@@ -62,9 +62,9 @@ export const loyaltyTransactions = sqliteTable(
 			.notNull()
 			.references(() => profiles.id),
 		staffId: text("staff_id").references(() => profiles.id),
-		programId: text("program_id")
-			.notNull()
-			.references(() => loyaltyPrograms.id),
+		// Null for redemptions of a reward that isn't tied to a stamp/points
+		// program (e.g. the welcome voucher) — nothing to accrue against.
+		programId: text("program_id").references(() => loyaltyPrograms.id),
 		transactionType: text("transaction_type", {
 			enum: TRANSACTION_TYPES,
 		}).notNull(),

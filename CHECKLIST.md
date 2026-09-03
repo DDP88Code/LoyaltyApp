@@ -519,87 +519,87 @@ Staff resolution:
 # 12. Phase 7 — Staff app
 
 Route:
-- [ ] `/staff`
+- [x] `/staff`
 
 Home:
-- [ ] Scan Customer QR.
-- [ ] Enter Customer Code.
+- [x] Scan Customer QR.
+- [x] Enter Customer Code.
 
 Scanner:
-- [ ] Browser scanner works.
-- [ ] Camera permission handled.
-- [ ] Scanner behind service abstraction.
-- [ ] Manual fallback.
+- [x] Browser scanner works.
+- [x] Camera permission handled.
+- [x] Scanner behind service abstraction.
+- [x] Manual fallback.
 
 Manual code:
-- [ ] Six-digit input.
-- [ ] Numeric keyboard.
-- [ ] Errors clear.
+- [x] Six-digit input.
+- [x] Numeric keyboard.
+- [x] Errors clear.
 
 Resolved customer:
-- [ ] Customer name.
-- [ ] Coffee progress.
-- [ ] Available free coffees.
-- [ ] Available vouchers.
+- [x] Customer name.
+- [x] Coffee progress.
+- [x] Available free coffees.
+- [x] Available vouchers.
 
 Actions:
-- [ ] Add Coffee.
-- [ ] Redeem Free Coffee.
-- [ ] Redeem Voucher.
+- [x] Add Coffee.
+- [x] Redeem Free Coffee.
+- [x] Redeem Voucher.
 
 Add coffee:
-- [ ] Default quantity 1.
-- [ ] Optional bill reference.
-- [ ] Confirmation dialog.
-- [ ] Button disabled while processing.
-- [ ] Idempotency key.
-- [ ] Success state.
-- [ ] Updated progress returned.
-- [ ] New reward shown immediately.
+- [x] Default quantity 1.
+- [x] Optional bill reference.
+- [x] Confirmation dialog.
+- [x] Button disabled while processing.
+- [x] Idempotency key.
+- [x] Success state.
+- [x] Updated progress returned.
+- [x] New reward shown immediately.
 
 Redemption:
-- [ ] Confirmation dialog.
-- [ ] Atomic backend operation.
-- [ ] Duplicate redemption impossible.
-- [ ] Staff saved.
-- [ ] Location saved.
-- [ ] Timestamp saved.
-- [ ] Optional bill reference saved.
+- [x] Confirmation dialog.
+- [x] Atomic backend operation.
+- [x] Duplicate redemption impossible.
+- [x] Staff saved.
+- [x] Location saved.
+- [x] Timestamp saved.
+- [x] Optional bill reference saved.
 
 ### Gate 7
 - [ ] QR flow works end-to-end.
-- [ ] OTP flow works end-to-end.
-- [ ] Earn works.
-- [ ] Redeem works.
-- [ ] Staff cannot access Admin.
+- [x] OTP flow works end-to-end.
+- [x] Earn works.
+- [x] Redeem works.
+- [x] Staff cannot access Admin.
 
 ---
 
 # 13. Phase 8 — Reward engine
 
 Coffee issuance:
-- [ ] Progress correct.
-- [ ] DB threshold used.
-- [ ] Completed thresholds detected.
-- [ ] Duplicate issuance blocked.
-- [ ] Multiple cycles supported.
+- [x] Progress correct.
+- [x] DB threshold used.
+- [x] Completed thresholds detected.
+- [x] Duplicate issuance blocked.
+- [x] Multiple cycles supported.
 
 Welcome reward:
-- [ ] Once-only issuance protection.
+- [x] Once-only issuance protection.
 
 Expiry:
-- [ ] Expired rewards recognised.
-- [ ] Expired rewards not redeemable.
+- [x] Expired rewards recognised.
+- [x] Expired rewards not redeemable.
 
 Redemption:
-- [ ] Reward belongs to customer.
-- [ ] Must be available.
-- [ ] Must not be expired.
-- [ ] Atomic/idempotent logic.
-- [ ] Redemption transaction created.
-- [ ] redeemed_at set.
-- [ ] redeemed_by set.
-- [ ] location set.
+- [x] Reward belongs to customer.
+- [x] Must be available.
+- [x] Must not be expired.
+- [x] Atomic/idempotent logic.
+- [x] Redemption transaction created.
+- [x] redeemed_at set.
+- [x] redeemed_by set.
+- [x] location set.
 
 Adjustments:
 - [ ] Admin-only.
@@ -609,10 +609,10 @@ Adjustments:
 - [ ] Historical transactions never overwritten.
 
 ### Gate 8
-- [ ] Duplicate reward issuance test passes.
-- [ ] Duplicate redemption test passes.
-- [ ] Multi-cycle test passes.
-- [ ] Welcome reward once-only test passes.
+- [x] Duplicate reward issuance test passes.
+- [x] Duplicate redemption test passes.
+- [x] Multi-cycle test passes.
+- [x] Welcome reward once-only test passes.
 
 ---
 

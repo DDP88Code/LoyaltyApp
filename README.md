@@ -147,6 +147,41 @@ deactivated after generating a valid code still fails to resolve, since the
 customer's `active` flag is re-checked at resolution time, not just at
 generation time.
 
+## Staff app
+
+Route `/staff`, its own layout (no bottom nav — one screen, few taps, built for
+a low-cost Android device behind the bar). Resolves a customer via the Phase 6
+loyalty-code endpoint, then can act on them:
+
+| Endpoint                                                    | Purpose |
+| ------------------------------------------------------------ | ------- |
+| `POST /api/staff/customers/:customerId/coffee`                | Records a qualifying coffee purchase |
+| `POST /api/staff/customers/:customerId/rewards/:rewardId/redeem` | Redeems one reward instance |
+
+Both endpoints are implemented in [worker/lib/loyalty.ts](worker/lib/loyalty.ts)
+(`recordCoffeeEarn`, `redeemCustomerReward`):
+
+- **Add coffee** is idempotent on a client-generated `idempotencyKey` (one per
+  button press) — a retried request changes nothing the second time, verified
+  by resubmitting the exact same request and confirming progress and reward
+  count are unchanged. Crossing the program's threshold issues a Free Coffee
+  with a deterministic `issuance_key` (`stamp:<programId>:<customerId>:<cycle>`),
+  so a race can never issue the same cycle's reward twice, and multiple
+  cycles in one large purchase are all issued at once.
+- **Redeem** is guarded by the ledger's unique `idempotency_key`
+  (`redeem:<rewardId>`) — the true single source of truth for "has this reward
+  already been redeemed" — followed by a compare-and-swap `UPDATE ... WHERE
+  status = 'available'` on `customer_rewards`, so only one of two concurrent
+  redemption attempts can ever succeed. A reward tied to a stamp/points program
+  (Free Coffee) gets a ledger row referencing that program; one that isn't
+  (the welcome voucher) gets a ledger row with a `null` `program_id` — which is
+  why `loyalty_transactions.program_id` is nullable.
+
+Scanning is behind a `ScannerService` interface
+([src/features/staff/scanner.ts](src/features/staff/scanner.ts)) so the
+browser-camera implementation (`qr-scanner`) can later be swapped for a
+Capacitor/native barcode scanner without touching call sites.
+
 ### Test users
 
 Never commit credentials. Create test accounts locally by registering through

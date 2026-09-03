@@ -130,7 +130,8 @@ function TransactionHistory() {
 					>
 						<div>
 							<p className="text-sm font-medium capitalize">
-								{row.transactionType} · {row.programName}
+								{row.transactionType}
+								{row.programName ? ` · ${row.programName}` : ""}
 							</p>
 							<p className="text-xs text-brand-muted">
 								{new Date(row.createdAt).toLocaleString("en-ZA")}

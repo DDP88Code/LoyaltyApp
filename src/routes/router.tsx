@@ -6,6 +6,7 @@ import {
 	RequireRole,
 } from "@/features/auth/guards";
 import { CustomerLayout } from "@/features/customer/CustomerLayout";
+import { StaffLayout } from "@/features/staff/StaffLayout";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -18,6 +19,7 @@ import { HomePage } from "@/pages/customer/HomePage";
 import { MenuPage } from "@/pages/customer/MenuPage";
 import { ProfilePage } from "@/pages/customer/ProfilePage";
 import { RewardsPage } from "@/pages/customer/RewardsPage";
+import { StaffHomePage } from "@/pages/staff/StaffHomePage";
 
 export const router = createBrowserRouter([
 	{ path: "/", element: <LandingPage /> },
@@ -51,17 +53,17 @@ export const router = createBrowserRouter([
 				],
 			},
 			{
-				element: <AppShell />,
+				element: <RequireRole allow={["staff", "admin", "owner"]} />,
 				children: [
 					{
-						element: <RequireRole allow={["staff", "admin", "owner"]} />,
-						children: [
-							{
-								path: "/staff/*",
-								element: <PhasePlaceholderPage title="Staff" phase="Phase 7" />,
-							},
-						],
+						element: <StaffLayout />,
+						children: [{ path: "/staff", element: <StaffHomePage /> }],
 					},
+				],
+			},
+			{
+				element: <AppShell />,
+				children: [
 					{
 						element: <RequireRole allow={["admin", "owner"]} />,
 						children: [
