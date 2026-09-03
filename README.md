@@ -98,7 +98,7 @@ back to the caller.
 ## Customer app
 
 Routes under `/app` (React Router, mobile-first bottom navigation): Home,
-Rewards, Fives Code (Phase 6), Menu, Profile. Backed by
+Rewards, Fives Code, Menu, Profile. Backed by
 [worker/routes/customer.ts](worker/routes/customer.ts):
 
 | Endpoint                                      | Purpose |
@@ -109,6 +109,7 @@ Rewards, Fives Code (Phase 6), Menu, Profile. Backed by
 | `GET /api/customer/menu`                       | Categories and items (view-only, no ordering) |
 | `GET/PATCH /api/customer/profile`              | View and edit the signed-in profile |
 | `POST /api/customer/account/deletion-request`  | Logs an audit entry for staff to action |
+| `POST /api/customer/loyalty-code`              | Issues a fresh OTP + QR token for MY FIVES CODE |
 
 Coffee progress is never a stored counter. [worker/lib/loyalty.ts](worker/lib/loyalty.ts)
 sums every `loyalty_transactions` row for the customer and program and derives
@@ -123,6 +124,28 @@ concern, so until then this is a read-time projection only.
 The welcome voucher is issued from the same Better Auth `user.create` hook that
 creates the profile ([worker/auth/index.ts](worker/auth/index.ts)), using
 `issuance_key = welcome:<profileId>` so a retried signup can never grant it twice.
+
+## Loyalty codes (MY FIVES CODE)
+
+`POST /api/customer/loyalty-code` issues a 6-digit OTP and a QR token, each
+good for the TTL in `app_settings.loyalty_code_ttl_seconds` (10 minutes by
+default). Only their HMAC-SHA256 hashes are stored, keyed with
+`BETTER_AUTH_SECRET` — a plain hash would be rainbow-table-able for a 6-digit
+OTP, since it only has a million possible values. Generating a new code
+invalidates any still-active one for that customer, and a code is spent the
+instant it resolves, so neither an old screenshot nor a reused code ever works
+twice. Raw values are returned exactly once, in the generation response.
+
+`POST /api/staff/loyalty-code/resolve` ([worker/routes/staff.ts](worker/routes/staff.ts))
+takes either `{ otp }` or `{ qrToken }` (never both), scoped to the calling
+staff member's business, and returns the minimum needed to act: the customer's
+name, coffee progress, and available free coffees and vouchers — no email,
+mobile number or birthday. An unknown code, an expired code, an already-used
+code and a code from another business all fail with the same generic message,
+so the response can't be used to tell which case occurred. A customer
+deactivated after generating a valid code still fails to resolve, since the
+customer's `active` flag is re-checked at resolution time, not just at
+generation time.
 
 ### Test users
 

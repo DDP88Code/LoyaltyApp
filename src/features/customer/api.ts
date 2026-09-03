@@ -6,6 +6,7 @@ import type {
 	CustomerRewardsPayload,
 	CustomerTransactionsPayload,
 } from "@shared/loyalty";
+import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import type {
 	AccountDeletionRequestPayload,
 	UpdateProfileInput,
@@ -68,5 +69,14 @@ export function useRequestAccountDeletion() {
 				"/api/customer/account/deletion-request",
 				{ method: "POST" },
 			),
+	});
+}
+
+export function useGenerateLoyaltyCode() {
+	return useMutation({
+		mutationFn: () =>
+			apiFetch<LoyaltyCodePayload>("/api/customer/loyalty-code", {
+				method: "POST",
+			}),
 	});
 }

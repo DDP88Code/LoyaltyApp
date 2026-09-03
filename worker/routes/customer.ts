@@ -10,6 +10,7 @@ import type {
 	MenuCategorySummary,
 	PromotionSummary,
 } from "@shared/loyalty";
+import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import {
 	type AccountDeletionRequestPayload,
 	updateProfileSchema,
@@ -23,6 +24,7 @@ import {
 	listCustomerRewards,
 	listCustomerTransactions,
 } from "@worker/lib/loyalty";
+import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
@@ -82,6 +84,17 @@ export const customer = new Hono<AppEnv>()
 			entityId: profile.id,
 		});
 		return ok<AccountDeletionRequestPayload>(c, { requested: true });
+	})
+
+	.post("/loyalty-code", async (c) => {
+		const profile = c.get("profile");
+		const payload = await issueLoyaltyCode(
+			getDb(c.env),
+			c.env.BETTER_AUTH_SECRET,
+			profile.businessId,
+			profile.id,
+		);
+		return ok<LoyaltyCodePayload>(c, payload);
 	})
 
 	.get("/home", async (c) => {

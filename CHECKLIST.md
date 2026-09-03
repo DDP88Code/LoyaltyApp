@@ -482,37 +482,37 @@ Profile:
 # 11. Phase 6 — Loyalty code service
 
 Generation:
-- [ ] Customer auth required.
-- [ ] Secure 6-digit OTP server-generated.
-- [ ] Secure random QR token server-generated.
-- [ ] Hashed values stored.
-- [ ] Default 10-minute expiry.
-- [ ] Previous active code invalidated where appropriate.
-- [ ] Raw display values returned only at generation.
+- [x] Customer auth required.
+- [x] Secure 6-digit OTP server-generated.
+- [x] Secure random QR token server-generated.
+- [x] Hashed values stored.
+- [x] Default 10-minute expiry.
+- [x] Previous active code invalidated where appropriate.
+- [x] Raw display values returned only at generation.
 
 Customer UI:
-- [ ] QR displayed.
-- [ ] OTP displayed XXX XXX.
-- [ ] Countdown.
-- [ ] Expired state.
-- [ ] Generate New Code.
+- [x] QR displayed.
+- [x] OTP displayed XXX XXX.
+- [x] Countdown.
+- [x] Expired state.
+- [x] Generate New Code.
 
 Staff resolution:
-- [ ] Staff auth required.
-- [ ] OTP validated server-side.
-- [ ] QR validated server-side.
-- [ ] Expired rejected.
-- [ ] Invalid rejected.
-- [ ] Inactive customer rejected.
-- [ ] Wrong business rejected.
-- [ ] Minimum customer data returned.
+- [x] Staff auth required.
+- [x] OTP validated server-side.
+- [x] QR validated server-side.
+- [x] Expired rejected.
+- [x] Invalid rejected.
+- [x] Inactive customer rejected.
+- [x] Wrong business rejected.
+- [x] Minimum customer data returned.
 
 ### Gate 6
-- [ ] Valid OTP resolves.
-- [ ] Valid QR resolves.
-- [ ] Expired fails.
-- [ ] Invalid fails.
-- [ ] Old regenerated code fails.
+- [x] Valid OTP resolves.
+- [x] Valid QR resolves.
+- [x] Expired fails.
+- [x] Invalid fails.
+- [x] Old regenerated code fails.
 
 ---
 
