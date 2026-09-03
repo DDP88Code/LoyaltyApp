@@ -2,6 +2,10 @@ import type { ApiErrorCode, ApiResponse } from "@shared/api";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+function isMutationMethod(method: string): boolean {
+	return method !== "GET" && method !== "HEAD";
+}
+
 export class ApiClientError extends Error {
 	constructor(
 		readonly code: ApiErrorCode,
@@ -19,8 +23,21 @@ export async function apiFetch<T>(
 	init: RequestInit = {},
 ): Promise<T> {
 	let response: Response;
+	const method = (init.method ?? "GET").toUpperCase();
 	const isFormData =
 		typeof FormData !== "undefined" && init.body instanceof FormData;
+
+	if (
+		isMutationMethod(method) &&
+		typeof navigator !== "undefined" &&
+		navigator.onLine === false
+	) {
+		throw new ApiClientError(
+			"internal_error",
+			"You are offline. Connect to the internet before trying this action.",
+			0,
+		);
+	}
 
 	try {
 		response = await fetch(`${BASE_URL}${path}`, {
@@ -38,7 +55,7 @@ export async function apiFetch<T>(
 	} catch {
 		throw new ApiClientError(
 			"internal_error",
-			"You appear to be offline. Check your connection and try again.",
+			"You are offline. Connect to the internet before trying this action.",
 			0,
 		);
 	}

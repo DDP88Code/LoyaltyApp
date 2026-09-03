@@ -9,6 +9,7 @@ import {
 	useAdminLookups,
 	useCreateAdminAdjustment,
 } from "@/features/admin/core/api";
+import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { AdminPanel } from "@/features/admin/core/widgets";
 
 const PAGE_SIZE = 20;
@@ -21,6 +22,7 @@ function newIdempotencyKey() {
 }
 
 export function AdminCustomersPage() {
+	const isOnline = useOnlineStatus();
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
@@ -40,7 +42,9 @@ export function AdminCustomersPage() {
 	const detail = useAdminCustomerDetail(selectedCustomerId);
 	const createAdjustment = useCreateAdminAdjustment();
 
-	const canAdjust = Boolean(selectedCustomerId && programId && locationId && reason.trim());
+	const canAdjust = Boolean(
+		isOnline && selectedCustomerId && programId && locationId && reason.trim(),
+	);
 
 	const rewardsByStatus = useMemo(() => {
 		const rows = detail.data?.rewards ?? [];
@@ -163,6 +167,11 @@ export function AdminCustomersPage() {
 						</AdminPanel>
 
 						<AdminPanel title="Manual Adjustment" description="Write an audited correction entry.">
+							{!isOnline && (
+								<p className="mb-3 text-sm text-brand-danger">
+									Internet is required before saving ledger adjustments.
+								</p>
+							)}
 							<div className="grid gap-3 md:grid-cols-2">
 								<div className="grid gap-1">
 									<label className="text-sm font-medium" htmlFor="programSelect">Program</label>

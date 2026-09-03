@@ -9,15 +9,17 @@ import { LocationPicker } from "@/features/staff/LocationPicker";
 import { ManualCodeEntry } from "@/features/staff/ManualCodeEntry";
 import { QrScanner } from "@/features/staff/QrScanner";
 import { ResolvedCustomerView } from "@/features/staff/ResolvedCustomerView";
+import { useOnlineStatus } from "@/features/system/useOnlineStatus";
+import { appStorage } from "@/lib/storage";
 
 const LOCATION_STORAGE_KEY = "fives:staff:locationId";
 
 function useSelectedLocationId(): [string | null, (id: string) => void] {
 	const [locationId, setLocationIdState] = useState<string | null>(() =>
-		localStorage.getItem(LOCATION_STORAGE_KEY),
+		appStorage.getItem(LOCATION_STORAGE_KEY),
 	);
 	const setLocationId = (id: string) => {
-		localStorage.setItem(LOCATION_STORAGE_KEY, id);
+		appStorage.setItem(LOCATION_STORAGE_KEY, id);
 		setLocationIdState(id);
 	};
 	return [locationId, setLocationId];
@@ -26,6 +28,7 @@ function useSelectedLocationId(): [string | null, (id: string) => void] {
 type Mode = "home" | "scan" | "manual" | "resolved";
 
 export function StaffHomePage() {
+	const isOnline = useOnlineStatus();
 	const [locationId, setLocationId] = useSelectedLocationId();
 	const context = useStaffContext(locationId);
 	const resolve = useResolveLoyaltyCode();
@@ -79,6 +82,11 @@ export function StaffHomePage() {
 		return (
 			<div className="flex flex-col gap-4 p-5">
 				<PageHeader title="Scan Customer QR" />
+				{!isOnline && (
+					<p className="text-sm text-brand-danger">
+						Internet is required to resolve and redeem loyalty codes.
+					</p>
+				)}
 				<QrScanner
 					onDecode={(qrToken) =>
 						resolve.mutate(
@@ -103,6 +111,11 @@ export function StaffHomePage() {
 		return (
 			<div className="flex flex-col gap-4 p-5">
 				<PageHeader title="Enter Customer Code" />
+				{!isOnline && (
+					<p className="text-sm text-brand-danger">
+						Internet is required to resolve and redeem loyalty codes.
+					</p>
+				)}
 				<ManualCodeEntry
 					loading={resolve.isPending}
 					error={resolve.error?.message}
@@ -123,6 +136,11 @@ export function StaffHomePage() {
 	return (
 		<div className="flex flex-col gap-4 p-5">
 			<PageHeader title="Fives Staff" />
+			{!isOnline && (
+				<p className="text-sm text-brand-danger">
+					Internet is required for scanning codes, adding coffee, and reward redemption.
+				</p>
+			)}
 			{locations.length > 1 && (
 				<LocationPicker
 					locations={locations}
@@ -133,6 +151,7 @@ export function StaffHomePage() {
 			<Button
 				size="lg"
 				fullWidth
+				disabled={!isOnline}
 				leadingIcon={<ScanLine className="size-5" aria-hidden />}
 				onClick={() => setMode("scan")}
 			>
@@ -142,6 +161,7 @@ export function StaffHomePage() {
 				size="lg"
 				variant="outline"
 				fullWidth
+				disabled={!isOnline}
 				leadingIcon={<Keyboard className="size-5" aria-hidden />}
 				onClick={() => setMode("manual")}
 			>

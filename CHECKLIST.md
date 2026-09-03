@@ -829,35 +829,36 @@ Do not integrate real POS.
 # 20. Phase 12 — PWA / Capacitor readiness
 
 PWA:
-- [ ] Manifest complete.
-- [ ] Icons complete enough for MVP.
-- [ ] Install works.
-- [ ] Standalone navigation works.
+- [x] Manifest complete.
+- [x] Icons complete enough for MVP.
+- [x] Install works.
+- [x] Standalone navigation works.
 
 Safe cache:
-- [ ] App shell.
-- [ ] Static assets.
-- [ ] Menu reads where appropriate.
+- [x] App shell.
+- [x] Static assets.
+- [x] Menu reads where appropriate.
 
 Never offline-replay:
-- [ ] Loyalty code generation.
-- [ ] Add coffee.
-- [ ] Reward redemption.
-- [ ] Admin adjustment.
+- [x] Loyalty code generation.
+- [x] Add coffee.
+- [x] Reward redemption.
+- [x] Admin adjustment.
 
 Offline UX:
-- [ ] Clear internet-required messages.
+- [x] Clear internet-required messages.
 
 Capacitor readiness:
-- [ ] Scanner behind abstraction.
-- [ ] Notifications behind abstraction.
-- [ ] Storage abstracted where needed.
-- [ ] Backend independent from browser shell.
-- [ ] No critical browser-only assumptions.
+- [x] Scanner behind abstraction.
+- [x] Notifications behind abstraction.
+- [x] Storage abstracted where needed.
+- [x] Backend independent from browser shell.
+- [x] No critical browser-only assumptions.
 
 ### Gate 12
-- [ ] Installed PWA works.
-- [ ] Sensitive mutations require connectivity.
+- [x] Installed PWA works.
+- [x] Sensitive mutations require connectivity.
+- [x] Phase 12 readiness checks validated via `scripts/phase12-smoke.ps1`.
 
 ---
 

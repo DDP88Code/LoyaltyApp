@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState, LoadingState } from "@/components/ui/States";
 import { useGenerateLoyaltyCode } from "@/features/customer/api";
+import { useNotificationProvider } from "@/features/system/notifications";
+import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 
 function formatOtp(otp: string): string {
 	return `${otp.slice(0, 3)} ${otp.slice(3)}`;
@@ -34,29 +36,46 @@ function useSecondsRemaining(expiresAt: string | undefined): number {
 
 /** Generation is server-side (Phase 6): secure OTP + QR token, hashed at rest. */
 export function FivesCodePage() {
+	const isOnline = useOnlineStatus();
+	const notifications = useNotificationProvider();
 	const generate = useGenerateLoyaltyCode();
 	const requestedOnce = useRef(false);
 	const secondsRemaining = useSecondsRemaining(generate.data?.expiresAt);
 	const expired = Boolean(generate.data) && secondsRemaining <= 0;
 
+	const requestCode = () => {
+		if (!isOnline) return;
+		generate.mutate(undefined, {
+			onSuccess: (payload) => {
+				void notifications.sendLoyaltyCode({ expiresAt: payload.expiresAt });
+			},
+		});
+	};
+
 	useEffect(() => {
-		if (requestedOnce.current) return;
+		if (requestedOnce.current || !isOnline) return;
 		requestedOnce.current = true;
-		generate.mutate();
+		requestCode();
 		// One-time on mount; the mutation object is excluded so this never re-fires.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [isOnline]);
 
 	return (
 		<div className="flex flex-col items-center gap-5 p-5 text-center">
 			<PageHeader title="My Fives Code" />
+
+			{!isOnline && (
+				<p className="text-sm text-brand-danger">
+					Internet is required to generate and refresh your loyalty code.
+				</p>
+			)}
 
 			{generate.isPending && <LoadingState label="Generating your code…" />}
 
 			{generate.isError && (
 				<ErrorState
 					description={generate.error.message}
-					onRetry={() => generate.mutate()}
+					onRetry={requestCode}
 				/>
 			)}
 
@@ -87,8 +106,9 @@ export function FivesCodePage() {
 				<Button
 					variant="outline"
 					loading={generate.isPending}
+					disabled={!isOnline}
 					leadingIcon={<RefreshCw className="size-4" aria-hidden />}
-					onClick={() => generate.mutate()}
+					onClick={requestCode}
 				>
 					Generate New Code
 				</Button>

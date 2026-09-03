@@ -10,6 +10,14 @@ import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { AddCoffeeDialog } from "@/features/staff/AddCoffeeDialog";
 import { useAddCoffee, useRedeemReward } from "@/features/staff/api";
 import { RedeemDialog } from "@/features/staff/RedeemDialog";
+import { useOnlineStatus } from "@/features/system/useOnlineStatus";
+
+function newIdempotencyKey() {
+	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+		return crypto.randomUUID();
+	}
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export function ResolvedCustomerView({
 	customer,
@@ -22,6 +30,7 @@ export function ResolvedCustomerView({
 	onUpdated: (payload: StaffResolvedCustomerPayload) => void;
 	onDone: () => void;
 }) {
+	const isOnline = useOnlineStatus();
 	const addCoffee = useAddCoffee();
 	const redeemReward = useRedeemReward();
 	const [addCoffeeOpen, setAddCoffeeOpen] = useState(false);
@@ -29,13 +38,14 @@ export function ResolvedCustomerView({
 	const [justIssued, setJustIssued] = useState<CoffeeEarnResultPayload | null>(null);
 
 	const handleAddCoffee = (input: { quantity: number; billReference: string | null }) => {
+		if (!isOnline) return;
 		addCoffee.mutate(
 			{
 				customerId: customer.customerId,
 				locationId,
 				quantity: input.quantity,
 				billReference: input.billReference,
-				idempotencyKey: crypto.randomUUID(),
+				idempotencyKey: newIdempotencyKey(),
 			},
 			{
 				onSuccess: (result) => {
@@ -49,6 +59,7 @@ export function ResolvedCustomerView({
 
 	const handleRedeem = (input: { billReference: string | null }) => {
 		if (!redeemTarget) return;
+		if (!isOnline) return;
 		redeemReward.mutate(
 			{
 				customerId: customer.customerId,
@@ -80,6 +91,12 @@ export function ResolvedCustomerView({
 				</Card>
 			)}
 
+			{!isOnline && (
+				<p className="text-sm text-brand-danger">
+					Internet is required to add coffee and redeem rewards.
+				</p>
+			)}
+
 			{customer.coffee && (
 				<Card>
 					<CardTitle>{customer.coffee.programName}</CardTitle>
@@ -102,6 +119,7 @@ export function ResolvedCustomerView({
 							<RewardRow
 								key={reward.id}
 								reward={reward}
+								disabled={!isOnline}
 								onRedeem={() => setRedeemTarget(reward)}
 							/>
 						))}
@@ -119,6 +137,7 @@ export function ResolvedCustomerView({
 							<RewardRow
 								key={reward.id}
 								reward={reward}
+								disabled={!isOnline}
 								onRedeem={() => setRedeemTarget(reward)}
 							/>
 						))}
@@ -126,7 +145,7 @@ export function ResolvedCustomerView({
 				)}
 			</Card>
 
-			<Button fullWidth onClick={() => setAddCoffeeOpen(true)}>
+			<Button fullWidth disabled={!isOnline} onClick={() => setAddCoffeeOpen(true)}>
 				Add Coffee
 			</Button>
 
@@ -152,9 +171,11 @@ export function ResolvedCustomerView({
 
 function RewardRow({
 	reward,
+	disabled,
 	onRedeem,
 }: {
 	reward: RewardSummary;
+	disabled: boolean;
 	onRedeem: () => void;
 }) {
 	return (
@@ -167,7 +188,7 @@ function RewardRow({
 					</Badge>
 				)}
 			</div>
-			<Button size="sm" onClick={onRedeem}>
+			<Button size="sm" disabled={disabled} onClick={onRedeem}>
 				Redeem
 			</Button>
 		</div>
