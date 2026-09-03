@@ -680,94 +680,95 @@ Customer:
 # 16. Phase 11 — Admin app
 
 Route:
-- [ ] `/admin`
+- [x] `/admin`
 
 Sidebar:
-- [ ] Dashboard
-- [ ] Customers
-- [ ] Loyalty
-- [ ] Rewards
-- [ ] Transactions
-- [ ] Menu
-- [ ] Promotions
-- [ ] Staff
-- [ ] Reports
-- [ ] Settings
-- [ ] Audit Log
+- [x] Dashboard
+- [x] Customers
+- [x] Loyalty
+- [x] Rewards
+- [x] Transactions
+- [x] Menu
+- [x] Promotions
+- [x] Staff
+- [x] Reports
+- [x] Settings
+- [x] Audit Log
 
 Dashboard cards:
-- [ ] Total Members
-- [ ] Active Members
-- [ ] New Members This Month
-- [ ] Coffees Purchased
-- [ ] Free Coffees Issued
-- [ ] Free Coffees Redeemed
-- [ ] Outstanding Rewards
-- [ ] Redemption Rate
+- [x] Total Members
+- [x] Active Members
+- [x] New Members This Month
+- [x] Coffees Purchased
+- [x] Free Coffees Issued
+- [x] Free Coffees Redeemed
+- [x] Outstanding Rewards
+- [x] Redemption Rate
 
 Charts:
-- [ ] New members over time.
-- [ ] Coffee purchases over time.
-- [ ] Rewards earned vs redeemed.
+- [x] New members over time.
+- [x] Coffee purchases over time.
+- [x] Rewards earned vs redeemed.
 
 Customers:
-- [ ] Search name.
-- [ ] Search email.
-- [ ] Search mobile.
-- [ ] Search reference.
-- [ ] Pagination.
-- [ ] Detail view.
-- [ ] Coffee progress.
-- [ ] Rewards.
-- [ ] Transactions.
-- [ ] Redemptions.
-- [ ] Manual adjustment.
+- [x] Search name.
+- [x] Search email.
+- [x] Search mobile.
+- [x] Search reference.
+- [x] Pagination.
+- [x] Detail view.
+- [x] Coffee progress.
+- [x] Rewards.
+- [x] Transactions.
+- [x] Redemptions.
+- [x] Manual adjustment.
 
 Loyalty:
-- [ ] View programs.
-- [ ] Activate/deactivate.
-- [ ] Edit coffee threshold.
-- [ ] Edit reward.
-- [ ] Edit expiry.
-- [ ] Location applicability.
-- [ ] Future points fields ready.
+- [x] View programs.
+- [x] Activate/deactivate.
+- [x] Edit coffee threshold.
+- [x] Edit reward.
+- [x] Edit expiry.
+- [x] Location applicability.
+- [x] Future points fields ready.
 
 Rewards:
-- [ ] CRUD reward definitions.
-- [ ] Welcome flag.
-- [ ] Values in cents.
-- [ ] Validity.
-- [ ] Terms.
+- [x] CRUD reward definitions.
+- [x] Welcome flag.
+- [x] Values in cents.
+- [x] Validity.
+- [x] Terms.
 
 Transactions:
-- [ ] Filter customer.
-- [ ] Filter staff.
-- [ ] Filter date.
-- [ ] Filter program.
-- [ ] Filter type.
-- [ ] Filter location.
-- [ ] Filter bill reference.
-- [ ] No destructive delete.
+- [x] Filter customer.
+- [x] Filter staff.
+- [x] Filter date.
+- [x] Filter program.
+- [x] Filter type.
+- [x] Filter location.
+- [x] Filter bill reference.
+- [x] No destructive delete.
 
 Staff management:
-- [ ] List staff.
-- [ ] Create/invite.
-- [ ] Assign location.
-- [ ] Activate/deactivate.
-- [ ] Safe role changes.
-- [ ] Role elevation protected.
+- [x] List staff.
+- [x] Create/invite.
+- [x] Assign location.
+- [x] Activate/deactivate.
+- [x] Safe role changes.
+- [x] Role elevation protected.
 
 Audit:
-- [ ] Timestamp.
-- [ ] Actor.
-- [ ] Role.
-- [ ] Action.
-- [ ] Entity.
-- [ ] Before/after.
-- [ ] Metadata.
-- [ ] Filters.
+- [x] Timestamp.
+- [x] Actor.
+- [x] Role.
+- [x] Action.
+- [x] Entity.
+- [x] Before/after.
+- [x] Metadata.
+- [x] Filters.
 
 ### Gate 11
+- [x] Traceability chain validated via `scripts/phase11-smoke.ps1`.
 Admin can trace:
 
 ```text

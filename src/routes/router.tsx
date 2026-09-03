@@ -1,21 +1,29 @@
 import { createBrowserRouter, Navigate } from "react-router";
-import { AppShell } from "@/features/auth/AppShell";
 import {
 	RedirectIfSignedIn,
 	RequireAuth,
 	RequireRole,
 } from "@/features/auth/guards";
+import { AdminLayout } from "@/features/admin/core/AdminLayout";
 import { CustomerLayout } from "@/features/customer/CustomerLayout";
 import { StaffLayout } from "@/features/staff/StaffLayout";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { PhasePlaceholderPage } from "@/pages/PhasePlaceholderPage";
 import { PrivacyPage } from "@/pages/PrivacyPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { TermsPage } from "@/pages/TermsPage";
+import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
+import { AdminCustomersPage } from "@/pages/admin/AdminCustomersPage";
+import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
+import { AdminLoyaltyPage } from "@/pages/admin/AdminLoyaltyPage";
 import { AdminMenuPage } from "@/pages/admin/AdminMenuPage";
 import { AdminPromotionsPage } from "@/pages/admin/AdminPromotionsPage";
+import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
+import { AdminRewardsPage } from "@/pages/admin/AdminRewardsPage";
+import { AdminSettingsPage } from "@/pages/admin/AdminSettingsPage";
+import { AdminStaffPage } from "@/pages/admin/AdminStaffPage";
+import { AdminTransactionsPage } from "@/pages/admin/AdminTransactionsPage";
 import { FivesCodePage } from "@/pages/customer/FivesCodePage";
 import { HomePage } from "@/pages/customer/HomePage";
 import { MenuPage } from "@/pages/customer/MenuPage";
@@ -64,18 +72,23 @@ export const router = createBrowserRouter([
 				],
 			},
 			{
-				element: <AppShell />,
+				element: <RequireRole allow={["admin", "owner"]} />,
 				children: [
 					{
-						element: <RequireRole allow={["admin", "owner"]} />,
+						element: <AdminLayout />,
 						children: [
-							{ path: "/admin", element: <Navigate to="/admin/menu" replace /> },
+							{ path: "/admin", element: <AdminDashboardPage /> },
+							{ path: "/admin/customers", element: <AdminCustomersPage /> },
+							{ path: "/admin/loyalty", element: <AdminLoyaltyPage /> },
+							{ path: "/admin/rewards", element: <AdminRewardsPage /> },
+							{ path: "/admin/transactions", element: <AdminTransactionsPage /> },
 							{ path: "/admin/menu", element: <AdminMenuPage /> },
 							{ path: "/admin/promotions", element: <AdminPromotionsPage /> },
-							{
-								path: "/admin/*",
-								element: <PhasePlaceholderPage title="Admin" phase="Phase 11" />,
-							},
+							{ path: "/admin/staff", element: <AdminStaffPage /> },
+							{ path: "/admin/reports", element: <AdminReportsPage /> },
+							{ path: "/admin/settings", element: <AdminSettingsPage /> },
+							{ path: "/admin/audit-log", element: <AdminAuditLogPage /> },
+							{ path: "/admin/*", element: <Navigate to="/admin" replace /> },
 						],
 					},
 				],
