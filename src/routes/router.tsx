@@ -15,6 +15,7 @@ import { PrivacyPage } from "@/pages/PrivacyPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { TermsPage } from "@/pages/TermsPage";
 import { AdminMenuPage } from "@/pages/admin/AdminMenuPage";
+import { AdminPromotionsPage } from "@/pages/admin/AdminPromotionsPage";
 import { FivesCodePage } from "@/pages/customer/FivesCodePage";
 import { HomePage } from "@/pages/customer/HomePage";
 import { MenuPage } from "@/pages/customer/MenuPage";
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
 						children: [
 							{ path: "/admin", element: <Navigate to="/admin/menu" replace /> },
 							{ path: "/admin/menu", element: <AdminMenuPage /> },
+							{ path: "/admin/promotions", element: <AdminPromotionsPage /> },
 							{
 								path: "/admin/*",
 								element: <PhasePlaceholderPage title="Admin" phase="Phase 11" />,

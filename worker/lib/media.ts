@@ -9,12 +9,24 @@ const MENU_IMAGE_MIME_EXT: Record<string, string> = {
 export const MENU_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const MENU_MEDIA_PREFIX = "menu";
+const PROMOTIONS_MEDIA_PREFIX = "promotions";
 
-function mediaPrefixForBusiness(businessId: string): string {
-	return `biz/${businessId}/${MENU_MEDIA_PREFIX}/`;
+export type BusinessMediaCollection =
+	| typeof MENU_MEDIA_PREFIX
+	| typeof PROMOTIONS_MEDIA_PREFIX;
+
+function businessRootPrefix(businessId: string): string {
+	return `biz/${businessId}/`;
 }
 
-export function assertOwnedMenuMediaKey(
+function mediaPrefixForBusiness(
+	businessId: string,
+	collection: BusinessMediaCollection,
+): string {
+	return `${businessRootPrefix(businessId)}${collection}/`;
+}
+
+export function assertOwnedBusinessMediaKey(
 	businessId: string,
 	imageKey: string,
 ): void {
@@ -23,7 +35,7 @@ export function assertOwnedMenuMediaKey(
 	if (key.includes("..") || key.includes("\\")) {
 		throw new ApiError("validation_failed", "Invalid image key.");
 	}
-	if (!key.startsWith(mediaPrefixForBusiness(businessId))) {
+	if (!key.startsWith(businessRootPrefix(businessId))) {
 		throw new ApiError(
 			"forbidden",
 			"That image does not belong to your business.",
@@ -31,8 +43,39 @@ export function assertOwnedMenuMediaKey(
 	}
 }
 
-export function menuMediaKeyForBusiness(
+export function assertOwnedMenuMediaKey(
 	businessId: string,
+	imageKey: string,
+): void {
+	assertOwnedBusinessMediaKey(businessId, imageKey);
+	if (!imageKey.startsWith(mediaPrefixForBusiness(businessId, MENU_MEDIA_PREFIX))) {
+		throw new ApiError(
+			"forbidden",
+			"That image key is not for menu media.",
+		);
+	}
+}
+
+export function assertOwnedPromotionsMediaKey(
+	businessId: string,
+	imageKey: string,
+): void {
+	assertOwnedBusinessMediaKey(businessId, imageKey);
+	if (
+		!imageKey.startsWith(
+			mediaPrefixForBusiness(businessId, PROMOTIONS_MEDIA_PREFIX),
+		)
+	) {
+		throw new ApiError(
+			"forbidden",
+			"That image key is not for promotions media.",
+		);
+	}
+}
+
+function mediaKeyForBusiness(
+	businessId: string,
+	collection: BusinessMediaCollection,
 	contentType: string,
 ): string {
 	const ext = MENU_IMAGE_MIME_EXT[contentType.toLowerCase()];
@@ -42,7 +85,7 @@ export function menuMediaKeyForBusiness(
 			"Only JPG, PNG, or WEBP images are allowed.",
 		);
 	}
-	return `${mediaPrefixForBusiness(businessId)}${crypto.randomUUID()}.${ext}`;
+	return `${mediaPrefixForBusiness(businessId, collection)}${crypto.randomUUID()}.${ext}`;
 }
 
 export function validateMenuImage(file: File): void {
@@ -73,7 +116,32 @@ export async function putMenuImage(
 ): Promise<{ imageKey: string; contentType: string; sizeBytes: number }> {
 	validateMenuImage(file);
 	const contentType = file.type.toLowerCase();
-	const imageKey = menuMediaKeyForBusiness(businessId, contentType);
+	const imageKey = mediaKeyForBusiness(
+		businessId,
+		MENU_MEDIA_PREFIX,
+		contentType,
+	);
+	await bucket.put(imageKey, await file.arrayBuffer(), {
+		httpMetadata: {
+			contentType,
+			cacheControl: "private, max-age=86400",
+		},
+	});
+	return { imageKey, contentType, sizeBytes: file.size };
+}
+
+export async function putPromotionImage(
+	bucket: R2Bucket,
+	businessId: string,
+	file: File,
+): Promise<{ imageKey: string; contentType: string; sizeBytes: number }> {
+	validateMenuImage(file);
+	const contentType = file.type.toLowerCase();
+	const imageKey = mediaKeyForBusiness(
+		businessId,
+		PROMOTIONS_MEDIA_PREFIX,
+		contentType,
+	);
 	await bucket.put(imageKey, await file.arrayBuffer(), {
 		httpMetadata: {
 			contentType,

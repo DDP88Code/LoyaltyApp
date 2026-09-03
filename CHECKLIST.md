@@ -656,24 +656,24 @@ Admin items:
 # 15. Phase 10 — Promotions
 
 Admin:
-- [ ] Create.
-- [ ] Edit.
-- [ ] Deactivate/delete safely.
-- [ ] Image.
-- [ ] Title.
-- [ ] Subtitle.
-- [ ] Description.
-- [ ] Start/end.
-- [ ] CTA.
-- [ ] Active.
+- [x] Create.
+- [x] Edit.
+- [x] Deactivate/delete safely.
+- [x] Image.
+- [x] Title.
+- [x] Subtitle.
+- [x] Description.
+- [x] Start/end.
+- [x] CTA.
+- [x] Active.
 
 Customer:
-- [ ] Future promotion hidden.
-- [ ] Current promotion shown.
-- [ ] Expired promotion hidden.
+- [x] Future promotion hidden.
+- [x] Current promotion shown.
+- [x] Expired promotion hidden.
 
 ### Gate 10
-- [ ] Promotion timing logic tested.
+- [x] Promotion timing logic tested.
 
 ---
 

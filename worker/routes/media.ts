@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { ApiError } from "@worker/lib/http";
-import { assertOwnedMenuMediaKey } from "@worker/lib/media";
+import { assertOwnedBusinessMediaKey } from "@worker/lib/media";
 import { requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
 import type { AppEnv } from "@worker/types";
@@ -16,7 +16,7 @@ export const media = new Hono<AppEnv>()
 		const profile = c.get("profile");
 		const { key } = c.req.valid("query");
 
-		assertOwnedMenuMediaKey(profile.businessId, key);
+		assertOwnedBusinessMediaKey(profile.businessId, key);
 
 		const object = await c.env.MEDIA.get(key);
 		if (!object) {

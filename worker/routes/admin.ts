@@ -12,6 +12,12 @@ import type {
 	MenuImageDeletePayload,
 	MenuImageUploadPayload,
 } from "@shared/menu";
+import type {
+	AdminPromotion,
+	AdminPromotionsPayload,
+	PromotionImageDeletePayload,
+	PromotionImageUploadPayload,
+} from "@shared/promotions";
 import { getDb } from "@worker/db/client";
 import {
 	loyaltyPrograms,
@@ -24,8 +30,10 @@ import { ApiError, ok } from "@worker/lib/http";
 import { createLoyaltyAdjustment, getCoffeeProgress } from "@worker/lib/loyalty";
 import {
 	assertOwnedMenuMediaKey,
+	assertOwnedPromotionsMediaKey,
 	deleteMenuImageSafe,
 	putMenuImage,
+	putPromotionImage,
 } from "@worker/lib/media";
 import { requireLocationInBusiness } from "@worker/lib/scope";
 import { requireAdminOrOwner, requireSession } from "@worker/middleware/auth";
@@ -102,6 +110,38 @@ const deleteMediaSchema = z.object({
 	imageKey: z.string().trim().min(1).max(300),
 });
 
+const ctaUrlSchema = z
+	.string()
+	.trim()
+	.max(500)
+	.refine(
+		(value) => value.startsWith("/") || /^https?:\/\//i.test(value),
+		"CTA URL must be an app path or an absolute HTTP(S) URL.",
+	);
+
+const promotionFieldsSchema = z.object({
+	title: z.string().trim().min(2).max(120),
+	subtitle: z.string().trim().max(160).nullable().optional(),
+	description: z.string().trim().max(1200).nullable().optional(),
+	imageKey: z.string().trim().max(300).nullable().optional(),
+	startAt: z.coerce.date(),
+	endAt: z.coerce.date(),
+	active: z.boolean().default(true),
+	ctaText: z.string().trim().min(1).max(80).nullable().optional(),
+	ctaUrl: ctaUrlSchema.nullable().optional(),
+});
+
+const createPromotionSchema = promotionFieldsSchema
+	.refine((input) => input.endAt.getTime() > input.startAt.getTime(), {
+		message: "Promotion end time must be after start time.",
+	});
+
+const updatePromotionSchema = promotionFieldsSchema
+	.partial()
+	.refine((input) => Object.keys(input).length > 0, {
+		message: "At least one field must be provided.",
+	});
+
 function toAdminCategory(
 	row: typeof menuCategories.$inferSelect,
 ): AdminMenuCategory {
@@ -136,6 +176,68 @@ function toAdminItem(row: typeof menuItems.$inferSelect): AdminMenuItem {
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 	};
+}
+
+function toAdminPromotion(row: typeof promotions.$inferSelect): AdminPromotion {
+	return {
+		id: row.id,
+		businessId: row.businessId,
+		title: row.title,
+		subtitle: row.subtitle,
+		description: row.description,
+		imageKey: row.imageKey,
+		startAt: row.startAt.toISOString(),
+		endAt: row.endAt.toISOString(),
+		active: row.active,
+		ctaText: row.ctaText,
+		ctaUrl: row.ctaUrl,
+		createdAt: row.createdAt.toISOString(),
+		updatedAt: row.updatedAt.toISOString(),
+	};
+}
+
+function assertCtaPair(
+	ctaText: string | null | undefined,
+	ctaUrl: string | null | undefined,
+): void {
+	if (Boolean(ctaText) !== Boolean(ctaUrl)) {
+		throw new ApiError(
+			"validation_failed",
+			"CTA text and CTA URL must both be provided or both be empty.",
+		);
+	}
+}
+
+async function isImageKeyStillInUse(
+	db: ReturnType<typeof getDb>,
+	businessId: string,
+	imageKey: string,
+): Promise<boolean> {
+	const [categoryRef, itemRef, promotionRef] = await Promise.all([
+		db.query.menuCategories.findFirst({
+			where: and(
+				eq(menuCategories.businessId, businessId),
+				eq(menuCategories.imageKey, imageKey),
+			),
+			columns: { id: true },
+		}),
+		db.query.menuItems.findFirst({
+			where: and(
+				eq(menuItems.businessId, businessId),
+				eq(menuItems.imageKey, imageKey),
+			),
+			columns: { id: true },
+		}),
+		db.query.promotions.findFirst({
+			where: and(
+				eq(promotions.businessId, businessId),
+				eq(promotions.imageKey, imageKey),
+			),
+			columns: { id: true },
+		}),
+	]);
+
+	return Boolean(categoryRef || itemRef || promotionRef);
 }
 
 function rethrowAsConflict(error: unknown, message: string): never {
@@ -340,7 +442,8 @@ export const admin = new Hono<AppEnv>()
 				if (
 					input.imageKey !== undefined &&
 					existing.imageKey &&
-					existing.imageKey !== updated.imageKey
+					existing.imageKey !== updated.imageKey &&
+					!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
 				) {
 					await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
 				}
@@ -471,7 +574,8 @@ export const admin = new Hono<AppEnv>()
 		if (
 			input.imageKey !== undefined &&
 			existing.imageKey &&
-			existing.imageKey !== updated.imageKey
+			existing.imageKey !== updated.imageKey &&
+			!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
 		) {
 			await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
 		}
@@ -498,31 +602,7 @@ export const admin = new Hono<AppEnv>()
 
 		assertOwnedMenuMediaKey(profile.businessId, imageKey);
 
-		const [categoryRef, itemRef, promotionRef] = await Promise.all([
-			db.query.menuCategories.findFirst({
-				where: and(
-					eq(menuCategories.businessId, profile.businessId),
-					eq(menuCategories.imageKey, imageKey),
-				),
-				columns: { id: true },
-			}),
-			db.query.menuItems.findFirst({
-				where: and(
-					eq(menuItems.businessId, profile.businessId),
-					eq(menuItems.imageKey, imageKey),
-				),
-				columns: { id: true },
-			}),
-			db.query.promotions.findFirst({
-				where: and(
-					eq(promotions.businessId, profile.businessId),
-					eq(promotions.imageKey, imageKey),
-				),
-				columns: { id: true },
-			}),
-		]);
-
-		if (categoryRef || itemRef || promotionRef) {
+		if (await isImageKeyStillInUse(db, profile.businessId, imageKey)) {
 			throw new ApiError(
 				"conflict",
 				"That image is still in use. Remove it from records before deleting.",
@@ -531,4 +611,188 @@ export const admin = new Hono<AppEnv>()
 
 		await deleteMenuImageSafe(c.env.MEDIA, imageKey);
 		return ok<MenuImageDeletePayload>(c, { deleted: true });
-	});
+	})
+
+	.get("/promotions", async (c) => {
+		const profile = c.get("profile");
+		const rows = await getDb(c.env)
+			.select()
+			.from(promotions)
+			.where(eq(promotions.businessId, profile.businessId))
+			.orderBy(desc(promotions.startAt), desc(promotions.createdAt));
+
+		return ok<AdminPromotionsPayload>(c, {
+			promotions: rows.map(toAdminPromotion),
+		});
+	})
+
+	.post("/promotions", validate("json", createPromotionSchema), async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const input = c.req.valid("json");
+
+		assertCtaPair(input.ctaText, input.ctaUrl);
+		if (input.imageKey) {
+			assertOwnedPromotionsMediaKey(profile.businessId, input.imageKey);
+		}
+
+		const [created] = await db
+			.insert(promotions)
+			.values({
+				businessId: profile.businessId,
+				title: input.title,
+				subtitle: input.subtitle ?? null,
+				description: input.description ?? null,
+				imageKey: input.imageKey ?? null,
+				startAt: input.startAt,
+				endAt: input.endAt,
+				active: input.active,
+				ctaText: input.ctaText ?? null,
+				ctaUrl: input.ctaUrl ?? null,
+			})
+			.returning();
+
+		if (!created) {
+			throw new ApiError("internal_error", "Failed to create promotion.");
+		}
+
+		return ok<AdminPromotion>(c, toAdminPromotion(created), 201);
+	})
+
+	.patch(
+		"/promotions/:promotionId",
+		validate("json", updatePromotionSchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const promotionId = c.req.param("promotionId");
+			const input = c.req.valid("json");
+
+			const existing = await db.query.promotions.findFirst({
+				where: and(
+					eq(promotions.id, promotionId),
+					eq(promotions.businessId, profile.businessId),
+				),
+			});
+			if (!existing) {
+				throw new ApiError("not_found", "That promotion was not found.");
+			}
+
+			const nextStartAt = input.startAt ?? existing.startAt;
+			const nextEndAt = input.endAt ?? existing.endAt;
+			if (nextEndAt.getTime() <= nextStartAt.getTime()) {
+				throw new ApiError(
+					"validation_failed",
+					"Promotion end time must be after start time.",
+				);
+			}
+
+			const nextCtaText =
+				input.ctaText === undefined ? existing.ctaText : input.ctaText;
+			const nextCtaUrl = input.ctaUrl === undefined ? existing.ctaUrl : input.ctaUrl;
+			assertCtaPair(nextCtaText, nextCtaUrl);
+
+			if (input.imageKey) {
+				assertOwnedPromotionsMediaKey(profile.businessId, input.imageKey);
+			}
+
+			const [updated] = await db
+				.update(promotions)
+				.set({
+					title: input.title,
+					subtitle: input.subtitle,
+					description: input.description,
+					imageKey: input.imageKey,
+					startAt: input.startAt,
+					endAt: input.endAt,
+					active: input.active,
+					ctaText: input.ctaText,
+					ctaUrl: input.ctaUrl,
+				})
+				.where(eq(promotions.id, existing.id))
+				.returning();
+
+			if (!updated) {
+				throw new ApiError("internal_error", "Failed to update promotion.");
+			}
+
+			if (
+				input.imageKey !== undefined &&
+				existing.imageKey &&
+				existing.imageKey !== updated.imageKey &&
+				!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
+			) {
+				await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
+			}
+
+			return ok<AdminPromotion>(c, toAdminPromotion(updated));
+		},
+	)
+
+	.delete("/promotions/:promotionId", async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const promotionId = c.req.param("promotionId");
+
+		const existing = await db.query.promotions.findFirst({
+			where: and(
+				eq(promotions.id, promotionId),
+				eq(promotions.businessId, profile.businessId),
+			),
+		});
+		if (!existing) {
+			throw new ApiError("not_found", "That promotion was not found.");
+		}
+
+		if (existing.active && existing.endAt.getTime() > Date.now()) {
+			throw new ApiError(
+				"conflict",
+				"Deactivate or expire the promotion before deleting it.",
+			);
+		}
+
+		await db.delete(promotions).where(eq(promotions.id, existing.id));
+
+		if (
+			existing.imageKey &&
+			!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
+		) {
+			await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
+		}
+
+		return ok<{ deleted: true }>(c, { deleted: true });
+	})
+
+	.post("/promotions/media/upload", async (c) => {
+		const profile = c.get("profile");
+		const form = await c.req.formData();
+		const file = form.get("file");
+		if (!(file instanceof File)) {
+			throw new ApiError("validation_failed", "Please attach an image file.");
+		}
+
+		const uploaded = await putPromotionImage(c.env.MEDIA, profile.businessId, file);
+		return ok<PromotionImageUploadPayload>(c, uploaded, 201);
+	})
+
+	.post(
+		"/promotions/media/delete",
+		validate("json", deleteMediaSchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const { imageKey } = c.req.valid("json");
+
+			assertOwnedPromotionsMediaKey(profile.businessId, imageKey);
+
+			if (await isImageKeyStillInUse(db, profile.businessId, imageKey)) {
+				throw new ApiError(
+					"conflict",
+					"That image is still in use. Remove it from records before deleting.",
+				);
+			}
+
+			await deleteMenuImageSafe(c.env.MEDIA, imageKey);
+			return ok<PromotionImageDeletePayload>(c, { deleted: true });
+		},
+	);

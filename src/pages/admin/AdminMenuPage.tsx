@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
@@ -289,6 +290,14 @@ export function AdminMenuPage() {
 			<PageHeader
 				title="Menu Management"
 				subtitle="Categories, items, sold-out status, and secure menu image uploads."
+				actions={
+					<Link
+						to="/admin/promotions"
+						className="text-sm text-brand-secondary underline"
+					>
+						Go to promotions
+					</Link>
+				}
 			/>
 
 			{loadingInitial && <LoadingState label="Loading menu management data..." />}

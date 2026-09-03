@@ -7,6 +7,7 @@ import { useSession } from "@/features/auth/useSession";
 import { useCustomerHome } from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { RewardCard } from "@/features/customer/RewardCard";
+import { mediaObjectUrl } from "@/lib/media";
 
 export function HomePage() {
 	const { data: user } = useSession();
@@ -90,12 +91,25 @@ export function HomePage() {
 
 			{activePromotion && (
 				<Card>
+					{activePromotion.imageKey && (
+						<img
+							src={mediaObjectUrl(activePromotion.imageKey)}
+							alt={activePromotion.title}
+							className="mb-3 h-40 w-full rounded-xl object-cover"
+							loading="lazy"
+						/>
+					)}
 					<div className="flex items-start gap-3">
 						<Sparkles className="size-5 shrink-0 text-brand-secondary" aria-hidden />
 						<div>
 							<CardTitle>{activePromotion.title}</CardTitle>
 							{activePromotion.subtitle && (
 								<CardDescription>{activePromotion.subtitle}</CardDescription>
+							)}
+							{activePromotion.description && (
+								<CardDescription className="mt-1">
+									{activePromotion.description}
+								</CardDescription>
 							)}
 						</div>
 					</div>
