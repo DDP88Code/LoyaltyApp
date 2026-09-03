@@ -1,5 +1,7 @@
 /** Response envelope shared by the Worker API and the React client. */
 
+import type { Role } from "./roles";
+
 export type ApiErrorCode =
 	| "bad_request"
 	| "validation_failed"
@@ -31,4 +33,26 @@ export interface HealthPayload {
 	service: "fives-rewards-api";
 	environment: string;
 	time: string;
+}
+
+/**
+ * The signed-in user as the client is allowed to see them. `id` is the profile
+ * id, which is what every other endpoint expects; the Better Auth user id is
+ * deliberately not exposed.
+ */
+export interface SessionUser {
+	id: string;
+	businessId: string;
+	fullName: string;
+	email: string;
+	mobileNumber: string | null;
+	role: Role;
+	birthday: string | null;
+	avatarUrl: string | null;
+	marketingOptIn: boolean;
+	notificationOptIn: boolean;
+}
+
+export interface SessionPayload {
+	user: SessionUser;
 }

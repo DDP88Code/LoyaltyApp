@@ -4,5 +4,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "drizzle.config.ts", "scripts/**/*.mjs"]
+  "include": ["vite.config.ts", "drizzle.config.ts", "auth.ts", "scripts/**/*.mjs"]
 }

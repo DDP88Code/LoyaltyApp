@@ -55,8 +55,8 @@
 - [x] Cloudflare D1
 - [x] Drizzle ORM
 - [x] Drizzle migrations
-- [ ] Better Auth
-- [ ] D1-backed sessions/auth
+- [x] Better Auth
+- [x] D1-backed sessions/auth
 - [x] Cloudflare R2
 - [ ] Turnstile integration points
 
@@ -306,30 +306,30 @@ Indexes:
 
 # 5. Phase 3 — Better Auth
 
-- [ ] Better Auth integrated into Worker.
-- [ ] D1 persistence configured.
-- [ ] Secure sessions work.
-- [ ] Registration works.
-- [ ] Login works.
-- [ ] Logout works.
-- [ ] Session retrieval works.
-- [ ] Fives profile links to auth user.
-- [ ] Public registration always creates customer.
-- [ ] Client cannot select its own role.
-- [ ] Inactive users blocked.
+- [x] Better Auth integrated into Worker.
+- [x] D1 persistence configured.
+- [x] Secure sessions work.
+- [x] Registration works.
+- [x] Login works.
+- [x] Logout works.
+- [x] Session retrieval works.
+- [x] Fives profile links to auth user.
+- [x] Public registration always creates customer.
+- [x] Client cannot select its own role.
+- [x] Inactive users blocked.
 
 Role routing:
-- [ ] Customer → `/app`
-- [ ] Staff → `/staff`
-- [ ] Admin → `/admin`
-- [ ] Owner → `/admin`
+- [x] Customer → `/app`
+- [x] Staff → `/staff`
+- [x] Admin → `/admin`
+- [x] Owner → `/admin`
 
 ### Gate 3
-- [ ] Customer auth tested.
-- [ ] Staff auth tested.
-- [ ] Admin auth tested.
-- [ ] Owner auth tested.
-- [ ] Invalid session rejected.
+- [x] Customer auth tested.
+- [x] Staff auth tested.
+- [x] Admin auth tested.
+- [x] Owner auth tested.
+- [x] Invalid session rejected.
 
 ---
 

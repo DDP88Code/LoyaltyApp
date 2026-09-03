@@ -13,11 +13,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply fives-rewards-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply fives-rewards-db --remote",
-    "db:seed:local": "curl -s -X POST http://localhost:5173/api/dev/seed"
+    "db:seed:local": "curl -s -X POST http://localhost:5173/api/dev/seed",
+    "auth:generate": "auth generate --config auth.ts --output worker/db/schema/auth.ts -y"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.2",
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.102.8",
+    "better-auth": "^1.7.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.5",
@@ -27,7 +30,7 @@
     "react-hook-form": "^7.87.0",
     "react-router": "^7.18.3",
     "tailwind-merge": "^3.6.0",
-    "zod": "^3.25.76"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.54.3",

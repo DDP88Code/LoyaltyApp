@@ -1,18 +1,14 @@
 import { Link } from "react-router";
-import { Coffee, ShieldCheck, Store } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { ErrorState, LoadingState } from "@/components/ui/States";
+import { useSession } from "@/features/auth/useSession";
 import { useHealth } from "@/features/system/useHealth";
-
-const ENTRY_POINTS = [
-	{ to: "/app", label: "Customer app", icon: Coffee },
-	{ to: "/staff", label: "Staff", icon: Store },
-	{ to: "/admin", label: "Admin", icon: ShieldCheck },
-];
+import { ROLE_HOME } from "@shared/roles";
 
 export function LandingPage() {
 	const health = useHealth();
+	const { data: user } = useSession();
 
 	return (
 		<main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
@@ -57,16 +53,29 @@ export function LandingPage() {
 			</Card>
 
 			<nav className="grid gap-3">
-				{ENTRY_POINTS.map(({ to, label, icon: Icon }) => (
+				{user ? (
 					<Link
-						key={to}
-						to={to}
-						className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-border font-semibold transition-colors hover:bg-brand-surface-raised"
+						to={ROLE_HOME[user.role]}
+						className="inline-flex min-h-12 items-center justify-center rounded-xl bg-brand-primary font-semibold text-brand-on-primary"
 					>
-						<Icon className="size-4" aria-hidden />
-						{label}
+						Continue as {user.fullName}
 					</Link>
-				))}
+				) : (
+					<>
+						<Link
+							to="/login"
+							className="inline-flex min-h-12 items-center justify-center rounded-xl bg-brand-primary font-semibold text-brand-on-primary"
+						>
+							Sign in
+						</Link>
+						<Link
+							to="/register"
+							className="inline-flex min-h-12 items-center justify-center rounded-xl border border-brand-border font-semibold transition-colors hover:bg-brand-surface-raised"
+						>
+							Create an account
+						</Link>
+					</>
+				)}
 			</nav>
 		</main>
 	);

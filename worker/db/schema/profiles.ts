@@ -1,6 +1,7 @@
 import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { ROLES } from "../../../shared/roles";
 import { createdAt, flag, pk, updatedAt } from "./_columns";
+import { user } from "./auth";
 import { businesses } from "./business";
 
 /**
@@ -12,7 +13,9 @@ export const profiles = sqliteTable(
 	"profiles",
 	{
 		id: pk(),
-		authUserId: text("auth_user_id").notNull(),
+		authUserId: text("auth_user_id")
+			.notNull()
+			.references(() => user.id),
 		businessId: text("business_id")
 			.notNull()
 			.references(() => businesses.id, { onDelete: "cascade" }),
