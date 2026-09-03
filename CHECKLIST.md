@@ -54,7 +54,7 @@
 ## Data/Auth/Storage
 - [x] Cloudflare D1
 - [x] Drizzle ORM
-- [ ] Drizzle migrations
+- [x] Drizzle migrations
 - [ ] Better Auth
 - [ ] D1-backed sessions/auth
 - [x] Cloudflare R2
@@ -162,145 +162,145 @@
 # 4. Phase 2 — D1 & Drizzle
 
 ## businesses
-- [ ] Table created.
-- [ ] name/slug/currency/timezone/active/timestamps.
-- [ ] Seed Fives Pub & Grill.
-- [ ] Currency ZAR.
-- [ ] Timezone Africa/Johannesburg.
+- [x] Table created.
+- [x] name/slug/currency/timezone/active/timestamps.
+- [x] Seed Fives Pub & Grill.
+- [x] Currency ZAR.
+- [x] Timezone Africa/Johannesburg.
 
 ## locations
-- [ ] Table created.
-- [ ] Business FK.
-- [ ] Name/address/active/timestamps.
-- [ ] Seed Fives Main Branch.
+- [x] Table created.
+- [x] Business FK.
+- [x] Name/address/active/timestamps.
+- [x] Seed Fives Main Branch.
 
 ## profiles
-- [ ] Table created.
-- [ ] Better Auth user link.
-- [ ] business_id.
-- [ ] full_name.
-- [ ] email.
-- [ ] mobile_number.
-- [ ] role.
-- [ ] birthday.
-- [ ] avatar_url.
-- [ ] marketing_opt_in.
-- [ ] notification_opt_in.
-- [ ] active.
-- [ ] timestamps.
+- [x] Table created.
+- [x] Better Auth user link.
+- [x] business_id.
+- [x] full_name.
+- [x] email.
+- [x] mobile_number.
+- [x] role.
+- [x] birthday.
+- [x] avatar_url.
+- [x] marketing_opt_in.
+- [x] notification_opt_in.
+- [x] active.
+- [x] timestamps.
 
 Roles:
-- [ ] customer
-- [ ] staff
-- [ ] admin
-- [ ] owner
+- [x] customer
+- [x] staff
+- [x] admin
+- [x] owner
 
 ## loyalty_programs
-- [ ] Table created.
-- [ ] Supports stamp.
-- [ ] Supports points.
-- [ ] Configurable threshold.
-- [ ] Configurable reward.
-- [ ] Active/sort/timestamps.
+- [x] Table created.
+- [x] Supports stamp.
+- [x] Supports points.
+- [x] Configurable threshold.
+- [x] Configurable reward.
+- [x] Active/sort/timestamps.
 
 ## loyalty_transactions
-- [ ] Table created.
-- [ ] business_id.
-- [ ] location_id.
-- [ ] customer_id.
-- [ ] staff_id.
-- [ ] program_id.
-- [ ] transaction_type.
-- [ ] quantity.
-- [ ] spend_amount_cents.
-- [ ] bill_reference.
-- [ ] notes.
-- [ ] reason.
-- [ ] approved_by.
-- [ ] idempotency_key.
-- [ ] created_at.
+- [x] Table created.
+- [x] business_id.
+- [x] location_id.
+- [x] customer_id.
+- [x] staff_id.
+- [x] program_id.
+- [x] transaction_type.
+- [x] quantity.
+- [x] spend_amount_cents.
+- [x] bill_reference.
+- [x] notes.
+- [x] reason.
+- [x] approved_by.
+- [x] idempotency_key.
+- [x] created_at.
 
 Types:
-- [ ] earn
-- [ ] bonus
-- [ ] redeem
-- [ ] adjustment
-- [ ] reversal
+- [x] earn
+- [x] bonus
+- [x] redeem
+- [x] adjustment
+- [x] reversal
 
 Indexes:
-- [ ] customer
-- [ ] program
-- [ ] staff
-- [ ] location
-- [ ] date
-- [ ] idempotency
+- [x] customer
+- [x] program
+- [x] staff
+- [x] location
+- [x] date
+- [x] idempotency
 
 ## reward_definitions
-- [ ] Table created.
-- [ ] free_item.
-- [ ] voucher.
-- [ ] discount.
-- [ ] points_reward.
-- [ ] value cents.
-- [ ] points cost.
-- [ ] validity.
-- [ ] welcome flag.
-- [ ] terms.
+- [x] Table created.
+- [x] free_item.
+- [x] voucher.
+- [x] discount.
+- [x] points_reward.
+- [x] value cents.
+- [x] points cost.
+- [x] validity.
+- [x] welcome flag.
+- [x] terms.
 
 ## customer_rewards
-- [ ] Table created.
-- [ ] available.
-- [ ] redeemed.
-- [ ] expired.
-- [ ] cancelled.
-- [ ] issuance key.
-- [ ] redemption transaction.
-- [ ] timestamps.
+- [x] Table created.
+- [x] available.
+- [x] redeemed.
+- [x] expired.
+- [x] cancelled.
+- [x] issuance key.
+- [x] redemption transaction.
+- [x] timestamps.
 
 ## loyalty_codes
-- [ ] Table created.
-- [ ] OTP hash.
-- [ ] QR hash.
-- [ ] expiry.
-- [ ] used_at.
-- [ ] indexes.
+- [x] Table created.
+- [x] OTP hash.
+- [x] QR hash.
+- [x] expiry.
+- [x] used_at.
+- [x] indexes.
 
 ## menu_categories
-- [ ] Table created.
-- [ ] image key.
-- [ ] sort order.
-- [ ] active.
+- [x] Table created.
+- [x] image key.
+- [x] sort order.
+- [x] active.
 
 ## menu_items
-- [ ] Table created.
-- [ ] price stored cents.
-- [ ] image key.
-- [ ] active/available.
-- [ ] popular/vegetarian/spicy.
-- [ ] sort order.
+- [x] Table created.
+- [x] price stored cents.
+- [x] image key.
+- [x] active/available.
+- [x] popular/vegetarian/spicy.
+- [x] sort order.
 
 ## promotions
-- [ ] Table created.
-- [ ] image key.
-- [ ] start/end.
-- [ ] active.
-- [ ] CTA.
+- [x] Table created.
+- [x] image key.
+- [x] start/end.
+- [x] active.
+- [x] CTA.
 
 ## audit_logs
-- [ ] Table created.
-- [ ] actor/role/action/entity.
-- [ ] before/after JSON.
-- [ ] metadata JSON.
+- [x] Table created.
+- [x] actor/role/action/entity.
+- [x] before/after JSON.
+- [x] metadata JSON.
 
 ## app_settings
-- [ ] Table created.
-- [ ] business/key/value_json.
+- [x] Table created.
+- [x] business/key/value_json.
 
 ### Gate 2
-- [ ] D1 migrations run locally.
-- [ ] Seed succeeds.
-- [ ] Required indexes exist.
-- [ ] No PostgreSQL-specific SQL.
+- [x] D1 migrations run locally.
+- [x] Seed succeeds.
+- [x] Required indexes exist.
+- [x] No PostgreSQL-specific SQL.
 
 ---
 

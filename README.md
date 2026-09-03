@@ -43,20 +43,53 @@ can reach the Worker.
 | `npm run cf-typegen`      | Regenerate `worker-configuration.d.ts`        |
 | `npm run db:generate`     | Generate Drizzle migrations                   |
 | `npm run db:migrate:local`| Apply migrations to the local D1              |
+| `npm run db:seed:local`   | Seed development data (dev server must be up) |
 | `npm run deploy`          | Build and deploy the Worker                   |
 
 Run `npm run cf-typegen` after any change to `wrangler.jsonc`.
 
+## Database
+
+The schema is Drizzle, split by domain under `worker/db/schema`. It is SQLite-only —
+integer millisecond timestamps, integer booleans, text ids, money as integer cents.
+
+```bash
+npm run db:generate        # schema -> drizzle/migrations/*.sql
+npm run db:migrate:local   # apply to the local D1
+npm run dev                # in another terminal
+npm run db:seed:local      # POST /api/dev/seed
+```
+
+Files under `worker/db/schema` use relative imports rather than the `@worker/*` alias,
+because drizzle-kit bundles them without the Worker tsconfig.
+
+Rules the database enforces itself, so no application bug can violate them:
+
+- `loyalty_transactions.idempotency_key` is globally unique — a replayed write fails.
+- `customer_rewards.issuance_key` is unique, so a reward can never be issued twice.
+- At most one `welcome_reward` per business (partial unique index).
+- Loyalty history is append-only. Correct a mistake with a `reversal` row, never an
+  `UPDATE` or `DELETE`.
+
+`POST /api/dev/seed` is re-runnable and returns 404 unless `APP_ENV=development`.
+It seeds Fives Pub & Grill, Fives Main Branch, Fives Coffee Rewards (stamp,
+threshold 10), Free Coffee, the R50 welcome voucher, eight menu categories with
+placeholder items, and the Wednesday Burger Special.
+
+Test users are created through Better Auth in Phase 3; the seed deliberately creates
+no accounts and no credentials.
+
 ## Cloudflare resources
 
-`wrangler.jsonc` ships with a placeholder D1 id so local development works
-immediately. Before deploying:
+D1 `fives-rewards-db` and R2 `fives-rewards-media` already exist and are wired into
+`wrangler.jsonc`. To recreate them in a different account:
 
 ```bash
 npx wrangler login
 npx wrangler d1 create fives-rewards-db      # paste the id into wrangler.jsonc
 npx wrangler r2 bucket create fives-rewards-media
 npm run cf-typegen
+npm run db:migrate:remote
 ```
 
 Bindings: `DB` (D1), `MEDIA` (R2), `ASSETS` (static assets).
@@ -82,7 +115,7 @@ src/            React SPA
 worker/         Cloudflare Worker
   routes/         Hono routers, grouped by audience
   lib/            response envelope, errors
-  db/             Drizzle schema and queries (Phase 2)
+  db/             Drizzle schema, client, development seed
 shared/         types shared by SPA and Worker
 drizzle/        generated D1 migrations
 scripts/        one-off build helpers

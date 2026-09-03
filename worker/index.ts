@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { ApiError, fail } from "@worker/lib/http";
+import { dev } from "@worker/routes/dev";
 import { health } from "@worker/routes/health";
 import type { AppEnv } from "@worker/types";
 
 const api = new Hono<AppEnv>()
 	.route("/health", health)
+	.route("/dev", dev)
 	// Any unmatched /api path is an API error, never an SPA document.
 	.all("*", (c) =>
 		fail(c, "not_found", `No API route for ${c.req.method} ${c.req.path}`),

@@ -19,18 +19,15 @@
 		"BUSINESS_SLUG": "fives-pub-and-grill"
 	},
 
-	// Run `wrangler d1 create fives-rewards-db` and paste the returned id below.
-	// Local development (`vite dev`) works with the placeholder id.
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "fives-rewards-db",
-			"database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+			"database_id": "e1d41192-7b5b-47b1-9a61-65bdf43a2e8b",
 			"migrations_dir": "drizzle/migrations"
 		}
 	],
 
-	// Run `wrangler r2 bucket create fives-rewards-media`.
 	"r2_buckets": [
 		{
 			"binding": "MEDIA",
