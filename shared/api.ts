@@ -56,3 +56,32 @@ export interface SessionUser {
 export interface SessionPayload {
 	user: SessionUser;
 }
+
+export interface LocationSummary {
+	id: string;
+	name: string;
+	address: string | null;
+}
+
+/** What the staff app needs on load: who they are and where they can work. */
+export interface StaffContextPayload {
+	staff: SessionUser;
+	locations: LocationSummary[];
+	selectedLocation: LocationSummary | null;
+}
+
+export interface AdminCustomerSummary {
+	id: string;
+	fullName: string;
+	email: string;
+	mobileNumber: string | null;
+	active: boolean;
+	createdAt: string;
+}
+
+export interface AdminCustomerListPayload {
+	customers: AdminCustomerSummary[];
+	total: number;
+	limit: number;
+	offset: number;
+}

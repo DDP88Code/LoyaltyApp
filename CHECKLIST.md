@@ -336,29 +336,29 @@ Role routing:
 # 6. Phase 4 — API authorization
 
 Reusable middleware:
-- [ ] requireSession
-- [ ] requireCustomer
-- [ ] requireStaff
-- [ ] requireAdmin
-- [ ] requireOwner
-- [ ] requireAdminOrOwner
+- [x] requireSession
+- [x] requireCustomer
+- [x] requireStaff
+- [x] requireAdmin
+- [x] requireOwner
+- [x] requireAdminOrOwner
 
 Every protected endpoint:
-- [ ] Session checked.
-- [ ] Profile checked.
-- [ ] Active status checked.
-- [ ] Role checked.
-- [ ] Business scope checked.
-- [ ] Location scope checked when relevant.
-- [ ] Zod input validation.
+- [x] Session checked.
+- [x] Profile checked.
+- [x] Active status checked.
+- [x] Role checked.
+- [x] Business scope checked.
+- [x] Location scope checked when relevant.
+- [x] Zod input validation.
 
 ### Security Gate
-- [ ] Customer cannot access Staff API.
-- [ ] Customer cannot access Admin API.
-- [ ] Staff cannot access Admin API.
-- [ ] Staff cannot browse all customers.
-- [ ] Client-supplied role ignored.
-- [ ] Browser cannot access D1 directly.
+- [x] Customer cannot access Staff API.
+- [x] Customer cannot access Admin API.
+- [x] Staff cannot access Admin API.
+- [x] Staff cannot browse all customers.
+- [x] Client-supplied role ignored.
+- [x] Browser cannot access D1 directly.
 
 ---
 

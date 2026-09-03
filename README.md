@@ -68,6 +68,33 @@ Rules the server enforces regardless of what the browser sends:
 - Route guards in React are a navigation convenience only. Every request is
   re-checked by the Worker.
 
+## API authorization
+
+Every protected route composes `requireSession` with a role guard from
+[worker/middleware/auth.ts](worker/middleware/auth.ts):
+
+| Guard                  | Roles                    |
+| ---------------------- | ------------------------ |
+| `requireCustomer`      | customer                 |
+| `requireStaff`         | staff, admin, owner      |
+| `requireAdmin`         | admin                    |
+| `requireOwner`         | owner                    |
+| `requireAdminOrOwner`  | admin, owner             |
+
+`requireSession` checks the session, loads the profile and rejects deactivated
+accounts, then puts the profile on the Hono context. Handlers take identity,
+role and `businessId` from that profile — never from the request body.
+
+Business scope is part of every query predicate rather than a filter applied to
+the results, so no code path can return another business's rows. A location id
+supplied by a client is re-resolved against the caller's business by
+[requireLocationInBusiness](worker/lib/scope.ts), which answers `not_found`
+rather than `forbidden` so the response cannot be used to probe for valid ids.
+
+Input is parsed by Zod through [worker/middleware/validate.ts](worker/middleware/validate.ts),
+which returns `422` with per-field messages and never echoes the submitted value
+back to the caller.
+
 ### Test users
 
 Never commit credentials. Create test accounts locally by registering through
@@ -151,8 +178,9 @@ src/            React SPA
   lib/            fetch client, query client, helpers
 worker/         Cloudflare Worker
   auth/           Better Auth instance and schema options
+  middleware/     session, role and Zod validation middleware
   routes/         Hono routers, grouped by audience
-  lib/            response envelope, errors, session middleware
+  lib/            response envelope, errors, session and scope helpers
   db/             Drizzle schema, client, development seed
 shared/         types shared by SPA and Worker
 drizzle/        generated D1 migrations

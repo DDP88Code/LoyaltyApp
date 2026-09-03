@@ -3,9 +3,12 @@ import { secureHeaders } from "hono/secure-headers";
 import { getAuth } from "@worker/auth";
 import { ApiError, fail } from "@worker/lib/http";
 import { requestOrigin } from "@worker/lib/session";
+import { admin } from "@worker/routes/admin";
+import { customer } from "@worker/routes/customer";
 import { dev } from "@worker/routes/dev";
 import { health } from "@worker/routes/health";
 import { me } from "@worker/routes/me";
+import { staff } from "@worker/routes/staff";
 import type { AppEnv } from "@worker/types";
 
 const api = new Hono<AppEnv>()
@@ -16,6 +19,9 @@ const api = new Hono<AppEnv>()
 	)
 	.route("/health", health)
 	.route("/me", me)
+	.route("/customer", customer)
+	.route("/staff", staff)
+	.route("/admin", admin)
 	.route("/dev", dev)
 	// Any unmatched /api path is an API error, never an SPA document.
 	.all("*", (c) =>
