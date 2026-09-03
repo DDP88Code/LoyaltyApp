@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
+    "lint": "npm run typecheck",
+    "test": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/phase13-smoke.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",

@@ -951,58 +951,59 @@ Test-user setup documented:
 # 26. Phase 13 — Testing & hardening
 
 Security:
-- [ ] Customer cannot call earn endpoint.
-- [ ] Customer cannot call redeem endpoint directly.
-- [ ] Customer cannot access other customer data.
-- [ ] Staff cannot access Admin.
-- [ ] Inactive user rejected.
-- [ ] Unauthenticated user rejected.
-- [ ] Client role escalation blocked.
+- [x] Customer cannot call earn endpoint.
+- [x] Customer cannot call redeem endpoint directly.
+- [x] Customer cannot access other customer data.
+- [x] Staff cannot access Admin.
+- [x] Inactive user rejected.
+- [x] Unauthenticated user rejected.
+- [x] Client role escalation blocked.
 
 Loyalty:
-- [ ] Staff can add coffee.
-- [ ] Idempotency prevents duplicate earn.
-- [ ] Threshold issues reward.
-- [ ] Reward not issued twice.
-- [ ] Multiple cycles work.
-- [ ] Welcome reward once only.
-- [ ] Expired reward rejected.
-- [ ] Double redemption blocked.
-- [ ] Adjustment audited.
-- [ ] Reversal works.
+- [x] Staff can add coffee.
+- [x] Idempotency prevents duplicate earn.
+- [x] Threshold issues reward.
+- [x] Reward not issued twice.
+- [x] Multiple cycles work.
+- [x] Welcome reward once only.
+- [x] Expired reward rejected.
+- [x] Double redemption blocked.
+- [x] Adjustment audited.
+- [x] Reversal works.
 
 Codes:
-- [ ] Valid OTP.
-- [ ] Invalid OTP.
-- [ ] Expired OTP.
-- [ ] Valid QR.
-- [ ] Invalid QR.
-- [ ] Old regenerated code invalid.
+- [x] Valid OTP.
+- [x] Invalid OTP.
+- [x] Expired OTP.
+- [x] Valid QR.
+- [x] Invalid QR.
+- [x] Old regenerated code invalid.
 
 Full journey:
-- [ ] Register.
-- [ ] Welcome reward.
-- [ ] Generate code.
-- [ ] Staff resolves customer.
-- [ ] Add coffee.
-- [ ] Customer progress updates.
-- [ ] Reach threshold.
-- [ ] Free coffee appears.
-- [ ] Redeem.
-- [ ] Admin traces everything.
+- [x] Register.
+- [x] Welcome reward.
+- [x] Generate code.
+- [x] Staff resolves customer.
+- [x] Add coffee.
+- [x] Customer progress updates.
+- [x] Reach threshold.
+- [x] Free coffee appears.
+- [x] Redeem.
+- [x] Admin traces everything.
 
 Quality:
-- [ ] Typecheck passes.
-- [ ] Lint passes.
-- [ ] Tests pass.
-- [ ] Production build passes.
-- [ ] Mobile customer review.
-- [ ] Tablet staff review.
-- [ ] Desktop admin review.
-- [ ] Double-click/race review.
+- [x] Typecheck passes.
+- [x] Lint passes.
+- [x] Tests pass.
+- [x] Production build passes.
+- [x] Mobile customer review.
+- [x] Tablet staff review.
+- [x] Desktop admin review.
+- [x] Double-click/race review.
 
 ### Gate 13
-- [ ] Release candidate passes all critical tests.
+- [x] Release candidate passes all critical tests.
+- [x] Critical suite validated via `scripts/phase13-smoke.ps1` and `npm run typecheck && npm run lint && npm run build`.
 
 ---
 
