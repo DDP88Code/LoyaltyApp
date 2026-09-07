@@ -24,6 +24,22 @@ function toUint8Array(base64Url: string): Uint8Array {
 	return bytes;
 }
 
+function hasSameBytes(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.length !== b.length) return false;
+	for (let index = 0; index < a.length; index += 1) {
+		if (a[index] !== b[index]) return false;
+	}
+	return true;
+}
+
+function extractApplicationServerKey(
+	subscription: PushSubscription,
+): Uint8Array | null {
+	const key = subscription.options?.applicationServerKey;
+	if (!key) return null;
+	return new Uint8Array(key);
+}
+
 function resolvePushKeys(subscription: PushSubscription): {
 	p256dhKey: string;
 	authKey: string;
@@ -72,12 +88,23 @@ export async function ensureBrowserPushSubscription(
 	await ensurePushPermission();
 
 	const registration = await navigator.serviceWorker.ready;
-	const existing = await registration.pushManager.getSubscription();
+	const expectedKey = toUint8Array(publicKey);
+	let existing = await registration.pushManager.getSubscription();
+
+	if (existing) {
+		const currentKey = extractApplicationServerKey(existing);
+		const keyMatches = currentKey ? hasSameBytes(currentKey, expectedKey) : false;
+		if (!keyMatches) {
+			await existing.unsubscribe();
+			existing = null;
+		}
+	}
+
 	const subscription =
 		existing ??
 		(await registration.pushManager.subscribe({
 			userVisibleOnly: true,
-			applicationServerKey: toUint8Array(publicKey) as unknown as BufferSource,
+			applicationServerKey: expectedKey as unknown as BufferSource,
 		}));
 
 	const keys = resolvePushKeys(subscription);

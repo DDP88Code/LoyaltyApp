@@ -8,6 +8,8 @@ export interface AdminPromotion {
 	startAt: string;
 	endAt: string;
 	active: boolean;
+	notifyCustomers: boolean;
+	notificationSentAt: string | null;
 	ctaText: string | null;
 	ctaUrl: string | null;
 	createdAt: string;

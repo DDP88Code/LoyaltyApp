@@ -22,6 +22,8 @@ export const promotions = sqliteTable(
 		startAt: timestampMs("start_at").notNull(),
 		endAt: timestampMs("end_at").notNull(),
 		active: flag("active").notNull().default(true),
+		notifyCustomers: flag("notify_customers").notNull().default(false),
+		notificationSentAt: timestampMs("notification_sent_at"),
 		ctaText: text("cta_text"),
 		ctaUrl: text("cta_url"),
 		createdAt: createdAt(),

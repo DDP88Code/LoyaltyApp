@@ -17,6 +17,7 @@ export interface PromotionInput {
 	startAt: string;
 	endAt: string;
 	active: boolean;
+	notifyCustomers: boolean;
 	ctaText: string | null;
 	ctaUrl: string | null;
 }

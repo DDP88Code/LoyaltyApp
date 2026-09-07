@@ -7,6 +7,7 @@ import { businesses } from "@worker/db/schema";
 import { issueBirthdayRewardsForBusiness } from "@worker/lib/birthdayRewards";
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { ApiError, fail } from "@worker/lib/http";
+import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import { requestOrigin } from "@worker/lib/session";
@@ -18,6 +19,9 @@ import { media } from "@worker/routes/media";
 import { me } from "@worker/routes/me";
 import { staff } from "@worker/routes/staff";
 import type { AppEnv } from "@worker/types";
+
+const DAILY_MAINTENANCE_CRON = "10 22 * * *";
+const PROMOTION_NOTIFY_CRON = "*/5 * * * *";
 
 const api = new Hono<AppEnv>()
 	// Better Auth owns every method under /api/auth and returns its own responses,
@@ -77,50 +81,73 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 		const db = getDb(env);
 		await ensureMvpDefaults(db, env.BUSINESS_SLUG);
 		const now = new Date();
+		const cron = _event.cron;
+		const runDailyMaintenance = !cron || cron === DAILY_MAINTENANCE_CRON;
+		const runPromotionSweep = !cron || cron === PROMOTION_NOTIFY_CRON;
+
+		if (!runDailyMaintenance && !runPromotionSweep) {
+			console.log("Scheduled event skipped", { cron });
+			return;
+		}
+
 		const activeBusinesses = await db
 			.select({ id: businesses.id })
 			.from(businesses)
 			.where(eq(businesses.active, true));
 
 		for (const business of activeBusinesses) {
-			const notificationService = createNotificationService(db, env);
+			if (runDailyMaintenance) {
+				const notificationService = createNotificationService(db, env);
 
-			const birthdaySummary = await issueBirthdayRewardsForBusiness(
-				db,
-				business.id,
-				async (issued) => {
-					await notificationService.notifyBirthdayReward(issued);
-				},
-				now,
-			);
+				const birthdaySummary = await issueBirthdayRewardsForBusiness(
+					db,
+					business.id,
+					async (issued) => {
+						await notificationService.notifyBirthdayReward(issued);
+					},
+					now,
+				);
 
-			const expirySummary = await notifyRewardsExpiringInDays(
-				db,
-				business.id,
-				3,
-				now,
-				async (candidate) => {
-					const result = await notificationService.notifyRewardExpiring({
-						businessId: candidate.businessId,
-						customerId: candidate.customerId,
-						customerRewardId: candidate.customerRewardId,
-						rewardName: candidate.rewardName,
-						daysRemaining: 3,
-					});
-					if (result.status === "created") return "created";
-					if (result.status === "duplicate") return "duplicate";
-					return "skipped";
-				},
-			);
+				const expirySummary = await notifyRewardsExpiringInDays(
+					db,
+					business.id,
+					3,
+					now,
+					async (candidate) => {
+						const result = await notificationService.notifyRewardExpiring({
+							businessId: candidate.businessId,
+							customerId: candidate.customerId,
+							customerRewardId: candidate.customerRewardId,
+							rewardName: candidate.rewardName,
+							daysRemaining: 3,
+						});
+						if (result.status === "created") return "created";
+						if (result.status === "duplicate") return "duplicate";
+						return "skipped";
+					},
+				);
 
-			console.log("Daily notification maintenance summary", {
-				businessId: business.id,
-				birthdaySummary,
-				expirySummary,
-			});
+				console.log("Daily notification maintenance summary", {
+					businessId: business.id,
+					birthdaySummary,
+					expirySummary,
+				});
+			}
+
+			if (runPromotionSweep) {
+				const promotionSummary = await notifyActivePromotionsAwaitingBroadcast(
+					db,
+					env,
+					business.id,
+					now,
+				);
+				if (promotionSummary.scannedPromotions > 0 || promotionSummary.failed > 0) {
+					console.log("Promotion notify sweep summary", promotionSummary);
+				}
+			}
 		}
 	} catch (error) {
-		console.error("Birthday reward cron failed", {
+		console.error("Scheduled maintenance failed", {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	}

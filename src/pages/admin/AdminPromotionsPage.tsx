@@ -24,6 +24,7 @@ interface PromotionFormState {
 	startAt: string;
 	endAt: string;
 	active: boolean;
+	notifyCustomers: boolean;
 	ctaText: string;
 	ctaUrl: string;
 	imageKey: string | null;
@@ -36,6 +37,7 @@ const EMPTY_FORM: PromotionFormState = {
 	startAt: "",
 	endAt: "",
 	active: true,
+	notifyCustomers: false,
 	ctaText: "",
 	ctaUrl: "",
 	imageKey: null,
@@ -67,6 +69,7 @@ function toPayload(form: PromotionFormState): PromotionInput {
 		startAt: new Date(form.startAt).toISOString(),
 		endAt: new Date(form.endAt).toISOString(),
 		active: form.active,
+		notifyCustomers: form.notifyCustomers,
 		ctaText: form.ctaText.trim() || null,
 		ctaUrl: form.ctaUrl.trim() || null,
 	};
@@ -127,6 +130,7 @@ export function AdminPromotionsPage() {
 			startAt: toLocalDateTimeInput(selectedPromotion.startAt),
 			endAt: toLocalDateTimeInput(selectedPromotion.endAt),
 			active: selectedPromotion.active,
+			notifyCustomers: selectedPromotion.notifyCustomers,
 			ctaText: selectedPromotion.ctaText ?? "",
 			ctaUrl: selectedPromotion.ctaUrl ?? "",
 			imageKey: selectedPromotion.imageKey,
@@ -297,6 +301,20 @@ export function AdminPromotionsPage() {
 								/>
 								<span>Active</span>
 							</label>
+							<label className="inline-flex min-h-10 items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={form.notifyCustomers}
+									onChange={(event) =>
+										setForm((current) => ({
+											...current,
+											notifyCustomers: event.target.checked,
+										}))
+									}
+									className="size-4 accent-brand-primary"
+								/>
+								<span>Notify customers when active</span>
+							</label>
 
 							<Input
 								label="CTA text"
@@ -399,6 +417,11 @@ export function AdminPromotionsPage() {
 											{new Date(promotion.startAt).toLocaleString()} to {" "}
 											{new Date(promotion.endAt).toLocaleString()}
 										</p>
+										{promotion.notifyCustomers && (
+											<p className="mt-1 text-xs text-brand-muted">
+												Customer notify: {promotion.notificationSentAt ? "Sent" : "Pending"}
+											</p>
+										)}
 									</button>
 								))}
 							</div>

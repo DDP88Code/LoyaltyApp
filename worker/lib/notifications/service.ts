@@ -195,7 +195,44 @@ export function createNotificationService(db: Db, env: Env): NotificationService
 				.returning({ id: notifications.id });
 
 			if (!inserted?.id) {
-				return { status: "duplicate", notificationId: null };
+				let duplicateNotificationId: string | null = null;
+				if (input.sourceType && input.sourceId) {
+					const existing = await db.query.notifications.findFirst({
+						where: and(
+							eq(notifications.businessId, input.businessId),
+							eq(notifications.customerId, input.customerId),
+							eq(notifications.type, input.type),
+							eq(notifications.sourceType, input.sourceType),
+							eq(notifications.sourceId, input.sourceId),
+						),
+						columns: {
+							id: true,
+							pushSentAt: true,
+						},
+					});
+
+					if (existing) {
+						duplicateNotificationId = existing.id;
+						if (!existing.pushSentAt) {
+							try {
+								await deliverPushIfEligible(
+									db,
+									env,
+									pushProvider,
+									existing.id,
+									input,
+								);
+							} catch (error) {
+								console.error("Push retry phase failed for duplicate notification", {
+									notificationId: existing.id,
+									error: error instanceof Error ? error.message : String(error),
+								});
+							}
+						}
+					}
+				}
+
+				return { status: "duplicate", notificationId: duplicateNotificationId };
 			}
 			createdId = inserted.id;
 		} catch (error) {
@@ -273,7 +310,7 @@ export function createNotificationService(db: Db, env: Env): NotificationService
 				actionUrl: input.actionUrl ?? "/app/menu",
 				sourceType: "promotion",
 				sourceId: input.promotionId,
-				pushAudience: "marketing",
+				pushAudience: "account",
 			});
 		},
 		async notifyRedemption(input) {
