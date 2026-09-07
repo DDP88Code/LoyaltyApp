@@ -4,6 +4,7 @@ import { profiles, user } from "@worker/db/schema";
 import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { issueWelcomeReward } from "@worker/lib/loyalty";
+import { createNotificationService } from "@worker/lib/notifications/service";
 
 interface AuthIdentity {
 	id: string;
@@ -42,14 +43,44 @@ export async function ensureAuthUserProfile(
 		throw new Error("Profile row could not be initialized.");
 	}
 
-	await issueWelcomeReward(db, defaults.businessId, profile.id);
-	await reconcileBirthdayRewardForCustomer(db, {
-		id: profile.id,
-		businessId: profile.businessId,
-		role: profile.role,
-		active: profile.active,
-		birthday: profile.birthday,
-	});
+	const notifications = createNotificationService(db, env);
+
+	const welcome = await issueWelcomeReward(db, defaults.businessId, profile.id);
+	if (welcome.issued && welcome.customerRewardId) {
+		try {
+			await notifications.notifyWelcomeReward({
+				businessId: profile.businessId,
+				customerId: profile.id,
+				customerRewardId: welcome.customerRewardId,
+			});
+		} catch (error) {
+			console.error("Welcome notification failed", {
+				customerId: profile.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	await reconcileBirthdayRewardForCustomer(
+		db,
+		{
+			id: profile.id,
+			businessId: profile.businessId,
+			role: profile.role,
+			active: profile.active,
+			birthday: profile.birthday,
+		},
+		async (issued) => {
+			try {
+				await notifications.notifyBirthdayReward(issued);
+			} catch (error) {
+				console.error("Birthday notification failed", {
+					customerId: issued.customerId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+	);
 
 	return profile;
 }

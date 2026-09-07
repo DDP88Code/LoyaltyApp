@@ -7,6 +7,8 @@ import { businesses } from "@worker/db/schema";
 import { issueBirthdayRewardsForBusiness } from "@worker/lib/birthdayRewards";
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { ApiError, fail } from "@worker/lib/http";
+import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
+import { createNotificationService } from "@worker/lib/notifications/service";
 import { requestOrigin } from "@worker/lib/session";
 import { admin } from "@worker/routes/admin";
 import { customer } from "@worker/routes/customer";
@@ -74,16 +76,47 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 	try {
 		const db = getDb(env);
 		await ensureMvpDefaults(db, env.BUSINESS_SLUG);
+		const now = new Date();
 		const activeBusinesses = await db
 			.select({ id: businesses.id })
 			.from(businesses)
 			.where(eq(businesses.active, true));
 
 		for (const business of activeBusinesses) {
-			const summary = await issueBirthdayRewardsForBusiness(db, business.id);
-			console.log("Birthday reward cron summary", {
+			const notificationService = createNotificationService(db, env);
+
+			const birthdaySummary = await issueBirthdayRewardsForBusiness(
+				db,
+				business.id,
+				async (issued) => {
+					await notificationService.notifyBirthdayReward(issued);
+				},
+				now,
+			);
+
+			const expirySummary = await notifyRewardsExpiringInDays(
+				db,
+				business.id,
+				3,
+				now,
+				async (candidate) => {
+					const result = await notificationService.notifyRewardExpiring({
+						businessId: candidate.businessId,
+						customerId: candidate.customerId,
+						customerRewardId: candidate.customerRewardId,
+						rewardName: candidate.rewardName,
+						daysRemaining: 3,
+					});
+					if (result.status === "created") return "created";
+					if (result.status === "duplicate") return "duplicate";
+					return "skipped";
+				},
+			);
+
+			console.log("Daily notification maintenance summary", {
 				businessId: business.id,
-				...summary,
+				birthdaySummary,
+				expirySummary,
 			});
 		}
 	} catch (error) {

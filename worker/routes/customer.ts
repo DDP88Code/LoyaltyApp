@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionPayload } from "@shared/api";
@@ -11,6 +11,19 @@ import type {
 	PromotionSummary,
 } from "@shared/loyalty";
 import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
+import type {
+	CustomerLatestUnreadNotificationPayload,
+	CustomerMarkAllNotificationsReadPayload,
+	CustomerMarkNotificationReadPayload,
+	CustomerNotificationsPayload,
+	CustomerPushConfigPayload,
+	CustomerPushSubscriptionStatusPayload,
+	CustomerUnreadNotificationsPayload,
+} from "@shared/notifications";
+import {
+	pushSubscriptionDeleteSchema,
+	pushSubscriptionUpsertSchema,
+} from "@shared/notifications";
 import {
 	type AccountDeletionPayload,
 	updateProfileSchema,
@@ -24,11 +37,14 @@ import {
 	menuCategories,
 	menuItems,
 	menuItemVariants,
+	notifications,
 	profiles,
 	promotions,
+	pushSubscriptions,
 	user as authUsers,
 } from "@worker/db/schema";
 import { ok } from "@worker/lib/http";
+import { ApiError } from "@worker/lib/http";
 import {
 	getCoffeeProgress,
 	isPointsProgramActive,
@@ -37,6 +53,7 @@ import {
 } from "@worker/lib/loyalty";
 import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
+import { createNotificationService } from "@worker/lib/notifications/service";
 import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
@@ -47,7 +64,27 @@ const transactionsQuerySchema = z.object({
 	offset: z.coerce.number().int().min(0).default(0),
 });
 
+const notificationsQuerySchema = z.object({
+	limit: z.coerce.number().int().min(1).max(50).default(20),
+	offset: z.coerce.number().int().min(0).default(0),
+});
+
 const REWARD_PREVIEW_SIZE = 3;
+
+function toNotificationSummary(
+	row: typeof notifications.$inferSelect,
+): CustomerNotificationsPayload["notifications"][number] {
+	return {
+		id: row.id,
+		type: row.type,
+		title: row.title,
+		message: row.message,
+		actionUrl: row.actionUrl,
+		createdAt: row.createdAt.toISOString(),
+		readAt: row.readAt?.toISOString() ?? null,
+		expiresAt: row.expiresAt?.toISOString() ?? null,
+	};
+}
 
 function toPromotionSummary(
 	row: typeof promotions.$inferSelect,
@@ -73,6 +110,7 @@ export const customer = new Hono<AppEnv>()
 	.patch("/profile", validate("json", updateProfileSchema), async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
+		const notificationService = createNotificationService(db, c.env);
 		// The row is located by the session's profile id, so a customer can only
 		// ever update themselves — there is no id in the request to tamper with.
 		const [updated] = await db
@@ -82,16 +120,246 @@ export const customer = new Hono<AppEnv>()
 			.returning();
 
 		const latest = updated ?? profile;
-		await reconcileBirthdayRewardForCustomer(db, {
-			id: latest.id,
-			businessId: latest.businessId,
-			role: latest.role,
-			active: latest.active,
-			birthday: latest.birthday,
-		});
+		await reconcileBirthdayRewardForCustomer(
+			db,
+			{
+				id: latest.id,
+				businessId: latest.businessId,
+				role: latest.role,
+				active: latest.active,
+				birthday: latest.birthday,
+			},
+			async (issued) => {
+				await notificationService.notifyBirthdayReward(issued);
+			},
+		);
 
 		return ok<SessionPayload>(c, { user: toSessionUser(latest) });
 	})
+
+	.get(
+		"/notifications",
+		validate("query", notificationsQuerySchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const { limit, offset } = c.req.valid("query");
+
+			const where = and(
+				eq(notifications.businessId, profile.businessId),
+				eq(notifications.customerId, profile.id),
+			);
+
+			const [rows, [totals]] = await Promise.all([
+				db
+					.select()
+					.from(notifications)
+					.where(where)
+					.orderBy(desc(notifications.createdAt))
+					.limit(limit)
+					.offset(offset),
+				db.select({ value: count() }).from(notifications).where(where),
+			]);
+
+			return ok<CustomerNotificationsPayload>(c, {
+				notifications: rows.map(toNotificationSummary),
+				total: totals?.value ?? 0,
+				limit,
+				offset,
+			});
+		},
+	)
+
+	.get("/notifications/unread-count", async (c) => {
+		const profile = c.get("profile");
+		const [row] = await getDb(c.env)
+			.select({ value: count() })
+			.from(notifications)
+			.where(
+				and(
+					eq(notifications.businessId, profile.businessId),
+					eq(notifications.customerId, profile.id),
+					isNull(notifications.readAt),
+				),
+			);
+
+		return ok<CustomerUnreadNotificationsPayload>(c, {
+			unread: row?.value ?? 0,
+		});
+	})
+
+	.get("/notifications/latest-unread", async (c) => {
+		const profile = c.get("profile");
+		const row = await getDb(c.env).query.notifications.findFirst({
+			where: and(
+				eq(notifications.businessId, profile.businessId),
+				eq(notifications.customerId, profile.id),
+				isNull(notifications.readAt),
+			),
+			orderBy: (t, { desc }) => [desc(t.createdAt)],
+		});
+
+		return ok<CustomerLatestUnreadNotificationPayload>(c, {
+			notification: row ? toNotificationSummary(row) : null,
+		});
+	})
+
+	.post("/notifications/:notificationId/read", async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const notificationId = c.req.param("notificationId");
+
+		const existing = await db.query.notifications.findFirst({
+			where: and(
+				eq(notifications.id, notificationId),
+				eq(notifications.businessId, profile.businessId),
+				eq(notifications.customerId, profile.id),
+			),
+			columns: { id: true, readAt: true },
+		});
+		if (!existing) {
+			throw new ApiError("not_found", "Notification not found.");
+		}
+
+		if (!existing.readAt) {
+			await db
+				.update(notifications)
+				.set({ readAt: new Date() })
+				.where(eq(notifications.id, existing.id));
+		}
+
+		return ok<CustomerMarkNotificationReadPayload>(c, { updated: true });
+	})
+
+	.post("/notifications/read-all", async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const now = new Date();
+
+		const [unread] = await db
+			.select({ value: count() })
+			.from(notifications)
+			.where(
+				and(
+					eq(notifications.businessId, profile.businessId),
+					eq(notifications.customerId, profile.id),
+					isNull(notifications.readAt),
+				),
+			);
+
+		if ((unread?.value ?? 0) > 0) {
+			await db
+				.update(notifications)
+				.set({ readAt: now })
+				.where(
+					and(
+						eq(notifications.businessId, profile.businessId),
+						eq(notifications.customerId, profile.id),
+						isNull(notifications.readAt),
+					),
+				);
+		}
+
+		return ok<CustomerMarkAllNotificationsReadPayload>(c, {
+			updatedCount: unread?.value ?? 0,
+		});
+	})
+
+	.get("/push/config", async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+
+		const [subscribed] = await db
+			.select({ value: count() })
+			.from(pushSubscriptions)
+			.where(
+				and(
+					eq(pushSubscriptions.businessId, profile.businessId),
+					eq(pushSubscriptions.customerId, profile.id),
+					eq(pushSubscriptions.active, true),
+				),
+			);
+
+		const publicKey = c.env.WEB_PUSH_VAPID_PUBLIC_KEY ?? null;
+		return ok<CustomerPushConfigPayload>(c, {
+			configured: Boolean(publicKey && c.env.WEB_PUSH_VAPID_PRIVATE_KEY),
+			publicKey,
+			subscribed: (subscribed?.value ?? 0) > 0,
+		});
+	})
+
+	.post(
+		"/push/subscriptions",
+		validate("json", pushSubscriptionUpsertSchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const input = c.req.valid("json");
+
+			const existing = await db.query.pushSubscriptions.findFirst({
+				where: and(
+					eq(pushSubscriptions.businessId, profile.businessId),
+					eq(pushSubscriptions.endpoint, input.endpoint),
+				),
+			});
+
+			if (existing && existing.customerId !== profile.id) {
+				throw new ApiError(
+					"conflict",
+					"This push subscription is already linked to another account.",
+				);
+			}
+
+			if (existing) {
+				await db
+					.update(pushSubscriptions)
+					.set({
+						p256dhKey: input.p256dhKey,
+						authKey: input.authKey,
+						deviceLabel: input.deviceLabel ?? null,
+						active: true,
+						lastSeenAt: new Date(),
+					})
+					.where(eq(pushSubscriptions.id, existing.id));
+			} else {
+				await db.insert(pushSubscriptions).values({
+					businessId: profile.businessId,
+					customerId: profile.id,
+					endpoint: input.endpoint,
+					p256dhKey: input.p256dhKey,
+					authKey: input.authKey,
+					deviceLabel: input.deviceLabel ?? null,
+					active: true,
+					lastSeenAt: new Date(),
+				});
+			}
+
+			return ok<CustomerPushSubscriptionStatusPayload>(c, { subscribed: true });
+		},
+	)
+
+	.post(
+		"/push/subscriptions/delete",
+		validate("json", pushSubscriptionDeleteSchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const input = c.req.valid("json");
+
+			await db
+				.update(pushSubscriptions)
+				.set({ active: false, lastSeenAt: new Date() })
+				.where(
+					and(
+						eq(pushSubscriptions.businessId, profile.businessId),
+						eq(pushSubscriptions.customerId, profile.id),
+						eq(pushSubscriptions.endpoint, input.endpoint),
+					),
+				);
+
+			return ok<CustomerPushSubscriptionStatusPayload>(c, { subscribed: false });
+		},
+	)
 
 	.delete("/account", async (c) => {
 		const profile = c.get("profile");
@@ -104,6 +372,14 @@ export const customer = new Hono<AppEnv>()
 			.where(eq(customerRewards.customerId, profile.id));
 
 		await db.delete(loyaltyCodes).where(eq(loyaltyCodes.customerId, profile.id));
+
+		await db
+			.delete(notifications)
+			.where(eq(notifications.customerId, profile.id));
+
+		await db
+			.delete(pushSubscriptions)
+			.where(eq(pushSubscriptions.customerId, profile.id));
 
 		await db
 			.delete(loyaltyTransactions)

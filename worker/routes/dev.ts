@@ -46,6 +46,7 @@ dev.post(
 		const summary = await issueBirthdayRewardsForBusiness(
 			db,
 			businessId ?? defaults.businessId,
+			undefined,
 			now,
 		);
 		return ok(c, summary);

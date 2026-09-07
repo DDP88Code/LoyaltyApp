@@ -24,6 +24,16 @@ export const REWARD_TYPES = [
 ] as const;
 export type RewardType = (typeof REWARD_TYPES)[number];
 
+export const NOTIFICATION_TYPES = [
+	"reward_earned",
+	"reward_expiring",
+	"birthday_reward",
+	"promotion",
+	"redemption_receipt",
+	"system",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
 export const CUSTOMER_REWARD_STATUSES = [
 	"available",
 	"redeemed",

@@ -98,6 +98,7 @@ import {
 	getCoffeeProgress,
 	redeemCustomerReward,
 } from "@worker/lib/loyalty";
+import { createNotificationService } from "@worker/lib/notifications/service";
 import {
 	assertOwnedMenuMediaKey,
 	assertOwnedPromotionsMediaKey,
@@ -1426,6 +1427,7 @@ export const admin = new Hono<AppEnv>()
 		async (c) => {
 			const admin = c.get("profile");
 			const db = getDb(c.env);
+			const notificationService = createNotificationService(db, c.env);
 			const customerId = c.req.param("customerId");
 			const rewardId = c.req.param("rewardId");
 			const input = c.req.valid("json");
@@ -1442,9 +1444,13 @@ export const admin = new Hono<AppEnv>()
 				throw new ApiError("not_found", "That customer was not found.");
 			}
 
-			await requireLocationInBusiness(db, admin.businessId, input.locationId);
+			const location = await requireLocationInBusiness(
+				db,
+				admin.businessId,
+				input.locationId,
+			);
 
-			await redeemCustomerReward(db, {
+			const redeemed = await redeemCustomerReward(db, {
 				businessId: admin.businessId,
 				customerId,
 				rewardId,
@@ -1455,6 +1461,23 @@ export const admin = new Hono<AppEnv>()
 					input.billTotalRand == null ? null : Math.round(input.billTotalRand * 100),
 				allowVoucherRedemption: true,
 			});
+
+			try {
+				await notificationService.notifyRedemption({
+					businessId: admin.businessId,
+					customerId,
+					rewardId,
+					rewardName: redeemed.rewardName,
+					locationName: normalizeLocationName(location.name),
+					billReference: input.billReference ?? null,
+				});
+			} catch (error) {
+				console.error("Admin redemption notification failed", {
+					customerId,
+					rewardId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
 
 			return ok<AdminRewardRedemptionPayload>(c, { redeemed: true });
 		},

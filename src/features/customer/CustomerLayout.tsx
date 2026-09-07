@@ -1,7 +1,8 @@
-import { Coffee, Gift, QrCode, User, UtensilsCrossed } from "lucide-react";
+import { Bell, Coffee, Gift, QrCode, User, UtensilsCrossed } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/features/auth/useSession";
+import { useCustomerUnreadNotifications } from "@/features/customer/api";
 
 const TABS = [
 	{ to: "/app", label: "Home", icon: Coffee, end: true },
@@ -17,6 +18,8 @@ const TABS = [
  */
 export function CustomerLayout() {
 	const { data: user } = useSession();
+	const unread = useCustomerUnreadNotifications();
+	const unreadCount = unread.data?.unread ?? 0;
 
 	return (
 		<div className="flex min-h-dvh flex-col pb-24">
@@ -29,6 +32,24 @@ export function CustomerLayout() {
 						<p className="text-sm text-brand-muted">Hi, {user.fullName}</p>
 					)}
 				</div>
+
+				<NavLink
+					to="/app/notifications"
+					className={({ isActive }) =>
+						cn(
+							"relative inline-flex size-10 items-center justify-center rounded-full border border-brand-border bg-brand-surface-raised text-brand-muted transition-colors hover:text-brand-text",
+							isActive && "text-brand-primary",
+						)
+					}
+					aria-label="Notifications"
+				>
+					<Bell className="size-5" aria-hidden />
+					{unreadCount > 0 && (
+						<span className="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-brand-danger px-1.5 text-[10px] font-semibold text-white">
+							{unreadCount > 99 ? "99+" : unreadCount}
+						</span>
+					)}
+				</NavLink>
 			</header>
 
 			<main className="flex-1">

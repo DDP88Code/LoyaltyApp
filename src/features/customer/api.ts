@@ -8,6 +8,16 @@ import type {
 } from "@shared/loyalty";
 import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import type {
+	CustomerMarkAllNotificationsReadPayload,
+	CustomerMarkNotificationReadPayload,
+	CustomerNotificationsPayload,
+	CustomerPushConfigPayload,
+	CustomerPushSubscriptionStatusPayload,
+	CustomerUnreadNotificationsPayload,
+	PushSubscriptionDeleteInput,
+	PushSubscriptionUpsertInput,
+} from "@shared/notifications";
+import type {
 	AccountDeletionPayload,
 	UpdateProfileInput,
 } from "@shared/profile";
@@ -16,6 +26,22 @@ import { getStoredJson, setStoredJson } from "@/lib/storage";
 import { sessionQueryKey } from "@/features/auth/useSession";
 
 const MENU_CACHE_KEY = "fives:customer:menu:v2";
+
+export const customerUnreadNotificationsQueryKey = [
+	"customer",
+	"notifications",
+	"unread",
+] as const;
+export const customerNotificationsQueryKey = [
+	"customer",
+	"notifications",
+	"list",
+] as const;
+export const customerPushConfigQueryKey = [
+	"customer",
+	"push",
+	"config",
+] as const;
 
 interface CachedMenuRecord {
 	fetchedAt: number;
@@ -66,6 +92,119 @@ export function useCustomerTransactions(page: { limit: number; offset: number })
 	});
 }
 
+export function useCustomerNotifications(page: { limit: number; offset: number }) {
+	return useQuery({
+		queryKey: [...customerNotificationsQueryKey, page],
+		queryFn: () =>
+			apiFetch<CustomerNotificationsPayload>(
+				`/api/customer/notifications?limit=${page.limit}&offset=${page.offset}`,
+			),
+		placeholderData: (previous) => previous,
+	});
+}
+
+export function useCustomerUnreadNotifications() {
+	return useQuery({
+		queryKey: customerUnreadNotificationsQueryKey,
+		queryFn: () =>
+			apiFetch<CustomerUnreadNotificationsPayload>(
+				"/api/customer/notifications/unread-count",
+			),
+		staleTime: 15_000,
+		refetchInterval: 30_000,
+	});
+}
+
+export function useMarkCustomerNotificationRead() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (notificationId: string) =>
+			apiFetch<CustomerMarkNotificationReadPayload>(
+				`/api/customer/notifications/${notificationId}/read`,
+				{
+					method: "POST",
+				},
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: customerUnreadNotificationsQueryKey,
+			});
+			void queryClient.invalidateQueries({
+				queryKey: customerNotificationsQueryKey,
+				exact: false,
+			});
+		},
+	});
+}
+
+export function useMarkAllCustomerNotificationsRead() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: () =>
+			apiFetch<CustomerMarkAllNotificationsReadPayload>(
+				"/api/customer/notifications/read-all",
+				{
+					method: "POST",
+				},
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: customerUnreadNotificationsQueryKey,
+			});
+			void queryClient.invalidateQueries({
+				queryKey: customerNotificationsQueryKey,
+				exact: false,
+			});
+		},
+	});
+}
+
+export function useCustomerPushConfig() {
+	return useQuery({
+		queryKey: customerPushConfigQueryKey,
+		queryFn: () => apiFetch<CustomerPushConfigPayload>("/api/customer/push/config"),
+		staleTime: 15_000,
+	});
+}
+
+export function useSaveCustomerPushSubscription() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (input: PushSubscriptionUpsertInput) =>
+			apiFetch<CustomerPushSubscriptionStatusPayload>(
+				"/api/customer/push/subscriptions",
+				{
+					method: "POST",
+					body: JSON.stringify(input),
+				},
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: customerPushConfigQueryKey,
+			});
+		},
+	});
+}
+
+export function useDeleteCustomerPushSubscription() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (input: PushSubscriptionDeleteInput) =>
+			apiFetch<CustomerPushSubscriptionStatusPayload>(
+				"/api/customer/push/subscriptions/delete",
+				{
+					method: "POST",
+					body: JSON.stringify(input),
+				},
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: customerPushConfigQueryKey,
+			});
+		},
+	});
+}
+
 export function useCustomerMenu() {
 	return useQuery({
 		queryKey: ["customer", "menu"],
@@ -85,6 +224,7 @@ export function useUpdateProfile() {
 			}),
 		onSuccess: (data) => {
 			queryClient.setQueryData(sessionQueryKey, data.user);
+			void queryClient.invalidateQueries({ queryKey: customerPushConfigQueryKey });
 		},
 	});
 }

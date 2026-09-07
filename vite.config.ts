@@ -11,6 +11,9 @@ export default defineConfig({
 		tailwindcss(),
 		cloudflare(),
 		VitePWA({
+			strategies: "injectManifest",
+			srcDir: "src",
+			filename: "sw.js",
 			registerType: "autoUpdate",
 			includeAssets: ["favicon.svg", "icons/apple-touch-icon.png"],
 			manifest: {
@@ -39,15 +42,8 @@ export default defineConfig({
 					},
 				],
 			},
-			workbox: {
-				clientsClaim: true,
-				skipWaiting: true,
-				cleanupOutdatedCaches: true,
+			injectManifest: {
 				globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
-				navigateFallback: "/index.html",
-				// Loyalty mutations must never be served from cache or replayed offline.
-				navigateFallbackDenylist: [/^\/api\//],
-				runtimeCaching: [],
 			},
 			devOptions: { enabled: false },
 		}),

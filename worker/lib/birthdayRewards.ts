@@ -24,6 +24,12 @@ interface BirthdayCandidate {
 	birthday: string | null;
 }
 
+export interface BirthdayRewardIssued {
+	businessId: string;
+	customerId: string;
+	customerRewardId: string;
+}
+
 export interface BirthdayIssuanceSummary {
 	date: string;
 	timeZone: string;
@@ -119,12 +125,18 @@ async function issueBirthdayRewardIfDue(
 	rewardDefinitionId: string,
 	today: JohannesburgDateParts,
 	now: Date,
-): Promise<"issued" | "already_issued" | "not_due" | "invalid" | "no_birthday"> {
-	if (!candidate.birthday) return "no_birthday";
+): Promise<
+	| { status: "issued"; customerRewardId: string }
+	| { status: "already_issued" }
+	| { status: "not_due" }
+	| { status: "invalid" }
+	| { status: "no_birthday" }
+> {
+	if (!candidate.birthday) return { status: "no_birthday" };
 
 	const due = isBirthdayDueToday(candidate.birthday, today);
-	if (due === "invalid") return "invalid";
-	if (due === "not_due") return "not_due";
+	if (due === "invalid") return { status: "invalid" };
+	if (due === "not_due") return { status: "not_due" };
 
 	const issuanceKey = `birthday:${candidate.id}:${today.year}`;
 	const expiresAt = new Date(now.getTime() + MVP_BIRTHDAY_REWARD_VALID_DAYS * DAY_MS);
@@ -141,12 +153,17 @@ async function issueBirthdayRewardIfDue(
 		.onConflictDoNothing()
 		.returning({ id: customerRewards.id });
 
-	return inserted.length > 0 ? "issued" : "already_issued";
+	if (inserted.length === 0 || !inserted[0]) {
+		return { status: "already_issued" };
+	}
+
+	return { status: "issued", customerRewardId: inserted[0].id };
 }
 
 export async function reconcileBirthdayRewardForCustomer(
 	db: Db,
 	candidate: BirthdayCandidate,
+	onIssued?: (issued: BirthdayRewardIssued) => Promise<void>,
 	now = new Date(),
 ): Promise<boolean> {
 	if (candidate.role !== "customer" || !candidate.active || !candidate.birthday) {
@@ -165,12 +182,21 @@ export async function reconcileBirthdayRewardForCustomer(
 		now,
 	);
 
-	return result === "issued";
+	if (result.status === "issued" && onIssued) {
+		await onIssued({
+			businessId: candidate.businessId,
+			customerId: candidate.id,
+			customerRewardId: result.customerRewardId,
+		});
+	}
+
+	return result.status === "issued";
 }
 
 export async function issueBirthdayRewardsForBusiness(
 	db: Db,
 	businessId: string,
+	onIssued?: (issued: BirthdayRewardIssued) => Promise<void>,
 	now = new Date(),
 ): Promise<BirthdayIssuanceSummary> {
 	const today = toDateParts(now);
@@ -221,24 +247,31 @@ export async function issueBirthdayRewardsForBusiness(
 				today,
 				now,
 			);
-			if (result === "no_birthday") {
+			if (result.status === "no_birthday") {
 				summary.skippedNoBirthday += 1;
 				continue;
 			}
-			if (result === "invalid") {
+			if (result.status === "invalid") {
 				summary.skippedInvalidBirthday += 1;
 				console.warn("Skipping invalid customer birthday", {
 					customerId: candidate.id,
 				});
 				continue;
 			}
-			if (result === "not_due") {
+			if (result.status === "not_due") {
 				continue;
 			}
 
 			summary.matchedBirthdays += 1;
-			if (result === "issued") {
+			if (result.status === "issued") {
 				summary.issued += 1;
+				if (onIssued) {
+					await onIssued({
+						businessId,
+						customerId: candidate.id,
+						customerRewardId: result.customerRewardId,
+					});
+				}
 			} else {
 				summary.alreadyIssued += 1;
 			}

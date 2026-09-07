@@ -27,6 +27,7 @@ import { AdminTransactionsPage } from "@/pages/admin/AdminTransactionsPage";
 import { FivesCodePage } from "@/pages/customer/FivesCodePage";
 import { HomePage } from "@/pages/customer/HomePage";
 import { MenuPage } from "@/pages/customer/MenuPage";
+import { NotificationsPage } from "@/pages/customer/NotificationsPage";
 import { ProfilePage } from "@/pages/customer/ProfilePage";
 import { RewardsPage } from "@/pages/customer/RewardsPage";
 import { StaffHomePage } from "@/pages/staff/StaffHomePage";
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
 						children: [
 							{ path: "/app", element: <HomePage /> },
 							{ path: "/app/rewards", element: <RewardsPage /> },
+							{ path: "/app/notifications", element: <NotificationsPage /> },
 							{ path: "/app/fives-code", element: <FivesCodePage /> },
 							{ path: "/app/menu", element: <MenuPage /> },
 							{ path: "/app/profile", element: <ProfilePage /> },

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LogOut, Pencil, ShieldAlert } from "lucide-react";
+import { Bell, BellOff, LogOut, Pencil, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -11,9 +11,17 @@ import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useSession, useSignOut } from "@/features/auth/useSession";
 import {
+	useCustomerPushConfig,
+	useDeleteCustomerPushSubscription,
 	useDeleteAccount,
+	useSaveCustomerPushSubscription,
 	useUpdateProfile,
 } from "@/features/customer/api";
+import {
+	ensureBrowserPushSubscription,
+	removeBrowserPushSubscription,
+	supportsWebPush,
+} from "@/features/system/webPush";
 
 const profileFormSchema = z.object({
 	fullName: z.string().trim().min(2, "Enter your name.").max(80),
@@ -29,9 +37,69 @@ export function ProfilePage() {
 	const { data: user } = useSession();
 	const [editing, setEditing] = useState(false);
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+	const [pushError, setPushError] = useState<string | null>(null);
+	const [pushBusy, setPushBusy] = useState<"subscribe" | "unsubscribe" | null>(null);
 	const updateProfile = useUpdateProfile();
 	const signOut = useSignOut();
 	const deleteAccount = useDeleteAccount();
+	const pushConfig = useCustomerPushConfig();
+	const savePushSubscription = useSaveCustomerPushSubscription();
+	const deletePushSubscription = useDeleteCustomerPushSubscription();
+	const pushSupported = supportsWebPush();
+
+	const enablePush = async () => {
+		setPushError(null);
+		if (!user) return;
+		if (!pushSupported) {
+			setPushError("This browser does not support web push notifications.");
+			return;
+		}
+		if (!user.notificationOptIn) {
+			setPushError("Turn on Account notifications in your profile first.");
+			return;
+		}
+
+		const publicKey = pushConfig.data?.publicKey;
+		if (!pushConfig.data?.configured || !publicKey) {
+			setPushError("Push is not configured for this environment yet.");
+			return;
+		}
+
+		setPushBusy("subscribe");
+		try {
+			const subscription = await ensureBrowserPushSubscription(publicKey);
+			await savePushSubscription.mutateAsync({
+				endpoint: subscription.endpoint,
+				p256dhKey: subscription.p256dhKey,
+				authKey: subscription.authKey,
+				deviceLabel: "PWA",
+			});
+		} catch (error) {
+			setPushError(error instanceof Error ? error.message : "Unable to enable push.");
+		} finally {
+			setPushBusy(null);
+		}
+	};
+
+	const disablePush = async () => {
+		setPushError(null);
+		if (!user) return;
+		setPushBusy("unsubscribe");
+		try {
+			const endpoint = await removeBrowserPushSubscription();
+			if (endpoint) {
+				await deletePushSubscription.mutateAsync({ endpoint });
+			} else {
+				setPushError(
+					"No local browser subscription was found to remove on this device.",
+				);
+			}
+		} catch (error) {
+			setPushError(error instanceof Error ? error.message : "Unable to disable push.");
+		} finally {
+			setPushBusy(null);
+		}
+	};
 
 	const {
 		register,
@@ -167,6 +235,80 @@ export function ProfilePage() {
 						/>
 					</dl>
 				)}
+			</Card>
+
+			<Card>
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<CardTitle>Web push notifications</CardTitle>
+						<CardDescription>
+							Receive reward alerts when you are not actively in the app.
+						</CardDescription>
+					</div>
+					{pushConfig.data?.subscribed ? (
+						<Bell className="size-5 text-brand-success" aria-hidden />
+					) : (
+						<BellOff className="size-5 text-brand-muted" aria-hidden />
+					)}
+				</div>
+
+				<div className="mt-3 text-sm text-brand-muted">
+					{!pushSupported
+						? "This browser does not support push notifications."
+						: !user.notificationOptIn
+							? "Enable Account notifications above before subscribing to push."
+							: pushConfig.isPending
+								? "Checking push configuration..."
+								: pushConfig.data?.configured
+									? pushConfig.data?.subscribed
+										? "Push notifications are enabled on this device."
+										: "Push notifications are currently off on this device."
+									: "Push is not configured for this environment yet."}
+				</div>
+
+				{pushError && (
+					<p role="alert" className="mt-3 text-sm text-brand-danger">
+						{pushError}
+					</p>
+				)}
+
+				{savePushSubscription.isError && (
+					<p role="alert" className="mt-3 text-sm text-brand-danger">
+						{savePushSubscription.error.message}
+					</p>
+				)}
+
+				{deletePushSubscription.isError && (
+					<p role="alert" className="mt-3 text-sm text-brand-danger">
+						{deletePushSubscription.error.message}
+					</p>
+				)}
+
+				<div className="mt-3">
+					{pushConfig.data?.subscribed ? (
+						<Button
+							variant="outline"
+							size="sm"
+							loading={pushBusy === "unsubscribe"}
+							onClick={() => void disablePush()}
+						>
+							Disable push on this device
+						</Button>
+					) : (
+						<Button
+							size="sm"
+							loading={pushBusy === "subscribe"}
+							disabled={
+								!pushSupported ||
+								!user.notificationOptIn ||
+								!pushConfig.data?.configured
+							}
+							onClick={() => void enablePush()}
+						>
+							Enable push on this device
+						</Button>
+					)}
+				</div>
 			</Card>
 
 			<Card>

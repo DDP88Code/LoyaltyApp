@@ -6,3 +6,4 @@ export * from "./rewards";
 export * from "./menu";
 export * from "./promotions";
 export * from "./audit";
+export * from "./notifications";

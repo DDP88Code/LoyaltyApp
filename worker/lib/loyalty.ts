@@ -21,6 +21,13 @@ import { ApiError } from "@worker/lib/http";
 
 const DAY_MS = 86_400_000;
 
+export interface IssueWelcomeRewardResult {
+	issued: boolean;
+	customerRewardId: string | null;
+	rewardName: string | null;
+	expiresAt: Date | null;
+}
+
 /**
  * Coffee progress is the sum of every ledger row for this customer and
  * program, never a stored counter. A stamp threshold of 10 turns 12 lifetime
@@ -193,7 +200,7 @@ export async function issueWelcomeReward(
 	db: Db,
 	businessId: string,
 	customerId: string,
-): Promise<void> {
+): Promise<IssueWelcomeRewardResult> {
 	const welcomeEnabled = await db.query.appSettings.findFirst({
 		where: and(
 			eq(appSettings.businessId, businessId),
@@ -202,7 +209,12 @@ export async function issueWelcomeReward(
 		columns: { valueJson: true },
 	});
 	if (typeof welcomeEnabled?.valueJson === "boolean" && !welcomeEnabled.valueJson) {
-		return;
+		return {
+			issued: false,
+			customerRewardId: null,
+			rewardName: null,
+			expiresAt: null,
+		};
 	}
 
 	const welcome = await db.query.rewardDefinitions.findFirst({
@@ -212,13 +224,20 @@ export async function issueWelcomeReward(
 			eq(rewardDefinitions.active, true),
 		),
 	});
-	if (!welcome) return;
+	if (!welcome) {
+		return {
+			issued: false,
+			customerRewardId: null,
+			rewardName: null,
+			expiresAt: null,
+		};
+	}
 
 	const expiresAt = welcome.validDays
 		? new Date(Date.now() + welcome.validDays * DAY_MS)
 		: null;
 
-	await db
+	const [inserted] = await db
 		.insert(customerRewards)
 		.values({
 			businessId,
@@ -227,7 +246,22 @@ export async function issueWelcomeReward(
 			expiresAt,
 			issuanceKey: `welcome:${customerId}`,
 		})
-		.onConflictDoNothing();
+		.onConflictDoNothing()
+		.returning({ id: customerRewards.id });
+
+	return {
+		issued: Boolean(inserted?.id),
+		customerRewardId: inserted?.id ?? null,
+		rewardName: welcome.name,
+		expiresAt,
+	};
+}
+
+export interface IssuedRewardDetails {
+	id: string;
+	rewardDefinitionId: string;
+	rewardName: string;
+	expiresAt: Date | null;
 }
 
 export interface RecordCoffeeEarnParams {
@@ -248,7 +282,7 @@ export interface RecordCoffeeEarnParams {
 export async function recordCoffeeEarn(
 	db: Db,
 	params: RecordCoffeeEarnParams,
-): Promise<{ issuedRewardIds: string[] }> {
+): Promise<{ issuedRewardIds: string[]; issuedRewards: IssuedRewardDetails[] }> {
 	const program = await db.query.loyaltyPrograms.findFirst({
 		where: and(
 			eq(loyaltyPrograms.businessId, params.businessId),
@@ -298,6 +332,7 @@ export async function recordCoffeeEarn(
 	const afterTotal = wasNewInsert ? beforeTotal + params.quantity : beforeTotal;
 
 	const issuedRewardIds: string[] = [];
+	const issuedRewards: IssuedRewardDetails[] = [];
 	const threshold = program.qualifyingPurchasesRequired;
 
 	if (wasNewInsert && threshold && threshold > 0 && program.rewardDefinitionId) {
@@ -325,12 +360,20 @@ export async function recordCoffeeEarn(
 					})
 					.onConflictDoNothing()
 					.returning({ id: customerRewards.id });
-				if (row) issuedRewardIds.push(row.id);
+				if (row) {
+					issuedRewardIds.push(row.id);
+					issuedRewards.push({
+						id: row.id,
+						rewardDefinitionId: program.rewardDefinitionId,
+						rewardName: reward?.name ?? "Reward",
+						expiresAt,
+					});
+				}
 			}
 		}
 	}
 
-	return { issuedRewardIds };
+	return { issuedRewardIds, issuedRewards };
 }
 
 export interface RedeemCustomerRewardParams {
@@ -353,7 +396,7 @@ export interface RedeemCustomerRewardParams {
 export async function redeemCustomerReward(
 	db: Db,
 	params: RedeemCustomerRewardParams,
-): Promise<void> {
+): Promise<{ rewardName: string }> {
 	const now = new Date();
 
 	const existing = await db
@@ -474,6 +517,8 @@ export async function redeemCustomerReward(
 			"This reward is no longer available to redeem.",
 		);
 	}
+
+	return { rewardName: existing.name };
 }
 
 export interface CreateLoyaltyAdjustmentParams {

@@ -23,6 +23,7 @@ import {
 	redeemCustomerReward,
 } from "@worker/lib/loyalty";
 import { resolveLoyaltyCode } from "@worker/lib/loyaltyCode";
+import { createNotificationService } from "@worker/lib/notifications/service";
 import { requireLocationInBusiness } from "@worker/lib/scope";
 import { toSessionUser } from "@worker/lib/session";
 import { requireSession, requireStaff } from "@worker/middleware/auth";
@@ -192,6 +193,7 @@ export const staff = new Hono<AppEnv>()
 		async (c) => {
 			const staffProfile = c.get("profile");
 			const db = getDb(c.env);
+			const notificationService = createNotificationService(db, c.env);
 			const customerId = c.req.param("customerId");
 			const input = c.req.valid("json");
 			const voucherSetting = await isStaffVoucherRedemptionEnabled(
@@ -203,7 +205,7 @@ export const staff = new Hono<AppEnv>()
 
 			await requireLocationInBusiness(db, staffProfile.businessId, input.locationId);
 
-			const { issuedRewardIds } = await recordCoffeeEarn(db, {
+			const { issuedRewardIds, issuedRewards } = await recordCoffeeEarn(db, {
 				businessId: staffProfile.businessId,
 				locationId: input.locationId,
 				customerId,
@@ -212,6 +214,17 @@ export const staff = new Hono<AppEnv>()
 				billReference: input.billReference ?? null,
 				idempotencyKey: input.idempotencyKey,
 			});
+
+			await Promise.allSettled(
+				issuedRewards.map((reward) =>
+					notificationService.notifyRewardEarned({
+						businessId: staffProfile.businessId,
+						customerId,
+						rewardName: reward.rewardName,
+						rewardId: reward.id,
+					}),
+				),
+			);
 
 			const payload = await resolveCustomerView(
 				db,
@@ -232,6 +245,7 @@ export const staff = new Hono<AppEnv>()
 		async (c) => {
 			const staffProfile = c.get("profile");
 			const db = getDb(c.env);
+			const notificationService = createNotificationService(db, c.env);
 			const customerId = c.req.param("customerId");
 			const rewardId = c.req.param("rewardId");
 			const input = c.req.valid("json");
@@ -242,9 +256,13 @@ export const staff = new Hono<AppEnv>()
 			const voucherRedemptionEnabled =
 				staffProfile.role !== "staff" || voucherSetting;
 
-			await requireLocationInBusiness(db, staffProfile.businessId, input.locationId);
+			const location = await requireLocationInBusiness(
+				db,
+				staffProfile.businessId,
+				input.locationId,
+			);
 
-			await redeemCustomerReward(db, {
+			const redeemed = await redeemCustomerReward(db, {
 				businessId: staffProfile.businessId,
 				customerId,
 				rewardId,
@@ -255,6 +273,23 @@ export const staff = new Hono<AppEnv>()
 					input.billTotalRand == null ? null : Math.round(input.billTotalRand * 100),
 				allowVoucherRedemption: voucherRedemptionEnabled,
 			});
+
+			try {
+				await notificationService.notifyRedemption({
+					businessId: staffProfile.businessId,
+					customerId,
+					rewardId,
+					rewardName: redeemed.rewardName,
+					locationName: normalizeLocationName(location.name),
+					billReference: input.billReference ?? null,
+				});
+			} catch (error) {
+				console.error("Redemption notification failed", {
+					customerId,
+					rewardId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
 
 			const payload = await resolveCustomerView(
 				db,
