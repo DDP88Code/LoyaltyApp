@@ -9,6 +9,7 @@ import {
 	lt,
 	like,
 	lte,
+	ne,
 	or,
 	sql,
 } from "drizzle-orm";
@@ -80,6 +81,8 @@ import {
 	user,
 } from "@worker/db/schema";
 import {
+	LEGACY_HIDDEN_LOCATION_NAME,
+	MVP_LOCATION_NAME,
 	SETTINGS_CODE_TTL_KEY,
 	SETTINGS_WELCOME_REWARD_KEY,
 	ensureMvpDefaults,
@@ -103,6 +106,9 @@ const STAFF_ASSIGNABLE_ROLES = ["staff", "admin"] as const;
 const TRANSACTION_FILTER_TYPES = TRANSACTION_TYPES;
 const DEFAULT_DASHBOARD_DAYS = 30;
 const MENU_GROUPS: readonly MenuGroup[] = ["food", "drinks"];
+
+const normalizeLocationName = (name: string) =>
+	name === LEGACY_HIDDEN_LOCATION_NAME ? MVP_LOCATION_NAME : name;
 
 const listQuerySchema = z.object({
 	search: z.string().trim().max(80).optional(),
@@ -659,7 +665,9 @@ async function buildAdminTransactions(
 	]);
 
 	const profileNameById = new Map(profileRows.map((row) => [row.id, row.fullName]));
-	const locationNameById = new Map(locationRows.map((row) => [row.id, row.name]));
+	const locationNameById = new Map(
+		locationRows.map((row) => [row.id, normalizeLocationName(row.name)]),
+	);
 	const programNameById = new Map(programRows.map((row) => [row.id, row.name]));
 
 	return {
@@ -1075,7 +1083,13 @@ export const admin = new Hono<AppEnv>()
 			db
 				.select({ id: locations.id, name: locations.name, address: locations.address })
 				.from(locations)
-				.where(eq(locations.businessId, profile.businessId))
+				.where(
+					and(
+						eq(locations.businessId, profile.businessId),
+						eq(locations.active, true),
+						ne(locations.name, LEGACY_HIDDEN_LOCATION_NAME),
+					),
+				)
 				.orderBy(asc(locations.name)),
 			db
 				.select({
@@ -1091,7 +1105,10 @@ export const admin = new Hono<AppEnv>()
 		return ok<AdminLookupsPayload>(c, {
 			customers: customerRows,
 			staff: staffRows,
-			locations: locationRows,
+			locations: locationRows.map((row) => ({
+				...row,
+				name: normalizeLocationName(row.name),
+			})),
 			programs: programRows,
 		});
 	})
@@ -1381,7 +1398,13 @@ export const admin = new Hono<AppEnv>()
 			db
 				.select({ id: locations.id, name: locations.name, address: locations.address })
 				.from(locations)
-				.where(eq(locations.businessId, profile.businessId))
+				.where(
+					and(
+						eq(locations.businessId, profile.businessId),
+						eq(locations.active, true),
+						ne(locations.name, LEGACY_HIDDEN_LOCATION_NAME),
+					),
+				)
 				.orderBy(asc(locations.name)),
 			db
 				.select()
@@ -1426,7 +1449,10 @@ export const admin = new Hono<AppEnv>()
 
 		return ok<AdminLoyaltyProgramsPayload>(c, {
 			programs,
-			locations: locationRows,
+			locations: locationRows.map((row) => ({
+				...row,
+				name: normalizeLocationName(row.name),
+			})),
 			rewardOptions: rewardRows.map(toAdminRewardDefinition),
 		});
 	})
@@ -1465,6 +1491,8 @@ export const admin = new Hono<AppEnv>()
 					.where(
 						and(
 							eq(locations.businessId, profile.businessId),
+							eq(locations.active, true),
+							ne(locations.name, LEGACY_HIDDEN_LOCATION_NAME),
 							inArray(locations.id, input.locationIds),
 						),
 					);
@@ -2073,7 +2101,13 @@ export const admin = new Hono<AppEnv>()
 			db
 				.select({ id: locations.id, name: locations.name, address: locations.address })
 				.from(locations)
-				.where(eq(locations.businessId, profile.businessId))
+				.where(
+					and(
+						eq(locations.businessId, profile.businessId),
+						eq(locations.active, true),
+						ne(locations.name, LEGACY_HIDDEN_LOCATION_NAME),
+					),
+				)
 				.orderBy(asc(locations.name)),
 		]);
 
@@ -2089,7 +2123,9 @@ export const admin = new Hono<AppEnv>()
 			);
 		}
 
-		const locationMap = new Map(locationRows.map((row) => [row.id, row.name]));
+		const locationMap = new Map(
+			locationRows.map((row) => [row.id, normalizeLocationName(row.name)]),
+		);
 
 		const staff: AdminStaffMember[] = rows.map((row) => {
 			const assignedLocationId = settingsByStaffId.get(row.id) ?? null;
@@ -2113,7 +2149,10 @@ export const admin = new Hono<AppEnv>()
 			total: totals?.value ?? 0,
 			limit,
 			offset,
-			locations: locationRows,
+			locations: locationRows.map((row) => ({
+				...row,
+				name: normalizeLocationName(row.name),
+			})),
 		});
 	})
 

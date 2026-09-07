@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { LocationSummary, StaffContextPayload } from "@shared/api";
@@ -10,6 +10,10 @@ import { resolveLoyaltyCodeSchema } from "@shared/loyaltyCode";
 import type { Db } from "@worker/db/client";
 import { getDb } from "@worker/db/client";
 import { locations, profiles } from "@worker/db/schema";
+import {
+	LEGACY_HIDDEN_LOCATION_NAME,
+	MVP_LOCATION_NAME,
+} from "@worker/lib/defaults";
 import { ApiError, ok } from "@worker/lib/http";
 import {
 	getCoffeeProgress,
@@ -47,6 +51,9 @@ const toSummary = (row: typeof locations.$inferSelect): LocationSummary => ({
 	name: row.name,
 	address: row.address,
 });
+
+const normalizeLocationName = (name: string) =>
+	name === LEGACY_HIDDEN_LOCATION_NAME ? MVP_LOCATION_NAME : name;
 
 /** The minimum a staff member needs to see, freshly computed after any action. */
 async function resolveCustomerView(
@@ -98,6 +105,7 @@ export const staff = new Hono<AppEnv>()
 				and(
 					eq(locations.businessId, profile.businessId),
 					eq(locations.active, true),
+					ne(locations.name, LEGACY_HIDDEN_LOCATION_NAME),
 				),
 			)
 			.orderBy(asc(locations.name));
@@ -110,8 +118,16 @@ export const staff = new Hono<AppEnv>()
 
 		return ok<StaffContextPayload>(c, {
 			staff: toSessionUser(profile),
-			locations: rows.map(toSummary),
-			selectedLocation: selected ? toSummary(selected) : null,
+			locations: rows.map((row) => ({
+				...toSummary(row),
+				name: normalizeLocationName(row.name),
+			})),
+			selectedLocation: selected
+				? {
+					...toSummary(selected),
+					name: normalizeLocationName(selected.name),
+				}
+				: null,
 		});
 	})
 
