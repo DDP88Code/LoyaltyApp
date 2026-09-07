@@ -7,6 +7,7 @@ import { useHealth } from "@/features/system/useHealth";
 import { ROLE_HOME } from "@shared/roles";
 
 export function LandingPage() {
+	const showApiStatus = !import.meta.env.PROD;
 	const health = useHealth();
 	const { data: user } = useSession();
 
@@ -22,35 +23,37 @@ export function LandingPage() {
 				</p>
 			</div>
 
-			<Card>
-				<CardTitle>API status</CardTitle>
-				<CardDescription>
-					Confirms the React app can reach the Cloudflare Worker.
-				</CardDescription>
-				<div className="mt-4">
-					{health.isPending && <LoadingState label="Checking API…" />}
-					{health.isError && (
-						<ErrorState
-							description={health.error.message}
-							onRetry={() => void health.refetch()}
-						/>
-					)}
-					{health.data && (
-						<dl className="space-y-2 text-sm">
-							<div className="flex items-center justify-between">
-								<dt className="text-brand-muted">Status</dt>
-								<dd>
-									<Badge tone="success">{health.data.status}</Badge>
-								</dd>
-							</div>
-							<div className="flex items-center justify-between">
-								<dt className="text-brand-muted">Environment</dt>
-								<dd>{health.data.environment}</dd>
-							</div>
-						</dl>
-					)}
-				</div>
-			</Card>
+			{showApiStatus && (
+				<Card>
+					<CardTitle>API status</CardTitle>
+					<CardDescription>
+						Confirms the React app can reach the Cloudflare Worker.
+					</CardDescription>
+					<div className="mt-4">
+						{health.isPending && <LoadingState label="Checking API…" />}
+						{health.isError && (
+							<ErrorState
+								description={health.error.message}
+								onRetry={() => void health.refetch()}
+							/>
+						)}
+						{health.data && (
+							<dl className="space-y-2 text-sm">
+								<div className="flex items-center justify-between">
+									<dt className="text-brand-muted">Status</dt>
+									<dd>
+										<Badge tone="success">{health.data.status}</Badge>
+									</dd>
+								</div>
+								<div className="flex items-center justify-between">
+									<dt className="text-brand-muted">Environment</dt>
+									<dd>{health.data.environment}</dd>
+								</div>
+							</dl>
+						)}
+					</div>
+				</Card>
+			)}
 
 			<nav className="grid gap-3">
 				{user ? (
