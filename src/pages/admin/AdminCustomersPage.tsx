@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type { RewardSummary } from "@shared/loyalty";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
@@ -13,8 +16,8 @@ import {
 } from "@/features/admin/core/api";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { AdminPanel } from "@/features/admin/core/widgets";
-import { RedeemDialog } from "@/features/staff/RedeemDialog";
 import { ApiClientError } from "@/lib/api";
+import { formatCents } from "@/lib/money";
 
 const PAGE_SIZE = 20;
 
@@ -73,13 +76,39 @@ function newIdempotencyKey() {
 	return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
+function rewardTypeLabel(rewardType: RewardSummary["rewardType"]) {
+	if (rewardType === "free_item") return "Free Item";
+	if (rewardType === "voucher") return "Voucher";
+	if (rewardType === "discount") return "Discount";
+	return "Points Reward";
+}
+
+function rewardValueLabel(reward: RewardSummary) {
+	if (reward.valueCents === null) return rewardTypeLabel(reward.rewardType);
+	return `${formatCents(reward.valueCents)} ${rewardTypeLabel(reward.rewardType)}`;
+}
+
+function rewardStatusTone(status: RewardSummary["status"]) {
+	if (status === "available") return "primary" as const;
+	if (status === "expired") return "danger" as const;
+	return "neutral" as const;
+}
+
+function rewardStatusLabel(status: RewardSummary["status"]) {
+	if (status === "available") return "Available";
+	if (status === "redeemed") return "Redeemed";
+	if (status === "expired") return "Expired";
+	return "Cancelled";
+}
+
 export function AdminCustomersPage() {
 	const isOnline = useOnlineStatus();
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
 	const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-	const [locationId, setLocationId] = useState("");
+	const [adjustmentLocationId, setAdjustmentLocationId] = useState("");
+	const [redeemLocationId, setRedeemLocationId] = useState("");
 	const [programId, setProgramId] = useState("");
 	const [transactionType, setTransactionType] = useState<"adjustment" | "reversal">(
 		"adjustment",
@@ -90,6 +119,9 @@ export function AdminCustomersPage() {
 	const [formError, setFormError] = useState<string | null>(null);
 	const [redeemError, setRedeemError] = useState<string | null>(null);
 	const [redeemTarget, setRedeemTarget] = useState<RewardSummary | null>(null);
+	const [redeemBillReference, setRedeemBillReference] = useState("");
+	const [redeemNote, setRedeemNote] = useState("");
+	const [redeemBillTotalRand, setRedeemBillTotalRand] = useState("");
 	const [fieldErrors, setFieldErrors] = useState<AdjustmentErrors>({});
 
 	const customers = useAdminCustomers({ search, limit: PAGE_SIZE, offset });
@@ -100,7 +132,7 @@ export function AdminCustomersPage() {
 
 	const localValidation = validateAdjustmentForm({
 		programId,
-		locationId,
+		locationId: adjustmentLocationId,
 		transactionType,
 		quantity,
 		reason,
@@ -110,9 +142,10 @@ export function AdminCustomersPage() {
 		Boolean(selectedCustomerId) &&
 		Object.keys(localValidation).length === 0;
 	const canRedeemRewards =
-		isOnline && Boolean(selectedCustomerId) && Boolean(locationId);
+		isOnline && Boolean(selectedCustomerId) && Boolean(redeemLocationId);
 	const selectedRedeemLocationName =
-		lookups.data?.locations.find((location) => location.id === locationId)?.name ?? null;
+		lookups.data?.locations.find((location) => location.id === redeemLocationId)?.name ??
+		null;
 
 	const rewardsByStatus = useMemo(() => {
 		const rows = detail.data?.rewards ?? [];
@@ -138,9 +171,18 @@ export function AdminCustomersPage() {
 	}, [searchInput]);
 
 	useEffect(() => {
-		if (locationId || !lookups.data?.locations.length) return;
-		setLocationId(lookups.data.locations[0]?.id ?? "");
-	}, [lookups.data?.locations, locationId]);
+		if (!lookups.data?.locations.length) return;
+		const firstLocationId = lookups.data.locations[0]?.id ?? "";
+		if (!adjustmentLocationId) setAdjustmentLocationId(firstLocationId);
+		if (!redeemLocationId) setRedeemLocationId(firstLocationId);
+	}, [adjustmentLocationId, lookups.data?.locations, redeemLocationId]);
+
+	useEffect(() => {
+		if (!redeemTarget) return;
+		setRedeemBillReference("");
+		setRedeemNote("");
+		setRedeemBillTotalRand("");
+	}, [redeemTarget]);
 
 	if (customers.isPending) return <LoadingState label="Loading customers..." />;
 	if (customers.isError) {
@@ -158,19 +200,37 @@ export function AdminCustomersPage() {
 	const rows = customers.data.customers;
 	const selected = detail.data?.customer ?? null;
 
-	const handleRedeem = (input: {
-		billReference: string | null;
-		billTotalRand: number | null;
-	}) => {
-		if (!selectedCustomerId || !redeemTarget || !locationId) return;
+	const redeemMinBillRand =
+		redeemTarget?.minBillCents != null ? redeemTarget.minBillCents / 100 : null;
+	const parsedRedeemBillTotal = Number(redeemBillTotalRand);
+	const redeemHasBillTotal = redeemBillTotalRand.trim().length > 0;
+	const redeemBillTotalValid =
+		!redeemHasBillTotal ||
+		(Number.isFinite(parsedRedeemBillTotal) && parsedRedeemBillTotal >= 0);
+	const redeemMeetsMinimum =
+		redeemMinBillRand == null ||
+		(redeemHasBillTotal &&
+			redeemBillTotalValid &&
+			parsedRedeemBillTotal >= redeemMinBillRand);
+	const canConfirmRedemption =
+		Boolean(selectedCustomerId) &&
+		Boolean(redeemTarget) &&
+		Boolean(redeemLocationId) &&
+		redeemBillTotalValid &&
+		redeemMeetsMinimum &&
+		!redeemReward.isPending;
+
+	const handleRedeem = () => {
+		if (!selectedCustomerId || !redeemTarget || !redeemLocationId) return;
 		setRedeemError(null);
 		redeemReward
 			.mutateAsync({
 				customerId: selectedCustomerId,
 				rewardId: redeemTarget.id,
-				locationId,
-				billReference: input.billReference,
-				billTotalRand: input.billTotalRand,
+				locationId: redeemLocationId,
+				billReference: redeemBillReference.trim() || null,
+				billTotalRand:
+					redeemHasBillTotal && redeemBillTotalValid ? parsedRedeemBillTotal : null,
 			})
 			.then(() => {
 				setRedeemTarget(null);
@@ -279,7 +339,129 @@ export function AdminCustomersPage() {
 							</div>
 						</AdminPanel>
 
-						<AdminPanel title="Manual Adjustment" description="Write an audited correction entry.">
+						<AdminPanel
+							title="Customer Rewards & Vouchers"
+							description="Redeem member rewards and review voucher lifecycle."
+							className="border-brand-primary/50 bg-brand-primary/5"
+						>
+							<div className="grid gap-3 md:grid-cols-[minmax(220px,320px)_1fr] md:items-end">
+								<div className="grid gap-1">
+									<label className="text-sm font-medium" htmlFor="redeemLocationSelect">
+										Redemption location
+									</label>
+									<select
+										id="redeemLocationSelect"
+										value={redeemLocationId}
+										onChange={(event) => setRedeemLocationId(event.target.value)}
+										className="min-h-12 rounded-xl border border-brand-primary/60 bg-brand-surface px-3"
+									>
+										<option value="">Select location</option>
+										{lookups.data?.locations.map((location) => (
+											<option key={location.id} value={location.id}>
+												{location.name}
+											</option>
+										))}
+									</select>
+								</div>
+								<div className="text-xs text-brand-muted">
+									Reward redemption is separate from Admin Corrections and uses the secure
+									reward redemption API.
+								</div>
+							</div>
+
+							{redeemError && (
+								<p className="mt-3 text-sm text-brand-danger">{redeemError}</p>
+							)}
+
+							<div className="mt-4 grid gap-4 lg:grid-cols-3">
+								<RewardStatusPanel
+									title={`Available (${rewardsByStatus.available.length})`}
+									emptyLabel="No available rewards."
+									rewards={rewardsByStatus.available}
+									renderItem={(reward) => (
+										<div className="rounded-xl border border-brand-primary/40 bg-brand-surface px-3 py-3">
+											<div className="flex items-start justify-between gap-2">
+												<div className="space-y-1">
+													<p className="font-medium">{reward.name}</p>
+													<p className="text-xs text-brand-muted">{rewardValueLabel(reward)}</p>
+													<p className="text-xs text-brand-muted">
+														Valid until {reward.expiresAt ? new Date(reward.expiresAt).toLocaleDateString("en-ZA") : "No expiry"}
+													</p>
+													<p className="text-xs text-brand-muted">
+														{selectedRedeemLocationName ?? "Select a location"}
+													</p>
+													<div>
+														<Badge tone={rewardStatusTone(reward.status)}>
+															{rewardStatusLabel(reward.status)}
+														</Badge>
+													</div>
+												</div>
+												<Button
+													size="sm"
+													disabled={!canRedeemRewards}
+													onClick={() => {
+														setRedeemError(null);
+														setRedeemTarget(reward);
+													}}
+												>
+													Redeem
+												</Button>
+											</div>
+										</div>
+									)}
+								/>
+
+								<RewardStatusPanel
+									title={`Redeemed (${rewardsByStatus.redeemed.length})`}
+									emptyLabel="No redeemed rewards yet."
+									rewards={rewardsByStatus.redeemed}
+									renderItem={(reward) => (
+										<div className="rounded-xl border border-brand-border p-3">
+											<div className="flex items-start justify-between gap-2">
+												<div className="space-y-1">
+													<p className="font-medium">{reward.name}</p>
+													<p className="text-xs text-brand-muted">{rewardValueLabel(reward)}</p>
+													<p className="text-xs text-brand-muted">
+														Redeemed {reward.redeemedAt ? new Date(reward.redeemedAt).toLocaleDateString("en-ZA") : "-"}
+													</p>
+												</div>
+												<Badge tone={rewardStatusTone(reward.status)}>
+													{rewardStatusLabel(reward.status)}
+												</Badge>
+											</div>
+										</div>
+									)}
+								/>
+
+								<RewardStatusPanel
+									title={`Expired (${rewardsByStatus.expired.length})`}
+									emptyLabel="No expired rewards."
+									rewards={rewardsByStatus.expired}
+									renderItem={(reward) => (
+										<div className="rounded-xl border border-brand-border p-3">
+											<div className="flex items-start justify-between gap-2">
+												<div className="space-y-1">
+													<p className="font-medium">{reward.name}</p>
+													<p className="text-xs text-brand-muted">{rewardValueLabel(reward)}</p>
+													<p className="text-xs text-brand-muted">
+														Expired {reward.expiresAt ? new Date(reward.expiresAt).toLocaleDateString("en-ZA") : "-"}
+													</p>
+												</div>
+												<Badge tone={rewardStatusTone(reward.status)}>
+													{rewardStatusLabel(reward.status)}
+												</Badge>
+											</div>
+										</div>
+									)}
+								/>
+							</div>
+						</AdminPanel>
+
+						<AdminPanel
+							title="Admin Corrections"
+							description="Use only to correct loyalty records. All changes are audited."
+							className="border-brand-border/80 bg-brand-surface"
+						>
 							{!isOnline && (
 								<p className="mb-3 text-sm text-brand-danger">
 									Internet is required before saving ledger adjustments.
@@ -313,9 +495,9 @@ export function AdminCustomersPage() {
 									<label className="text-sm font-medium" htmlFor="locationSelect">Location *</label>
 									<select
 										id="locationSelect"
-										value={locationId}
+										value={adjustmentLocationId}
 										onChange={(event) => {
-											setLocationId(event.target.value);
+											setAdjustmentLocationId(event.target.value);
 											setFieldErrors((value) => ({ ...value, locationId: undefined }));
 										}}
 										className={`min-h-12 rounded-xl border bg-brand-surface px-3 ${fieldErrors.locationId ? "border-brand-danger" : "border-brand-border"}`}
@@ -392,7 +574,7 @@ export function AdminCustomersPage() {
 										if (!selectedCustomerId) return;
 										const nextErrors = validateAdjustmentForm({
 											programId,
-											locationId,
+											locationId: adjustmentLocationId,
 											transactionType,
 											quantity,
 											reason,
@@ -408,7 +590,7 @@ export function AdminCustomersPage() {
 											.mutateAsync({
 												customerId: selectedCustomerId,
 												programId,
-												locationId,
+												locationId: adjustmentLocationId,
 												transactionType,
 												quantity,
 												reason: reason.trim(),
@@ -436,72 +618,10 @@ export function AdminCustomersPage() {
 											});
 									}}
 								>
-									Save adjustment
+									Save correction
 								</Button>
 							</div>
 						</AdminPanel>
-
-						<div className="grid gap-4 lg:grid-cols-3">
-							<AdminPanel title={`Available rewards (${rewardsByStatus.available.length})`}>
-								<p className="mb-2 text-xs text-brand-muted">
-									Redeems at: {selectedRedeemLocationName ?? "Select a location above"}
-								</p>
-								{!canRedeemRewards && (
-									<p className="mb-2 text-xs text-brand-muted">
-										Choose a location in Manual Adjustment before redeeming rewards.
-									</p>
-								)}
-								{redeemError && (
-									<p className="mb-2 text-xs text-brand-danger">{redeemError}</p>
-								)}
-								<ul className="grid gap-2 text-sm">
-									{rewardsByStatus.available.map((reward) => (
-										<li key={reward.id} className="rounded border border-brand-border p-2">
-											<div className="flex items-start justify-between gap-2">
-												<div>
-													<p className="font-medium">{reward.name}</p>
-													<p className="text-xs text-brand-muted">
-														Issued: {new Date(reward.issuedAt).toLocaleDateString("en-ZA")}
-													</p>
-													{reward.terms && (
-														<p className="mt-1 text-xs text-brand-muted">{reward.terms}</p>
-													)}
-												</div>
-												<Button
-													size="sm"
-													disabled={!canRedeemRewards || redeemReward.isPending}
-													onClick={() => {
-														setRedeemError(null);
-														setRedeemTarget(reward);
-													}}
-												>
-													Redeem
-												</Button>
-											</div>
-										</li>
-									))}
-								</ul>
-							</AdminPanel>
-							<AdminPanel title={`Redeemed (${rewardsByStatus.redeemed.length})`}>
-								<ul className="grid gap-2 text-sm">
-									{rewardsByStatus.redeemed.map((reward) => (
-										<li key={reward.id} className="rounded border border-brand-border p-2">
-											<p className="font-medium">{reward.name}</p>
-											<p className="text-xs text-brand-muted">Redeemed: {reward.redeemedAt ? new Date(reward.redeemedAt).toLocaleDateString("en-ZA") : "-"}</p>
-										</li>
-									))}
-								</ul>
-							</AdminPanel>
-							<AdminPanel title={`Expired (${rewardsByStatus.expired.length})`}>
-								<ul className="grid gap-2 text-sm">
-									{rewardsByStatus.expired.map((reward) => (
-										<li key={reward.id} className="rounded border border-brand-border p-2">
-											{reward.name}
-										</li>
-									))}
-								</ul>
-							</AdminPanel>
-						</div>
 
 						<AdminPanel title="Customer transactions and redemptions">
 							<ul className="grid gap-2 text-sm">
@@ -540,12 +660,93 @@ export function AdminCustomersPage() {
 					</div>
 				)}
 			</div>
-			<RedeemDialog
-				reward={redeemTarget}
+			<ConfirmDialog
+				open={redeemTarget !== null}
+				title="Redeem reward?"
+				confirmLabel="Confirm Redemption"
+				confirmDisabled={!canConfirmRedemption}
 				loading={redeemReward.isPending}
 				onConfirm={handleRedeem}
 				onCancel={() => setRedeemTarget(null)}
-			/>
+			>
+				<div className="space-y-3 text-sm">
+					<div>
+						<p className="text-brand-muted">Customer:</p>
+						<p className="font-medium">{selected?.fullName ?? "-"}</p>
+					</div>
+					<div>
+						<p className="text-brand-muted">Reward:</p>
+						<p className="font-medium">{redeemTarget?.name ?? "-"}</p>
+					</div>
+					<div>
+						<p className="text-brand-muted">Value:</p>
+						<p className="font-medium">
+							{redeemTarget?.valueCents != null
+								? formatCents(redeemTarget.valueCents)
+								: rewardTypeLabel(redeemTarget?.rewardType ?? "voucher")}
+						</p>
+					</div>
+					<div>
+						<p className="text-brand-muted">Location:</p>
+						<p className="font-medium">{selectedRedeemLocationName ?? "Select location"}</p>
+					</div>
+					<Input
+						label="Bill/reference (optional)"
+						value={redeemBillReference}
+						onChange={(event) => setRedeemBillReference(event.target.value)}
+					/>
+					<Input
+						label="Note (optional)"
+						value={redeemNote}
+						onChange={(event) => setRedeemNote(event.target.value)}
+						hint="Operational note for this redemption confirmation."
+					/>
+					{redeemMinBillRand != null && (
+						<Input
+							label={`Bill total (Rand) - minimum ${redeemMinBillRand.toFixed(2)}`}
+							type="number"
+							min={0}
+							step="0.01"
+							value={redeemBillTotalRand}
+							onChange={(event) => setRedeemBillTotalRand(event.target.value)}
+							error={
+								!redeemBillTotalValid
+									? "Enter a valid non-negative bill total."
+									: !redeemMeetsMinimum
+										? `Minimum bill is R${redeemMinBillRand.toFixed(2)} for this voucher.`
+										: undefined
+							}
+						/>
+					)}
+				</div>
+			</ConfirmDialog>
 		</main>
+	);
+}
+
+function RewardStatusPanel({
+	title,
+	emptyLabel,
+	rewards,
+	renderItem,
+}: {
+	title: string;
+	emptyLabel: string;
+	rewards: RewardSummary[];
+	renderItem: (reward: RewardSummary) => ReactNode;
+}) {
+	return (
+		<div>
+			<h3 className="text-base font-semibold">{title}</h3>
+			{rewards.length === 0 ? (
+				<p className="mt-2 text-sm text-brand-muted">{emptyLabel}</p>
+			) : (
+				<ul className="mt-2 grid gap-2 text-sm">
+					{rewards.map((reward) => (
+						<li key={reward.id}>{renderItem(reward)}</li>
+					))}
+				</ul>
+			)}
+		</div>
 	);
 }
