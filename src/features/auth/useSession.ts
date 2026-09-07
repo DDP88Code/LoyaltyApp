@@ -80,8 +80,22 @@ async function loadSessionAfterAuth(
 export function useSignIn() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async (input: { email: string; password: string }) => {
-			assertOk(await authClient.signIn.email(input));
+		mutationFn: async (input: {
+			email: string;
+			password: string;
+			turnstileToken?: string;
+		}) => {
+			const { turnstileToken, ...credentials } = input;
+			assertOk(
+				await authClient.signIn.email({
+					...credentials,
+					fetchOptions: turnstileToken
+						? {
+								headers: { "cf-turnstile-response": turnstileToken },
+							}
+						: undefined,
+				}),
+			);
 			return loadSessionAfterAuth(queryClient);
 		},
 	});
@@ -94,9 +108,20 @@ export function useRegister() {
 			name: string;
 			email: string;
 			password: string;
+			turnstileToken?: string;
 		}) => {
+			const { turnstileToken, ...registration } = input;
 			// No role is sent. The Worker assigns "customer" server-side.
-			assertOk(await authClient.signUp.email(input));
+			assertOk(
+				await authClient.signUp.email({
+					...registration,
+					fetchOptions: turnstileToken
+						? {
+								headers: { "cf-turnstile-response": turnstileToken },
+							}
+						: undefined,
+				}),
+			);
 			return loadSessionAfterAuth(queryClient);
 		},
 	});

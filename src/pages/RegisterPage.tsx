@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -8,12 +8,30 @@ import { ROLE_HOME } from "@shared/roles";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthLayout, FormError } from "@/features/auth/AuthLayout";
+import { TurnstileWidget } from "@/features/auth/TurnstileWidget";
 import { useRegister } from "@/features/auth/useSession";
 
 export function RegisterPage() {
 	const [showPassword, setShowPassword] = useState(false);
+	const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+	const [turnstileMessage, setTurnstileMessage] = useState<string | null>(null);
 	const navigate = useNavigate();
 	const registerAccount = useRegister();
+	const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
+	const turnstileEnabled = turnstileSiteKey.length > 0;
+	const turnstileMisconfigured = import.meta.env.PROD && !turnstileEnabled;
+
+	const handleTurnstileToken = useCallback((token: string | null) => {
+		setTurnstileToken(token);
+		if (token) {
+			setTurnstileMessage(null);
+		}
+	}, []);
+
+	const handleTurnstileExpired = useCallback(() => {
+		setTurnstileMessage("Verification expired. Please try again.");
+	}, []);
 
 	const {
 		register,
@@ -22,12 +40,35 @@ export function RegisterPage() {
 	} = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) });
 
 	const onSubmit = handleSubmit((values) => {
-		registerAccount.mutate(values, {
+		if (turnstileMisconfigured) {
+			setTurnstileMessage(
+				"Registration verification is not configured. Please contact support.",
+			);
+			return;
+		}
+
+		if (turnstileEnabled && !turnstileToken) {
+			setTurnstileMessage("Complete the bot check and try again.");
+			return;
+		}
+
+		const token = turnstileEnabled ? turnstileToken ?? undefined : undefined;
+		setTurnstileMessage(null);
+		registerAccount.mutate({ ...values, turnstileToken: token }, {
 			onSuccess: (user) => {
 				void navigate(ROLE_HOME[user.role], { replace: true });
 			},
+			onError: () => {
+				if (!turnstileEnabled) return;
+				setTurnstileToken(null);
+				setTurnstileResetKey((current) => current + 1);
+				setTurnstileMessage("Please complete verification again.");
+			},
 		});
 	});
+
+	const disableSubmit =
+		turnstileMisconfigured || (turnstileEnabled && !turnstileToken);
 
 	return (
 		<AuthLayout
@@ -43,6 +84,9 @@ export function RegisterPage() {
 			}
 		>
 			<form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+				{turnstileMisconfigured && (
+					<FormError message="Registration verification is unavailable. Please contact support." />
+				)}
 				{registerAccount.isError && (
 					<FormError message={registerAccount.error.message} />
 				)}
@@ -81,7 +125,24 @@ export function RegisterPage() {
 					{...register("password")}
 				/>
 
-				<Button type="submit" loading={registerAccount.isPending} fullWidth>
+				{turnstileEnabled ? (
+					<TurnstileWidget
+						siteKey={turnstileSiteKey}
+						action="sign-up"
+						resetKey={turnstileResetKey}
+						onTokenChange={handleTurnstileToken}
+						onExpired={handleTurnstileExpired}
+					/>
+				) : null}
+
+				{turnstileMessage ? <FormError message={turnstileMessage} /> : null}
+
+				<Button
+					type="submit"
+					loading={registerAccount.isPending}
+					disabled={disableSubmit}
+					fullWidth
+				>
 					Create account
 				</Button>
 			</form>

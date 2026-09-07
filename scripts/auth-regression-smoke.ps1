@@ -69,17 +69,54 @@ function Invoke-Json([string]$method, [string]$path, $session, $payload = $null)
 	return Invoke-RestMethod @params
 }
 
+function Get-AppEnvironment() {
+	$probeSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+	$health = Invoke-Json "Get" "/api/health" $probeSession
+	return [string]$health.data.environment
+}
+
+function Is-TurnstileProtectionActive() {
+	$probeBody = @{ email = "turnstile.probe@example.test"; password = "WrongPassword!" } | ConvertTo-Json -Compress
+	$status = 0
+	try {
+		Invoke-RestMethod -Method "Post" -Uri "$origin/api/auth/sign-in/email" -Headers $headers -ContentType "application/json" -Body $probeBody | Out-Null
+	} catch {
+		$status = Get-HttpStatusCode $_
+	}
+	return $status -eq 400
+}
+
+function New-TurnstileToken() {
+	# Cloudflare's documented testing secret accepts synthetic tokens for local automation.
+	return [guid]::NewGuid().ToString("N")
+}
+
+function New-TurnstileHeaders([string]$token) {
+	$withTurnstile = @{}
+	foreach ($entry in $headers.GetEnumerator()) {
+		$withTurnstile[$entry.Key] = $entry.Value
+	}
+	$withTurnstile["cf-turnstile-response"] = $token
+	return $withTurnstile
+}
+
 function Register-Session(
 	[string]$name,
 	[string]$email,
-	[string]$passwordValue
+	[string]$passwordValue,
+	[string]$turnstileToken = ""
 ) {
 	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 	$body = @{ name = $name; email = $email; password = $passwordValue } | ConvertTo-Json -Compress
+	$requestHeaders = if ([string]::IsNullOrWhiteSpace($turnstileToken)) {
+		$headers
+	} else {
+		New-TurnstileHeaders $turnstileToken
+	}
 	$params = @{
 		Method = "Post"
 		Uri = "$origin/api/auth/sign-up/email"
-		Headers = $headers
+		Headers = $requestHeaders
 		ContentType = "application/json"
 		Body = $body
 		WebSession = $session
@@ -88,13 +125,22 @@ function Register-Session(
 	return $session
 }
 
-function Login-Session([string]$email, [string]$passwordValue) {
+function Login-Session(
+	[string]$email,
+	[string]$passwordValue,
+	[string]$turnstileToken = ""
+) {
 	$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 	$body = @{ email = $email; password = $passwordValue } | ConvertTo-Json -Compress
+	$requestHeaders = if ([string]::IsNullOrWhiteSpace($turnstileToken)) {
+		$headers
+	} else {
+		New-TurnstileHeaders $turnstileToken
+	}
 	$params = @{
 		Method = "Post"
 		Uri = "$origin/api/auth/sign-in/email"
-		Headers = $headers
+		Headers = $requestHeaders
 		ContentType = "application/json"
 		Body = $body
 		WebSession = $session
@@ -130,8 +176,47 @@ function Count-WelcomeRewards($session) {
 # Baseline development seed so all loyalty definitions/routes exist.
 Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession) | Out-Null
 
+$appEnvironment = Get-AppEnvironment
+$turnstileProtected = Is-TurnstileProtectionActive
+$turnstileInvalidToken = "invalid-turnstile-token"
+
+if ($appEnvironment -eq "production") {
+	Assert-True $turnstileProtected "Production must not allow auth without Turnstile protection"
+}
+
 $email = "auth.regression.$stamp@example.test"
-$session = Register-Session "Auth Regression" $email $password
+$session = Register-Session "Auth Regression" $email $password (New-TurnstileToken)
+
+if ($turnstileProtected) {
+	$missingTurnstile = Invoke-ExpectHttpFailure {
+		Register-Session "Auth Missing Turnstile" "auth.missing.$stamp@example.test" $password | Out-Null
+	}
+	Assert-True ($missingTurnstile.status -eq 400) "Missing Turnstile token should be rejected with HTTP 400"
+
+	$invalidTurnstile = Invoke-ExpectHttpFailure {
+		Register-Session "Auth Invalid Turnstile" "auth.invalid.$stamp@example.test" $password $turnstileInvalidToken | Out-Null
+	}
+	Assert-True ($invalidTurnstile.status -eq 400) "Invalid Turnstile token should be rejected with HTTP 400"
+
+	$loginMissingTurnstile = Invoke-ExpectHttpFailure {
+		Login-Session $email $password | Out-Null
+	}
+	Assert-True ($loginMissingTurnstile.status -eq 400) "Login without Turnstile token should be rejected with HTTP 400"
+
+	$loginInvalidTurnstile = Invoke-ExpectHttpFailure {
+		Login-Session $email $password $turnstileInvalidToken | Out-Null
+	}
+	Assert-True ($loginInvalidTurnstile.status -eq 400) "Login with invalid Turnstile token should be rejected with HTTP 400"
+
+	$replayToken = New-TurnstileToken
+	Register-Session "Auth Replay Seed" "auth.replay.seed.$stamp@example.test" $password $replayToken | Out-Null
+	$replayTurnstile = Invoke-ExpectHttpFailure {
+		Register-Session "Auth Replay Turnstile" "auth.replay.$stamp@example.test" $password $replayToken | Out-Null
+	}
+	Assert-True ($replayTurnstile.status -eq 400) "Replayed Turnstile token should be rejected with HTTP 400"
+} else {
+	Write-Host "Turnstile not enforced in this environment; skipping no-bypass assertions."
+}
 
 $me = Invoke-Json "Get" "/api/me" $session
 Assert-True ($me.data.user.email -eq $email) "Registered user email mismatch"
@@ -139,7 +224,7 @@ Assert-True ($me.data.user.role -eq "customer") "Registered user must default to
 Assert-True ((Count-WelcomeRewards $session) -eq 1) "Welcome reward should be issued exactly once"
 
 $duplicate = Invoke-ExpectHttpFailure {
-	Register-Session "Auth Regression" $email $password | Out-Null
+	Register-Session "Auth Regression" $email $password (New-TurnstileToken) | Out-Null
 }
 Assert-True ($duplicate.status -eq 422) "Duplicate signup must return HTTP 422"
 Assert-True (
@@ -153,7 +238,7 @@ $afterSignOut = Invoke-ExpectHttpFailure {
 }
 Assert-True ($afterSignOut.status -eq 401) "Sign-out must clear session cookie"
 
-$session = Login-Session $email $password
+$session = Login-Session $email $password (New-TurnstileToken)
 $afterSignIn = Invoke-Json "Get" "/api/me" $session
 Assert-True ($afterSignIn.data.user.email -eq $email) "Sign-in session did not persist"
 
@@ -172,7 +257,7 @@ Assert-True ((Count-WelcomeRewards $session) -eq 1) "Recovery should issue one w
 npx wrangler d1 execute fives-rewards-db --local --command "DELETE FROM businesses" | Out-Null
 
 $emailBootstrap = "auth.bootstrap.$stamp@example.test"
-$bootstrapSession = Register-Session "Auth Bootstrap" $emailBootstrap $password
+$bootstrapSession = Register-Session "Auth Bootstrap" $emailBootstrap $password (New-TurnstileToken)
 $bootstrapMe = Invoke-Json "Get" "/api/me" $bootstrapSession
 Assert-True ($bootstrapMe.data.user.email -eq $emailBootstrap) "Bootstrap signup user mismatch"
 Assert-True ($bootstrapMe.data.user.role -eq "customer") "Bootstrap signup should produce customer role"

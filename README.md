@@ -291,7 +291,15 @@ Use `role='owner'` instead of `role='admin'` if you want full role-elevation con
 
 - `.env.example` — frontend-safe `VITE_*` values only. Copy to `.env`.
 - `.dev.vars.example` — local Worker secrets. Copy to `.dev.vars` (git-ignored).
-- Production secrets: `npx wrangler secret put BETTER_AUTH_SECRET`.
+- Production secrets:
+  - `npx wrangler secret put BETTER_AUTH_SECRET`
+  - `npx wrangler secret put TURNSTILE_SECRET_KEY`
+
+Turnstile public site key is browser-safe and must be set for the frontend build:
+
+```bash
+echo VITE_TURNSTILE_SITE_KEY=your_turnstile_site_key>>.env
+```
 
 `BETTER_AUTH_SECRET` must be a high-entropy random value and must differ between
 environments. Rotating it invalidates every existing session.

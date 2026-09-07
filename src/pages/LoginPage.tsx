@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -8,13 +8,31 @@ import { ROLE_HOME } from "@shared/roles";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthLayout, FormError } from "@/features/auth/AuthLayout";
+import { TurnstileWidget } from "@/features/auth/TurnstileWidget";
 import { useSignIn } from "@/features/auth/useSession";
 
 export function LoginPage() {
 	const [showPassword, setShowPassword] = useState(false);
+	const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+	const [turnstileMessage, setTurnstileMessage] = useState<string | null>(null);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const signIn = useSignIn();
+	const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
+	const turnstileEnabled = turnstileSiteKey.length > 0;
+	const turnstileMisconfigured = import.meta.env.PROD && !turnstileEnabled;
+
+	const handleTurnstileToken = useCallback((token: string | null) => {
+		setTurnstileToken(token);
+		if (token) {
+			setTurnstileMessage(null);
+		}
+	}, []);
+
+	const handleTurnstileExpired = useCallback(() => {
+		setTurnstileMessage("Verification expired. Please try again.");
+	}, []);
 
 	const {
 		register,
@@ -26,12 +44,35 @@ export function LoginPage() {
 		?.pathname;
 
 	const onSubmit = handleSubmit((values) => {
-		signIn.mutate(values, {
+		if (turnstileMisconfigured) {
+			setTurnstileMessage(
+				"Sign-in verification is not configured. Please contact support.",
+			);
+			return;
+		}
+
+		if (turnstileEnabled && !turnstileToken) {
+			setTurnstileMessage("Complete the bot check and try again.");
+			return;
+		}
+
+		const token = turnstileEnabled ? turnstileToken ?? undefined : undefined;
+		setTurnstileMessage(null);
+		signIn.mutate({ ...values, turnstileToken: token }, {
 			onSuccess: (user) => {
 				void navigate(from ?? ROLE_HOME[user.role], { replace: true });
 			},
+			onError: () => {
+				if (!turnstileEnabled) return;
+				setTurnstileToken(null);
+				setTurnstileResetKey((current) => current + 1);
+				setTurnstileMessage("Please complete verification again.");
+			},
 		});
 	});
+
+	const disableSubmit =
+		turnstileMisconfigured || (turnstileEnabled && !turnstileToken);
 
 	return (
 		<AuthLayout
@@ -47,6 +88,9 @@ export function LoginPage() {
 			}
 		>
 			<form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+				{turnstileMisconfigured && (
+					<FormError message="Sign-in verification is unavailable. Please contact support." />
+				)}
 				{signIn.isError && <FormError message={signIn.error.message} />}
 
 				<Input
@@ -76,7 +120,24 @@ export function LoginPage() {
 					{...register("password")}
 				/>
 
-				<Button type="submit" loading={signIn.isPending} fullWidth>
+				{turnstileEnabled ? (
+					<TurnstileWidget
+						siteKey={turnstileSiteKey}
+						action="sign-in"
+						resetKey={turnstileResetKey}
+						onTokenChange={handleTurnstileToken}
+						onExpired={handleTurnstileExpired}
+					/>
+				) : null}
+
+				{turnstileMessage ? <FormError message={turnstileMessage} /> : null}
+
+				<Button
+					type="submit"
+					loading={signIn.isPending}
+					disabled={disableSubmit}
+					fullWidth
+				>
 					Sign in
 				</Button>
 			</form>

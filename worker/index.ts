@@ -11,6 +11,7 @@ import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notificatio
 import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import { requestOrigin } from "@worker/lib/session";
+import { verifyTurnstileForAuthRequest } from "@worker/lib/turnstile";
 import { admin } from "@worker/routes/admin";
 import { customer } from "@worker/routes/customer";
 import { dev } from "@worker/routes/dev";
@@ -26,9 +27,17 @@ const PROMOTION_NOTIFY_CRON = "*/5 * * * *";
 const api = new Hono<AppEnv>()
 	// Better Auth owns every method under /api/auth and returns its own responses,
 	// so it is mounted before the envelope-shaped routes.
-	.all("/auth/*", (c) =>
-		getAuth(c.env, requestOrigin(c.req.url)).handler(c.req.raw),
-	)
+	.all("/auth/*", async (c) => {
+		const turnstile = await verifyTurnstileForAuthRequest(c.req.raw, c.env);
+		if (!turnstile.ok) {
+			return c.json(
+				{ error: { code: "turnstile_verification_failed", message: turnstile.message } },
+				turnstile.status,
+			);
+		}
+
+		return getAuth(c.env, requestOrigin(c.req.url)).handler(c.req.raw);
+	})
 	.route("/health", health)
 	.route("/me", me)
 	.route("/customer", customer)
