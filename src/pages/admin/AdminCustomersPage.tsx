@@ -108,6 +108,7 @@ function yesNo(value: boolean): "Yes" | "No" {
 }
 
 export function AdminCustomersPage() {
+	const showPushNotificationTest = !import.meta.env.PROD;
 	const isOnline = useOnlineStatus();
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
@@ -363,56 +364,58 @@ export function AdminCustomersPage() {
 							</div>
 						</AdminPanel>
 
-						<AdminPanel
-							title="Push Notification Test"
-							description="Send one test notification to this selected customer only."
-						>
-							<div className="flex flex-wrap items-center gap-3">
-								<Button
-									disabled={!isOnline || !selectedCustomerId}
-									loading={sendTestNotification.isPending}
-									onClick={() => {
-										if (!selectedCustomerId) return;
-										setTestError(null);
-										setTestResult(null);
-										sendTestNotification
-											.mutateAsync(selectedCustomerId)
-											.then((payload) => {
-												setTestResult(payload);
-												void detail.refetch();
-											})
-											.catch((error: unknown) => {
-												setTestError(
-													error instanceof Error
-														? error.message
-														: "Could not send test notification.",
-												);
-											});
-									}}
-								>
-									Send test notification
-								</Button>
-								{!isOnline && (
-									<p className="text-sm text-brand-danger">
-										You are offline. Connect to send a test push.
-									</p>
-								)}
-							</div>
-
-							{testError && (
-								<p className="mt-3 text-sm text-brand-danger">{testError}</p>
-							)}
-
-							{testResult && (
-								<div className="mt-4 grid gap-2 text-sm">
-									<p>In-app notification created: {yesNo(testResult.inAppNotificationCreated)}</p>
-									<p>Push subscription found: {yesNo(testResult.pushSubscriptionFound)}</p>
-									<p>Push attempted: {yesNo(testResult.pushAttempted)}</p>
-									<p>Push sent: {yesNo(testResult.pushSent)}</p>
-									<p>Reason if not sent: {testResult.reason ?? "-"}</p>
+						{showPushNotificationTest && (
+							<AdminPanel
+								title="Push Notification Test"
+								description="Send one test notification to this selected customer only."
+							>
+								<div className="flex flex-wrap items-center gap-3">
+									<Button
+										disabled={!isOnline || !selectedCustomerId}
+										loading={sendTestNotification.isPending}
+										onClick={() => {
+											if (!selectedCustomerId) return;
+											setTestError(null);
+											setTestResult(null);
+											sendTestNotification
+												.mutateAsync(selectedCustomerId)
+												.then((payload) => {
+													setTestResult(payload);
+													void detail.refetch();
+												})
+												.catch((error: unknown) => {
+													setTestError(
+														error instanceof Error
+															? error.message
+															: "Could not send test notification.",
+													);
+												});
+										}}
+									>
+										Send test notification
+									</Button>
+									{!isOnline && (
+										<p className="text-sm text-brand-danger">
+											You are offline. Connect to send a test push.
+										</p>
+									)}
 								</div>
-							)}
-						</AdminPanel>
+
+								{testError && (
+									<p className="mt-3 text-sm text-brand-danger">{testError}</p>
+								)}
+
+								{testResult && (
+									<div className="mt-4 grid gap-2 text-sm">
+										<p>In-app notification created: {yesNo(testResult.inAppNotificationCreated)}</p>
+										<p>Push subscription found: {yesNo(testResult.pushSubscriptionFound)}</p>
+										<p>Push attempted: {yesNo(testResult.pushAttempted)}</p>
+										<p>Push sent: {yesNo(testResult.pushSent)}</p>
+										<p>Reason if not sent: {testResult.reason ?? "-"}</p>
+									</div>
+								)}
+							</AdminPanel>
+						)}
 
 						<AdminPanel
 							title="Customer Rewards & Vouchers"
