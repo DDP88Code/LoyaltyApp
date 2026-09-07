@@ -140,7 +140,7 @@ export async function seedDevelopmentData(
 	let location = await db.query.locations.findFirst({
 		where: and(
 			eq(locations.businessId, businessId),
-			eq(locations.name, "Fives Main Branch"),
+			eq(locations.name, "Fives - Pinehurst"),
 		),
 	});
 	if (!location) {
@@ -148,7 +148,7 @@ export async function seedDevelopmentData(
 			.insert(locations)
 			.values({
 				businessId,
-				name: "Fives Main Branch",
+				name: "Fives - Pinehurst",
 				address: "Placeholder address — update in Admin.",
 			})
 			.returning();

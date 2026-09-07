@@ -8,7 +8,7 @@ import type {
 } from "@shared/loyalty";
 import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import type {
-	AccountDeletionRequestPayload,
+	AccountDeletionPayload,
 	UpdateProfileInput,
 } from "@shared/profile";
 import { ApiClientError, apiFetch } from "@/lib/api";
@@ -89,13 +89,20 @@ export function useUpdateProfile() {
 	});
 }
 
-export function useRequestAccountDeletion() {
+
+export function useDeleteAccount() {
+	const queryClient = useQueryClient();
 	return useMutation({
 		mutationFn: () =>
-			apiFetch<AccountDeletionRequestPayload>(
-				"/api/customer/account/deletion-request",
-				{ method: "POST" },
-			),
+			apiFetch<AccountDeletionPayload>("/api/customer/account", {
+				method: "DELETE",
+			}),
+		onSuccess: () => {
+			queryClient.setQueryData(sessionQueryKey, null);
+			void queryClient.invalidateQueries({
+				predicate: (query) => query.queryKey[0] !== sessionQueryKey[0],
+			});
+		},
 	});
 }
 

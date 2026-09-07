@@ -172,7 +172,7 @@
 - [x] Table created.
 - [x] Business FK.
 - [x] Name/address/active/timestamps.
-- [x] Seed Fives Main Branch.
+- [x] Seed Fives - Pinehurst.
 
 ## profiles
 - [x] Table created.
@@ -661,7 +661,7 @@ Admin:
 - [x] Deactivate/delete safely.
 - [x] Image.
 - [x] Title.
-- [x] Subtitle.
+- [x] Subtitle
 - [x] Description.
 - [x] Start/end.
 - [x] CTA.
@@ -920,7 +920,7 @@ Capacitor readiness:
 # 25. Development seed data
 
 - [ ] Fives Pub & Grill.
-- [ ] Fives Main Branch.
+- [ ] Fives - Pinehurst.
 
 Categories:
 - [ ] Breakfast

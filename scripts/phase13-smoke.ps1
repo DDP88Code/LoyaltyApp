@@ -174,7 +174,7 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($businessId)) "Seed did not retur
 Assert-True ($businessId -eq [string]$seedTwo.data.businessId) "Seed business id changed between runs"
 
 $businessCount = Get-D1Count "SELECT COUNT(*) as value FROM businesses WHERE id = '$businessId'"
-$locationCount = Get-D1Count "SELECT COUNT(*) as value FROM locations WHERE business_id = '$businessId' AND name = 'Fives Main Branch'"
+$locationCount = Get-D1Count "SELECT COUNT(*) as value FROM locations WHERE business_id = '$businessId' AND name = 'Fives - Pinehurst'"
 $welcomeRewardCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND welcome_reward = 1"
 $freeCoffeeCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND name = 'Free Coffee'"
 $coffeeProgramCount = Get-D1Count "SELECT COUNT(*) as value FROM loyalty_programs WHERE business_id = '$businessId' AND currency_code = 'COFFEE'"

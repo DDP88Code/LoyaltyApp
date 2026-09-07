@@ -6,11 +6,12 @@ import { z } from "zod";
 import { birthdaySchema, mobileNumberSchema } from "@shared/profile";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useSession, useSignOut } from "@/features/auth/useSession";
 import {
-	useRequestAccountDeletion,
+	useDeleteAccount,
 	useUpdateProfile,
 } from "@/features/customer/api";
 
@@ -27,9 +28,10 @@ type ProfileFormInput = z.infer<typeof profileFormSchema>;
 export function ProfilePage() {
 	const { data: user } = useSession();
 	const [editing, setEditing] = useState(false);
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 	const updateProfile = useUpdateProfile();
 	const signOut = useSignOut();
-	const deletionRequest = useRequestAccountDeletion();
+	const deleteAccount = useDeleteAccount();
 
 	const {
 		register,
@@ -196,26 +198,40 @@ export function ProfilePage() {
 					<div>
 						<CardTitle>Delete my account</CardTitle>
 						<CardDescription>
-							We will contact you to confirm and process the request.
+							This permanently deletes your account, rewards, vouchers, and
+							loyalty history.
 						</CardDescription>
 					</div>
 				</div>
-				{deletionRequest.isSuccess ? (
-					<p className="mt-3 text-sm text-brand-success">
-						Request received. A member of staff will be in touch.
+				{deleteAccount.isError && (
+					<p role="alert" className="mt-3 text-sm text-brand-danger">
+						{deleteAccount.error.message}
 					</p>
-				) : (
-					<Button
-						variant="danger"
-						size="sm"
-						className="mt-3"
-						loading={deletionRequest.isPending}
-						onClick={() => deletionRequest.mutate()}
-					>
-						Request account deletion
-					</Button>
 				)}
+				<Button
+					variant="danger"
+					size="sm"
+					className="mt-3"
+					onClick={() => setConfirmDeleteOpen(true)}
+				>
+					Delete account permanently
+				</Button>
 			</Card>
+
+			<ConfirmDialog
+				open={confirmDeleteOpen}
+				title="Delete account permanently?"
+				description="This cannot be undone. Your profile, rewards, vouchers, and loyalty history will be permanently deleted."
+				confirmLabel="Yes, delete my account"
+				danger
+				loading={deleteAccount.isPending}
+				onCancel={() => setConfirmDeleteOpen(false)}
+				onConfirm={() => {
+					deleteAccount.mutate(undefined, {
+						onSuccess: () => setConfirmDeleteOpen(false),
+					});
+				}}
+			/>
 		</div>
 	);
 }

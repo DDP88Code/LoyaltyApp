@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import {
+	useDeleteStaff,
 	useAdminStaff,
 	useCreateStaff,
 	useUpdateStaff,
@@ -27,12 +29,14 @@ export function AdminStaffPage() {
 	const [offset, setOffset] = useState(0);
 	const [form, setForm] = useState<StaffInput>(NEW_STAFF);
 	const [editingId, setEditingId] = useState("");
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 
 	const staffQuery = useAdminStaff({ search, limit: PAGE_SIZE, offset });
 	const createStaff = useCreateStaff();
 	const updateStaff = useUpdateStaff();
+	const deleteStaff = useDeleteStaff();
 
 	if (staffQuery.isPending) return <LoadingState label="Loading staff..." />;
 	if (staffQuery.isError) {
@@ -49,6 +53,7 @@ export function AdminStaffPage() {
 
 	const rows = staffQuery.data.staff;
 	const locations = staffQuery.data.locations;
+	const editingMember = rows.find((member) => member.id === editingId) ?? null;
 
 	function loadForEdit(staffId: string) {
 		setError(null);
@@ -89,6 +94,24 @@ export function AdminStaffPage() {
 			await staffQuery.refetch();
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not save staff profile.");
+		}
+	}
+
+	async function destroyStaffAccount() {
+		if (!editingMember) return;
+		setError(null);
+		setSuccess(null);
+		try {
+			await deleteStaff.mutateAsync(editingMember.id);
+			setSuccess("Staff account permanently deleted.");
+			setConfirmDeleteOpen(false);
+			setEditingId("");
+			setForm(NEW_STAFF);
+			await staffQuery.refetch();
+		} catch (cause) {
+			setError(
+				cause instanceof Error ? cause.message : "Could not delete staff account.",
+			);
 		}
 	}
 
@@ -246,25 +269,46 @@ export function AdminStaffPage() {
 					{success && <p className="mt-2 text-sm text-brand-success">{success}</p>}
 					<div className="mt-3 flex gap-2">
 						<Button
-							loading={createStaff.isPending || updateStaff.isPending}
+							loading={createStaff.isPending || updateStaff.isPending || deleteStaff.isPending}
 							onClick={() => void save()}
 						>
 							{editingId ? "Save profile" : "Assign staff access"}
 						</Button>
 						{editingId && (
-							<Button
-								variant="outline"
-								onClick={() => {
-									setError(null);
-									setSuccess(null);
-									setEditingId("");
-									setForm(NEW_STAFF);
-								}}
-							>
-								New
-							</Button>
+							<>
+								<Button
+									variant="outline"
+									onClick={() => {
+										setError(null);
+										setSuccess(null);
+										setEditingId("");
+										setForm(NEW_STAFF);
+									}}
+								>
+									New
+								</Button>
+								<Button
+									variant="danger"
+									onClick={() => setConfirmDeleteOpen(true)}
+								>
+									Delete staff
+								</Button>
+							</>
 						)}
 					</div>
+
+					<ConfirmDialog
+						open={confirmDeleteOpen}
+						title="Delete staff account permanently?"
+						description="This permanently deletes the account and associated staff data from the system. This action cannot be undone."
+						confirmLabel="Delete permanently"
+						danger
+						loading={deleteStaff.isPending}
+						onCancel={() => setConfirmDeleteOpen(false)}
+						onConfirm={() => {
+							void destroyStaffAccount();
+						}}
+					/>
 				</AdminPanel>
 			</div>
 		</main>

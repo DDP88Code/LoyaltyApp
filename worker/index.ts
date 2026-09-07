@@ -48,8 +48,21 @@ app.onError((err, c) => {
 // The asset response is re-wrapped because its headers are immutable and
 // downstream middleware (secureHeaders) needs to write to them.
 app.all("*", async (c) => {
+	const requestUrl = new URL(c.req.url);
 	const asset = await c.env.ASSETS.fetch(c.req.raw);
-	return new Response(asset.body, asset);
+	const response = new Response(asset.body, asset);
+	const contentType = response.headers.get("content-type") ?? "";
+	const isHtml = contentType.includes("text/html");
+	const isAppShellAsset =
+		requestUrl.pathname === "/sw.js" ||
+		requestUrl.pathname === "/registerSW.js" ||
+		requestUrl.pathname === "/manifest.webmanifest";
+
+	if (isHtml || isAppShellAsset) {
+		response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+	}
+
+	return response;
 });
 
 export default app;

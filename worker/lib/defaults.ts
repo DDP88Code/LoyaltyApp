@@ -10,7 +10,7 @@ import {
 } from "@worker/db/schema";
 
 export const MVP_BUSINESS_NAME = "Fives Pub & Grill";
-export const MVP_LOCATION_NAME = "Fives Main Branch";
+export const MVP_LOCATION_NAME = "Fives - Pinehurst";
 export const MVP_LOCATION_ADDRESS = "Placeholder address - update in Admin.";
 
 export const MVP_WELCOME_REWARD_NAME = "Welcome to Fives";

@@ -10,6 +10,7 @@ import type {
 	AdminReportsPayload,
 	AdminSettingsPayload,
 	AdminSettingsUpdateInput,
+	AdminStaffDeletePayload,
 	AdminStaffListPayload,
 	AdminTransactionsPayload,
 } from "@shared/admin";
@@ -280,6 +281,17 @@ export function useUpdateStaff() {
 			apiFetch("/api/admin/staff/" + id, {
 				method: "PATCH",
 				body: JSON.stringify(input),
+			}),
+		onSuccess: () => invalidateAdminPages(queryClient),
+	});
+}
+
+export function useDeleteStaff() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: string) =>
+			apiFetch<AdminStaffDeletePayload>("/api/admin/staff/" + id, {
+				method: "DELETE",
 			}),
 		onSuccess: () => invalidateAdminPages(queryClient),
 	});

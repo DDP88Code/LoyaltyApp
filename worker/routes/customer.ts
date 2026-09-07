@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionPayload } from "@shared/api";
@@ -12,17 +12,21 @@ import type {
 } from "@shared/loyalty";
 import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import {
-	type AccountDeletionRequestPayload,
+	type AccountDeletionPayload,
 	updateProfileSchema,
 } from "@shared/profile";
 import { getDb } from "@worker/db/client";
 import {
 	auditLogs,
+	customerRewards,
+	loyaltyCodes,
+	loyaltyTransactions,
 	menuCategories,
 	menuItems,
 	menuItemVariants,
 	profiles,
 	promotions,
+	user as authUsers,
 } from "@worker/db/schema";
 import { ok } from "@worker/lib/http";
 import {
@@ -78,19 +82,46 @@ export const customer = new Hono<AppEnv>()
 		return ok<SessionPayload>(c, { user: toSessionUser(updated ?? profile) });
 	})
 
-	.post("/account/deletion-request", async (c) => {
+	.delete("/account", async (c) => {
 		const profile = c.get("profile");
-		// Recorded for staff to action manually. Nothing is deleted here — see
-		// section 34: no destructive deletion happens outside an authorised flow.
-		await getDb(c.env).insert(auditLogs).values({
+		const db = getDb(c.env);
+
+		// D1 in this environment rejects explicit SQL BEGIN statements, so the
+		// delete flow is executed in a strict order without db.transaction().
+		await db
+			.delete(customerRewards)
+			.where(eq(customerRewards.customerId, profile.id));
+
+		await db.delete(loyaltyCodes).where(eq(loyaltyCodes.customerId, profile.id));
+
+		await db
+			.delete(loyaltyTransactions)
+			.where(
+				or(
+					eq(loyaltyTransactions.customerId, profile.id),
+					eq(loyaltyTransactions.staffId, profile.id),
+					eq(loyaltyTransactions.approvedBy, profile.id),
+				),
+			);
+
+		await db.delete(profiles).where(eq(profiles.id, profile.id));
+		await db.delete(authUsers).where(eq(authUsers.id, profile.authUserId));
+
+		await db.insert(auditLogs).values({
 			businessId: profile.businessId,
 			actorUserId: profile.authUserId,
 			actorRole: profile.role,
-			action: "customer.account_deletion_requested",
+			action: "customer.account.deleted",
 			entityType: "profile",
 			entityId: profile.id,
+			oldValueJson: {
+				profileId: profile.id,
+				authUserId: profile.authUserId,
+				email: profile.email,
+			},
 		});
-		return ok<AccountDeletionRequestPayload>(c, { requested: true });
+
+		return ok<AccountDeletionPayload>(c, { deleted: true });
 	})
 
 	.post("/loyalty-code", async (c) => {

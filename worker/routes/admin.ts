@@ -68,6 +68,7 @@ import {
 	appSettings,
 	customerRewards,
 	locations,
+	loyaltyCodes,
 	loyaltyPrograms,
 	loyaltyTransactions,
 	menuCategories,
@@ -2331,6 +2332,104 @@ export const admin = new Hono<AppEnv>()
 		});
 
 		return ok<{ updated: true }>(c, { updated: true });
+	})
+
+	.delete("/staff/:staffId", async (c) => {
+		const actor = c.get("profile");
+		const db = getDb(c.env);
+		const staffId = c.req.param("staffId");
+
+		const existing = await db.query.profiles.findFirst({
+			where: and(
+				eq(profiles.id, staffId),
+				eq(profiles.businessId, actor.businessId),
+				inArray(profiles.role, STAFF_ROLES),
+			),
+		});
+		if (!existing) {
+			throw new ApiError("not_found", "That staff profile was not found.");
+		}
+
+		if (existing.id === actor.id) {
+			throw new ApiError(
+				"forbidden",
+				"You cannot delete your own staff account from this page.",
+			);
+		}
+
+		if (existing.role === "owner") {
+			throw new ApiError("forbidden", "Owner accounts cannot be deleted here.");
+		}
+
+		if (existing.role === "admin" && actor.role !== "owner") {
+			throw new ApiError(
+				"forbidden",
+				"Only owners can delete admin accounts.",
+			);
+		}
+
+		// Remove records directly tied to this profile id.
+		await db
+			.delete(customerRewards)
+			.where(
+				or(
+					eq(customerRewards.customerId, existing.id),
+					eq(customerRewards.redeemedBy, existing.id),
+				),
+			);
+
+		await db.delete(loyaltyCodes).where(eq(loyaltyCodes.customerId, existing.id));
+
+		await db
+			.delete(loyaltyTransactions)
+			.where(
+				or(
+					eq(loyaltyTransactions.customerId, existing.id),
+					eq(loyaltyTransactions.staffId, existing.id),
+					eq(loyaltyTransactions.approvedBy, existing.id),
+				),
+			);
+
+		// Remove staff-related app settings keys.
+		await db
+			.delete(appSettings)
+			.where(
+				and(
+					eq(appSettings.businessId, actor.businessId),
+					like(appSettings.key, `staff:${existing.id}:%`),
+				),
+			);
+
+		// Remove audit rows tied to the deleted identity so the email/person is fully removed.
+		await db
+			.delete(auditLogs)
+			.where(
+				and(
+					eq(auditLogs.businessId, actor.businessId),
+					or(
+						eq(auditLogs.actorUserId, existing.authUserId),
+						and(
+							eq(auditLogs.entityType, "profile"),
+							eq(auditLogs.entityId, existing.id),
+						),
+					),
+				),
+			);
+
+		await db.delete(profiles).where(eq(profiles.id, existing.id));
+		await db.delete(user).where(eq(user.id, existing.authUserId));
+
+		await db.insert(auditLogs).values({
+			businessId: actor.businessId,
+			actorUserId: actor.authUserId,
+			actorRole: actor.role,
+			action: "admin.staff.deleted",
+			entityType: "profile",
+			entityId: null,
+			metadataJson: { deletedRole: existing.role },
+		});
+
+		return ok<{ deleted: true }>(c, { deleted: true });
 	})
 
 	.get("/audit", validate("query", auditListQuerySchema), async (c) => {

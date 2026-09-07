@@ -170,6 +170,10 @@ export interface AdminStaffListPayload {
 	locations: LocationSummary[];
 }
 
+export interface AdminStaffDeletePayload {
+	deleted: true;
+}
+
 export interface AdminAuditLogEntry {
 	id: string;
 	createdAt: string;

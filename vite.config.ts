@@ -11,7 +11,7 @@ export default defineConfig({
 		tailwindcss(),
 		cloudflare(),
 		VitePWA({
-			registerType: "prompt",
+			registerType: "autoUpdate",
 			includeAssets: ["favicon.svg", "icons/apple-touch-icon.png"],
 			manifest: {
 				id: "/",
@@ -40,6 +40,9 @@ export default defineConfig({
 				],
 			},
 			workbox: {
+				clientsClaim: true,
+				skipWaiting: true,
+				cleanupOutdatedCaches: true,
 				globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
 				navigateFallback: "/index.html",
 				// Loyalty mutations must never be served from cache or replayed offline.

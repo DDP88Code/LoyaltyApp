@@ -239,7 +239,7 @@ Rules the database enforces itself, so no application bug can violate them:
   `UPDATE` or `DELETE`.
 
 `POST /api/dev/seed` is re-runnable and returns 404 unless `APP_ENV=development`.
-It seeds Fives Pub & Grill, Fives Main Branch, Fives Coffee Rewards (stamp,
+It seeds Fives Pub & Grill, Fives - Pinehurst, Fives Coffee Rewards (stamp,
 threshold 10), Free Coffee, the R50 welcome voucher, eight menu categories with
 placeholder items, and the Wednesday Burger Special.
 
