@@ -9,6 +9,7 @@ export interface ConfirmDialogProps {
 	confirmLabel: string;
 	danger?: boolean;
 	loading?: boolean;
+	confirmDisabled?: boolean;
 	onConfirm: () => void;
 	onCancel: () => void;
 	children?: ReactNode;
@@ -25,6 +26,7 @@ export function ConfirmDialog({
 	confirmLabel,
 	danger = false,
 	loading = false,
+	confirmDisabled = false,
 	onConfirm,
 	onCancel,
 	children,
@@ -58,6 +60,7 @@ export function ConfirmDialog({
 					variant={danger ? "danger" : "primary"}
 					fullWidth
 					loading={loading}
+					disabled={confirmDisabled}
 					onClick={onConfirm}
 				>
 					{confirmLabel}

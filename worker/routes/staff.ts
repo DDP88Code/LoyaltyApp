@@ -9,10 +9,11 @@ import type {
 import { resolveLoyaltyCodeSchema } from "@shared/loyaltyCode";
 import type { Db } from "@worker/db/client";
 import { getDb } from "@worker/db/client";
-import { locations, profiles } from "@worker/db/schema";
+import { appSettings, locations, profiles } from "@worker/db/schema";
 import {
 	LEGACY_HIDDEN_LOCATION_NAME,
 	MVP_LOCATION_NAME,
+	SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
 } from "@worker/lib/defaults";
 import { ApiError, ok } from "@worker/lib/http";
 import {
@@ -44,6 +45,7 @@ const addCoffeeSchema = z.object({
 const redeemRewardSchema = z.object({
 	locationId: z.string().min(1).max(64),
 	billReference: z.string().trim().max(120).nullable().optional(),
+	billTotalRand: z.coerce.number().min(0).max(1_000_000).nullable().optional(),
 });
 
 const toSummary = (row: typeof locations.$inferSelect): LocationSummary => ({
@@ -55,11 +57,24 @@ const toSummary = (row: typeof locations.$inferSelect): LocationSummary => ({
 const normalizeLocationName = (name: string) =>
 	name === LEGACY_HIDDEN_LOCATION_NAME ? MVP_LOCATION_NAME : name;
 
+async function isStaffVoucherRedemptionEnabled(db: Db, businessId: string) {
+	const setting = await db.query.appSettings.findFirst({
+		where: and(
+			eq(appSettings.businessId, businessId),
+			eq(appSettings.key, SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED),
+		),
+		columns: { valueJson: true },
+	});
+
+	return typeof setting?.valueJson === "boolean" ? setting.valueJson : false;
+}
+
 /** The minimum a staff member needs to see, freshly computed after any action. */
 async function resolveCustomerView(
 	db: Db,
 	businessId: string,
 	customerId: string,
+	voucherRedemptionEnabled: boolean,
 ): Promise<StaffResolvedCustomerPayload> {
 	const customer = await db.query.profiles.findFirst({
 		where: and(eq(profiles.id, customerId), eq(profiles.businessId, businessId)),
@@ -87,6 +102,7 @@ async function resolveCustomerView(
 		availableVouchers: available.filter(
 			(reward) => reward.rewardType === "voucher",
 		),
+		voucherRedemptionEnabled,
 	};
 }
 
@@ -138,6 +154,12 @@ export const staff = new Hono<AppEnv>()
 			const staffProfile = c.get("profile");
 			const db = getDb(c.env);
 			const input = c.req.valid("json");
+			const voucherSetting = await isStaffVoucherRedemptionEnabled(
+				db,
+				staffProfile.businessId,
+			);
+			const voucherRedemptionEnabled =
+				staffProfile.role !== "staff" || voucherSetting;
 
 			// A code that never matched and one that matched but is expired or
 			// already used look identical to the caller — same message either way.
@@ -158,6 +180,7 @@ export const staff = new Hono<AppEnv>()
 				db,
 				staffProfile.businessId,
 				match.customerId,
+				voucherRedemptionEnabled,
 			);
 			return ok<StaffResolvedCustomerPayload>(c, payload);
 		},
@@ -171,6 +194,12 @@ export const staff = new Hono<AppEnv>()
 			const db = getDb(c.env);
 			const customerId = c.req.param("customerId");
 			const input = c.req.valid("json");
+			const voucherSetting = await isStaffVoucherRedemptionEnabled(
+				db,
+				staffProfile.businessId,
+			);
+			const voucherRedemptionEnabled =
+				staffProfile.role !== "staff" || voucherSetting;
 
 			await requireLocationInBusiness(db, staffProfile.businessId, input.locationId);
 
@@ -184,7 +213,12 @@ export const staff = new Hono<AppEnv>()
 				idempotencyKey: input.idempotencyKey,
 			});
 
-			const payload = await resolveCustomerView(db, staffProfile.businessId, customerId);
+			const payload = await resolveCustomerView(
+				db,
+				staffProfile.businessId,
+				customerId,
+				voucherRedemptionEnabled,
+			);
 			return ok<CoffeeEarnResultPayload>(c, {
 				...payload,
 				newlyIssuedCount: issuedRewardIds.length,
@@ -201,6 +235,12 @@ export const staff = new Hono<AppEnv>()
 			const customerId = c.req.param("customerId");
 			const rewardId = c.req.param("rewardId");
 			const input = c.req.valid("json");
+			const voucherSetting = await isStaffVoucherRedemptionEnabled(
+				db,
+				staffProfile.businessId,
+			);
+			const voucherRedemptionEnabled =
+				staffProfile.role !== "staff" || voucherSetting;
 
 			await requireLocationInBusiness(db, staffProfile.businessId, input.locationId);
 
@@ -211,9 +251,17 @@ export const staff = new Hono<AppEnv>()
 				staffId: staffProfile.id,
 				locationId: input.locationId,
 				billReference: input.billReference ?? null,
+				billTotalCents:
+					input.billTotalRand == null ? null : Math.round(input.billTotalRand * 100),
+				allowVoucherRedemption: voucherRedemptionEnabled,
 			});
 
-			const payload = await resolveCustomerView(db, staffProfile.businessId, customerId);
+			const payload = await resolveCustomerView(
+				db,
+				staffProfile.businessId,
+				customerId,
+				voucherRedemptionEnabled,
+			);
 			return ok<StaffResolvedCustomerPayload>(c, payload);
 		},
 	);

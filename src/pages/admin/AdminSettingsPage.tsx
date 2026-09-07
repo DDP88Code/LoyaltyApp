@@ -10,6 +10,8 @@ export function AdminSettingsPage() {
 	const settings = useAdminSettings();
 	const updateSettings = useUpdateAdminSettings();
 	const [welcomeRewardEnabled, setWelcomeRewardEnabled] = useState(true);
+	const [staffVoucherRedemptionEnabled, setStaffVoucherRedemptionEnabled] =
+		useState(false);
 	const [ttlMinutes, setTtlMinutes] = useState("10");
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
@@ -17,6 +19,7 @@ export function AdminSettingsPage() {
 	useEffect(() => {
 		if (!settings.data) return;
 		setWelcomeRewardEnabled(settings.data.welcomeRewardEnabled);
+		setStaffVoucherRedemptionEnabled(settings.data.staffVoucherRedemptionEnabled);
 		setTtlMinutes(String(Math.round(settings.data.loyaltyCodeTtlSeconds / 60)));
 	}, [settings.data]);
 
@@ -46,9 +49,11 @@ export function AdminSettingsPage() {
 		try {
 			const next = await updateSettings.mutateAsync({
 				welcomeRewardEnabled,
+				staffVoucherRedemptionEnabled,
 				loyaltyCodeTtlSeconds: minutes * 60,
 			});
 			setWelcomeRewardEnabled(next.welcomeRewardEnabled);
+			setStaffVoucherRedemptionEnabled(next.staffVoucherRedemptionEnabled);
 			setTtlMinutes(String(Math.round(next.loyaltyCodeTtlSeconds / 60)));
 			setSuccess("Settings saved.");
 		} catch (cause) {
@@ -60,7 +65,7 @@ export function AdminSettingsPage() {
 		<main className="mx-auto w-full max-w-4xl p-6">
 			<PageHeader
 				title="Settings"
-				subtitle="Manage operational controls for welcome rewards and loyalty code validity."
+				subtitle="Manage operational controls for welcome rewards, voucher redemption, and loyalty code validity."
 			/>
 			<AdminPanel title="Operational settings" description="Changes are saved to D1 and audited.">
 				<div className="grid gap-3 md:max-w-md">
@@ -72,6 +77,17 @@ export function AdminSettingsPage() {
 							className="size-4 accent-brand-primary"
 						/>
 						<span>Welcome reward enabled</span>
+					</label>
+					<label className="inline-flex min-h-10 items-center gap-2 text-sm">
+						<input
+							type="checkbox"
+							checked={staffVoucherRedemptionEnabled}
+							onChange={(event) =>
+								setStaffVoucherRedemptionEnabled(event.target.checked)
+							}
+							className="size-4 accent-brand-primary"
+						/>
+						<span>Staff voucher redemption enabled</span>
 					</label>
 					<Input
 						label="Loyalty code validity (minutes)"

@@ -8,6 +8,7 @@ import type {
 	AdminRewardDefinition,
 	AdminRewardDefinitionsPayload,
 	AdminReportsPayload,
+	AdminRewardRedemptionPayload,
 	AdminSettingsPayload,
 	AdminSettingsUpdateInput,
 	AdminStaffDeletePayload,
@@ -108,6 +109,14 @@ export interface AdjustmentInput {
 	idempotencyKey: string;
 }
 
+export interface RedeemAdminRewardInput {
+	customerId: string;
+	rewardId: string;
+	locationId: string;
+	billReference: string | null;
+	billTotalRand: number | null;
+}
+
 export function useCreateAdminAdjustment() {
 	const queryClient = useQueryClient();
 	return useMutation({
@@ -117,6 +126,21 @@ export function useCreateAdminAdjustment() {
 				{
 					method: "POST",
 					body: JSON.stringify(input),
+				},
+			),
+		onSuccess: () => invalidateAdminPages(queryClient),
+	});
+}
+
+export function useRedeemAdminReward() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ customerId, rewardId, ...body }: RedeemAdminRewardInput) =>
+			apiFetch<AdminRewardRedemptionPayload>(
+				`/api/admin/customers/${customerId}/rewards/${rewardId}/redeem`,
+				{
+					method: "POST",
+					body: JSON.stringify(body),
 				},
 			),
 		onSuccess: () => invalidateAdminPages(queryClient),

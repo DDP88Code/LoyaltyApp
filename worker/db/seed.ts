@@ -193,12 +193,12 @@ export async function seedDevelopmentData(
 		await db.insert(rewardDefinitions).values({
 			businessId,
 			name: "Welcome to Fives",
-			description: "R50.00 off your first visit as a Fives Rewards member.",
+			description: "R50.00 off your bill when you spend R500.00 or more.",
 			rewardType: "voucher",
 			valueCents: 5000,
 			validDays: 30,
 			welcomeReward: true,
-			terms: "One per member. Valid for 30 days from issue.",
+			terms: "One per member. Minimum spend R500. Valid for 30 days from issue.",
 		});
 		count.record("reward_definitions", true);
 	} else {

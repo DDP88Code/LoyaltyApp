@@ -54,6 +54,7 @@ export interface RedeemRewardInput {
 	rewardId: string;
 	locationId: string;
 	billReference: string | null;
+	billTotalRand: number | null;
 }
 
 export function useRedeemReward() {

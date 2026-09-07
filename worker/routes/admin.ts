@@ -26,6 +26,7 @@ import type {
 	AdminLoyaltyProgramsPayload,
 	AdminRewardDefinition,
 	AdminRewardDefinitionsPayload,
+	AdminRewardRedemptionPayload,
 	AdminReportsPayload,
 	AdminSettingsUpdateInput,
 	AdminSettingsPayload,
@@ -84,11 +85,17 @@ import {
 	LEGACY_HIDDEN_LOCATION_NAME,
 	MVP_LOCATION_NAME,
 	SETTINGS_CODE_TTL_KEY,
+	SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
 	SETTINGS_WELCOME_REWARD_KEY,
+	WELCOME_VOUCHER_MIN_BILL_CENTS,
 	ensureMvpDefaults,
 } from "@worker/lib/defaults";
 import { ApiError, ok } from "@worker/lib/http";
-import { createLoyaltyAdjustment, getCoffeeProgress } from "@worker/lib/loyalty";
+import {
+	createLoyaltyAdjustment,
+	getCoffeeProgress,
+	redeemCustomerReward,
+} from "@worker/lib/loyalty";
 import {
 	assertOwnedMenuMediaKey,
 	assertOwnedPromotionsMediaKey,
@@ -227,6 +234,7 @@ const settingsUpdateSchema = z
 	.object({
 		welcomeRewardEnabled: z.boolean().optional(),
 		loyaltyCodeTtlSeconds: z.coerce.number().int().min(60).max(3600).optional(),
+		staffVoucherRedemptionEnabled: z.boolean().optional(),
 	})
 	.refine((input) => Object.keys(input).length > 0, {
 		message: "At least one field must be provided.",
@@ -266,6 +274,12 @@ const createAdjustmentSchema = z.object({
 			message: "Reversal subtracts coffee, so quantity must be negative.",
 		});
 	}
+});
+
+const redeemRewardSchema = z.object({
+	locationId: z.string().trim().min(1).max(64),
+	billReference: z.string().trim().max(120).nullable().optional(),
+	billTotalRand: z.coerce.number().min(0).max(1_000_000).nullable().optional(),
 });
 
 const createCategorySchema = z.object({
@@ -1272,6 +1286,12 @@ export const admin = new Hono<AppEnv>()
 						rewardType: row.reward_definitions.rewardType,
 						status: expired ? "expired" : row.customer_rewards.status,
 						valueCents: row.reward_definitions.valueCents,
+						terms: row.reward_definitions.terms,
+						minBillCents:
+							row.reward_definitions.rewardType === "voucher" &&
+							row.reward_definitions.welcomeReward
+								? WELCOME_VOUCHER_MIN_BILL_CENTS
+								: null,
 						issuedAt: row.customer_rewards.issuedAt.toISOString(),
 						expiresAt: row.customer_rewards.expiresAt?.toISOString() ?? null,
 						redeemedAt: row.customer_rewards.redeemedAt?.toISOString() ?? null,
@@ -1363,6 +1383,46 @@ export const admin = new Hono<AppEnv>()
 					: null;
 
 			return ok<AdjustmentResultPayload>(c, { transactionId, coffee });
+		},
+	)
+
+	.post(
+		"/customers/:customerId/rewards/:rewardId/redeem",
+		validate("json", redeemRewardSchema),
+		async (c) => {
+			const admin = c.get("profile");
+			const db = getDb(c.env);
+			const customerId = c.req.param("customerId");
+			const rewardId = c.req.param("rewardId");
+			const input = c.req.valid("json");
+
+			const customer = await db.query.profiles.findFirst({
+				where: and(
+					eq(profiles.id, customerId),
+					eq(profiles.businessId, admin.businessId),
+					eq(profiles.role, "customer"),
+				),
+				columns: { id: true },
+			});
+			if (!customer) {
+				throw new ApiError("not_found", "That customer was not found.");
+			}
+
+			await requireLocationInBusiness(db, admin.businessId, input.locationId);
+
+			await redeemCustomerReward(db, {
+				businessId: admin.businessId,
+				customerId,
+				rewardId,
+				staffId: admin.id,
+				locationId: input.locationId,
+				billReference: input.billReference ?? null,
+				billTotalCents:
+					input.billTotalRand == null ? null : Math.round(input.billTotalRand * 100),
+				allowVoucherRedemption: true,
+			});
+
+			return ok<AdminRewardRedemptionPayload>(c, { redeemed: true });
 		},
 	)
 
@@ -2559,9 +2619,14 @@ export const admin = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
-		const [welcomeSetting, ttlSetting] = await Promise.all([
+		const [welcomeSetting, ttlSetting, staffVoucherSetting] = await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
 			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
 		]);
 
 		const payload: AdminSettingsPayload = {
@@ -2571,6 +2636,10 @@ export const admin = new Hono<AppEnv>()
 					: true,
 			loyaltyCodeTtlSeconds:
 				typeof ttlSetting?.valueJson === "number" ? ttlSetting.valueJson : 600,
+			staffVoucherRedemptionEnabled:
+				typeof staffVoucherSetting?.valueJson === "boolean"
+					? staffVoucherSetting.valueJson
+					: false,
 		};
 
 		return ok<AdminSettingsPayload>(c, payload);
@@ -2585,6 +2654,11 @@ export const admin = new Hono<AppEnv>()
 		const previous = await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
 			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
 		]);
 
 		if (input.welcomeRewardEnabled !== undefined) {
@@ -2605,9 +2679,23 @@ export const admin = new Hono<AppEnv>()
 			);
 		}
 
-		const [welcomeSetting, ttlSetting] = await Promise.all([
+		if (input.staffVoucherRedemptionEnabled !== undefined) {
+			await upsertSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+				input.staffVoucherRedemptionEnabled,
+			);
+		}
+
+		const [welcomeSetting, ttlSetting, staffVoucherSetting] = await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
 			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
 		]);
 
 		const payload: AdminSettingsPayload = {
@@ -2617,6 +2705,10 @@ export const admin = new Hono<AppEnv>()
 					: true,
 			loyaltyCodeTtlSeconds:
 				typeof ttlSetting?.valueJson === "number" ? ttlSetting.valueJson : 600,
+			staffVoucherRedemptionEnabled:
+				typeof staffVoucherSetting?.valueJson === "boolean"
+					? staffVoucherSetting.valueJson
+					: false,
 		};
 
 		await db.insert(auditLogs).values({
@@ -2633,6 +2725,10 @@ export const admin = new Hono<AppEnv>()
 						: true,
 				loyaltyCodeTtlSeconds:
 					typeof previous[1]?.valueJson === "number" ? previous[1].valueJson : 600,
+				staffVoucherRedemptionEnabled:
+					typeof previous[2]?.valueJson === "boolean"
+						? previous[2].valueJson
+						: false,
 			},
 			newValueJson: payload,
 		});

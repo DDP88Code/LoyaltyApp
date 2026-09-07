@@ -17,9 +17,12 @@ export const MVP_LOCATION_ADDRESS = "Placeholder address - update in Admin.";
 export const MVP_WELCOME_REWARD_NAME = "Welcome to Fives";
 export const MVP_FREE_COFFEE_REWARD_NAME = "Free Coffee";
 export const MVP_COFFEE_PROGRAM_NAME = "Fives Coffee Rewards";
+export const WELCOME_VOUCHER_MIN_BILL_CENTS = 50_000;
 
 export const SETTINGS_WELCOME_REWARD_KEY = "welcome_reward_enabled";
 export const SETTINGS_CODE_TTL_KEY = "loyalty_code_ttl_seconds";
+export const SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED =
+	"staff_voucher_redemption_enabled";
 
 async function ensureSettingIfMissing(
 	db: Db,
@@ -120,13 +123,13 @@ export async function ensureMvpDefaults(
 			.values({
 				businessId: business.id,
 				name: MVP_WELCOME_REWARD_NAME,
-				description: "R50.00 off your first visit as a Fives Rewards member.",
+				description: "R50.00 off your bill when you spend R500.00 or more.",
 				rewardType: "voucher",
 				valueCents: 5000,
 				validDays: 30,
 				welcomeReward: true,
 				active: true,
-				terms: "One per member. Valid for 30 days from issue.",
+				terms: "One per member. Minimum spend R500. Valid for 30 days from issue.",
 			})
 			.onConflictDoNothing()
 			.returning();
@@ -232,6 +235,12 @@ export async function ensureMvpDefaults(
 			business.id,
 			SETTINGS_CODE_TTL_KEY,
 			600,
+		),
+		ensureSettingIfMissing(
+			db,
+			business.id,
+			SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			false,
 		),
 	]);
 

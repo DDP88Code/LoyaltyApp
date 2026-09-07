@@ -38,6 +38,9 @@ export function RewardCard({ reward }: { reward: RewardSummary }) {
 						Worth {formatCents(reward.valueCents)}
 					</p>
 				)}
+				{reward.terms && (
+					<p className="mt-1 text-xs text-brand-muted">{reward.terms}</p>
+				)}
 				{reward.status === "available" && reward.expiresAt && (
 					<p className="mt-1 text-xs text-brand-muted">
 						Expires {new Date(reward.expiresAt).toLocaleDateString("en-ZA")}

@@ -57,7 +57,10 @@ export function ResolvedCustomerView({
 		);
 	};
 
-	const handleRedeem = (input: { billReference: string | null }) => {
+	const handleRedeem = (input: {
+		billReference: string | null;
+		billTotalRand: number | null;
+	}) => {
 		if (!redeemTarget) return;
 		if (!isOnline) return;
 		redeemReward.mutate(
@@ -66,6 +69,7 @@ export function ResolvedCustomerView({
 				rewardId: redeemTarget.id,
 				locationId,
 				billReference: input.billReference,
+				billTotalRand: input.billTotalRand,
 			},
 			{
 				onSuccess: (result) => {
@@ -129,6 +133,11 @@ export function ResolvedCustomerView({
 
 			<Card>
 				<CardTitle>Available vouchers</CardTitle>
+				{!customer.voucherRedemptionEnabled && (
+					<p className="mt-2 text-sm text-brand-muted">
+						Voucher redemption is currently disabled for staff. Ask an admin to enable it in settings.
+					</p>
+				)}
 				{customer.availableVouchers.length === 0 ? (
 					<EmptyState title="None yet" />
 				) : (
@@ -137,7 +146,7 @@ export function ResolvedCustomerView({
 							<RewardRow
 								key={reward.id}
 								reward={reward}
-								disabled={!isOnline}
+								disabled={!isOnline || !customer.voucherRedemptionEnabled}
 								onRedeem={() => setRedeemTarget(reward)}
 							/>
 						))}
@@ -182,6 +191,9 @@ function RewardRow({
 		<div className="flex items-center justify-between gap-3 rounded-xl border border-brand-border px-4 py-3">
 			<div>
 				<p className="font-medium">{reward.name}</p>
+				{reward.terms && (
+					<p className="text-xs text-brand-muted">{reward.terms}</p>
+				)}
 				{reward.expiresAt && (
 					<Badge tone="neutral">
 						Expires {new Date(reward.expiresAt).toLocaleDateString("en-ZA")}

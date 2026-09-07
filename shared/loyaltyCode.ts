@@ -20,6 +20,7 @@ export interface StaffResolvedCustomerPayload {
 	coffee: CoffeeProgress | null;
 	availableFreeCoffees: RewardSummary[];
 	availableVouchers: RewardSummary[];
+	voucherRedemptionEnabled: boolean;
 }
 
 /** Same as above, plus how many rewards this specific action just issued. */

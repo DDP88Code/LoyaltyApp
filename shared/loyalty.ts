@@ -19,6 +19,9 @@ export interface RewardSummary {
 	rewardType: RewardType;
 	status: CustomerRewardStatus;
 	valueCents: number | null;
+	terms: string | null;
+	/** Null means there is no minimum basket amount constraint for redemption. */
+	minBillCents: number | null;
 	issuedAt: string;
 	expiresAt: string | null;
 	redeemedAt: string | null;

@@ -198,11 +198,17 @@ export interface AdminAuditLogsPayload {
 export interface AdminSettingsPayload {
 	welcomeRewardEnabled: boolean;
 	loyaltyCodeTtlSeconds: number;
+	staffVoucherRedemptionEnabled: boolean;
 }
 
 export interface AdminSettingsUpdateInput {
 	welcomeRewardEnabled?: boolean;
 	loyaltyCodeTtlSeconds?: number;
+	staffVoucherRedemptionEnabled?: boolean;
+}
+
+export interface AdminRewardRedemptionPayload {
+	redeemed: true;
 }
 
 export interface ReportSummaryMetrics {

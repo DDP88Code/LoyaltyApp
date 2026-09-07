@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { RewardSummary } from "@shared/loyalty";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -8,9 +9,11 @@ import {
 	useAdminCustomers,
 	useAdminLookups,
 	useCreateAdminAdjustment,
+	useRedeemAdminReward,
 } from "@/features/admin/core/api";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { AdminPanel } from "@/features/admin/core/widgets";
+import { RedeemDialog } from "@/features/staff/RedeemDialog";
 import { ApiClientError } from "@/lib/api";
 
 const PAGE_SIZE = 20;
@@ -85,12 +88,15 @@ export function AdminCustomersPage() {
 	const [reason, setReason] = useState("");
 	const [billReference, setBillReference] = useState("");
 	const [formError, setFormError] = useState<string | null>(null);
+	const [redeemError, setRedeemError] = useState<string | null>(null);
+	const [redeemTarget, setRedeemTarget] = useState<RewardSummary | null>(null);
 	const [fieldErrors, setFieldErrors] = useState<AdjustmentErrors>({});
 
 	const customers = useAdminCustomers({ search, limit: PAGE_SIZE, offset });
 	const lookups = useAdminLookups();
 	const detail = useAdminCustomerDetail(selectedCustomerId);
 	const createAdjustment = useCreateAdminAdjustment();
+	const redeemReward = useRedeemAdminReward();
 
 	const localValidation = validateAdjustmentForm({
 		programId,
@@ -103,6 +109,10 @@ export function AdminCustomersPage() {
 		isOnline &&
 		Boolean(selectedCustomerId) &&
 		Object.keys(localValidation).length === 0;
+	const canRedeemRewards =
+		isOnline && Boolean(selectedCustomerId) && Boolean(locationId);
+	const selectedRedeemLocationName =
+		lookups.data?.locations.find((location) => location.id === locationId)?.name ?? null;
 
 	const rewardsByStatus = useMemo(() => {
 		const rows = detail.data?.rewards ?? [];
@@ -127,6 +137,11 @@ export function AdminCustomersPage() {
 		return () => clearTimeout(handle);
 	}, [searchInput]);
 
+	useEffect(() => {
+		if (locationId || !lookups.data?.locations.length) return;
+		setLocationId(lookups.data.locations[0]?.id ?? "");
+	}, [lookups.data?.locations, locationId]);
+
 	if (customers.isPending) return <LoadingState label="Loading customers..." />;
 	if (customers.isError) {
 		return (
@@ -142,6 +157,31 @@ export function AdminCustomersPage() {
 
 	const rows = customers.data.customers;
 	const selected = detail.data?.customer ?? null;
+
+	const handleRedeem = (input: {
+		billReference: string | null;
+		billTotalRand: number | null;
+	}) => {
+		if (!selectedCustomerId || !redeemTarget || !locationId) return;
+		setRedeemError(null);
+		redeemReward
+			.mutateAsync({
+				customerId: selectedCustomerId,
+				rewardId: redeemTarget.id,
+				locationId,
+				billReference: input.billReference,
+				billTotalRand: input.billTotalRand,
+			})
+			.then(() => {
+				setRedeemTarget(null);
+				void detail.refetch();
+			})
+			.catch((error: unknown) => {
+				setRedeemError(
+					error instanceof Error ? error.message : "Could not redeem reward.",
+				);
+			});
+	};
 
 	return (
 		<main className="mx-auto w-full max-w-7xl p-6">
@@ -403,11 +443,41 @@ export function AdminCustomersPage() {
 
 						<div className="grid gap-4 lg:grid-cols-3">
 							<AdminPanel title={`Available rewards (${rewardsByStatus.available.length})`}>
+								<p className="mb-2 text-xs text-brand-muted">
+									Redeems at: {selectedRedeemLocationName ?? "Select a location above"}
+								</p>
+								{!canRedeemRewards && (
+									<p className="mb-2 text-xs text-brand-muted">
+										Choose a location in Manual Adjustment before redeeming rewards.
+									</p>
+								)}
+								{redeemError && (
+									<p className="mb-2 text-xs text-brand-danger">{redeemError}</p>
+								)}
 								<ul className="grid gap-2 text-sm">
 									{rewardsByStatus.available.map((reward) => (
 										<li key={reward.id} className="rounded border border-brand-border p-2">
-											<p className="font-medium">{reward.name}</p>
-											<p className="text-xs text-brand-muted">Issued: {new Date(reward.issuedAt).toLocaleDateString("en-ZA")}</p>
+											<div className="flex items-start justify-between gap-2">
+												<div>
+													<p className="font-medium">{reward.name}</p>
+													<p className="text-xs text-brand-muted">
+														Issued: {new Date(reward.issuedAt).toLocaleDateString("en-ZA")}
+													</p>
+													{reward.terms && (
+														<p className="mt-1 text-xs text-brand-muted">{reward.terms}</p>
+													)}
+												</div>
+												<Button
+													size="sm"
+													disabled={!canRedeemRewards || redeemReward.isPending}
+													onClick={() => {
+														setRedeemError(null);
+														setRedeemTarget(reward);
+													}}
+												>
+													Redeem
+												</Button>
+											</div>
 										</li>
 									))}
 								</ul>
@@ -470,6 +540,12 @@ export function AdminCustomersPage() {
 					</div>
 				)}
 			</div>
+			<RedeemDialog
+				reward={redeemTarget}
+				loading={redeemReward.isPending}
+				onConfirm={handleRedeem}
+				onCancel={() => setRedeemTarget(null)}
+			/>
 		</main>
 	);
 }

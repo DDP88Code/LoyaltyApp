@@ -16,6 +16,7 @@ import {
 	loyaltyTransactions,
 	rewardDefinitions,
 } from "@worker/db/schema";
+import { WELCOME_VOUCHER_MIN_BILL_CENTS } from "@worker/lib/defaults";
 import { ApiError } from "@worker/lib/http";
 
 const DAY_MS = 86_400_000;
@@ -99,6 +100,8 @@ export async function listCustomerRewards(
 			name: rewardDefinitions.name,
 			rewardType: rewardDefinitions.rewardType,
 			valueCents: rewardDefinitions.valueCents,
+			terms: rewardDefinitions.terms,
+			welcomeReward: rewardDefinitions.welcomeReward,
 		})
 		.from(customerRewards)
 		.innerJoin(
@@ -126,6 +129,11 @@ export async function listCustomerRewards(
 			rewardType: row.rewardType,
 			status: displayExpired ? "expired" : row.status,
 			valueCents: row.valueCents,
+			terms: row.terms,
+			minBillCents:
+				row.rewardType === "voucher" && row.welcomeReward
+					? WELCOME_VOUCHER_MIN_BILL_CENTS
+					: null,
 			issuedAt: row.issuedAt.toISOString(),
 			expiresAt: row.expiresAt?.toISOString() ?? null,
 			redeemedAt: row.redeemedAt?.toISOString() ?? null,
@@ -332,6 +340,8 @@ export interface RedeemCustomerRewardParams {
 	staffId: string;
 	locationId: string;
 	billReference: string | null;
+	billTotalCents: number | null;
+	allowVoucherRedemption: boolean;
 }
 
 /**
@@ -353,6 +363,8 @@ export async function redeemCustomerReward(
 			expiresAt: customerRewards.expiresAt,
 			rewardDefinitionId: customerRewards.rewardDefinitionId,
 			name: rewardDefinitions.name,
+			rewardType: rewardDefinitions.rewardType,
+			welcomeReward: rewardDefinitions.welcomeReward,
 		})
 		.from(customerRewards)
 		.innerJoin(
@@ -381,6 +393,28 @@ export async function redeemCustomerReward(
 		);
 	}
 
+	if (existing.rewardType === "voucher" && !params.allowVoucherRedemption) {
+		throw new ApiError(
+			"forbidden",
+			"Voucher redemption is currently disabled for staff.",
+		);
+	}
+
+	if (existing.rewardType === "voucher" && existing.welcomeReward) {
+		if (params.billTotalCents == null) {
+			throw new ApiError(
+				"validation_failed",
+				"Bill total is required to redeem this voucher.",
+			);
+		}
+		if (params.billTotalCents < WELCOME_VOUCHER_MIN_BILL_CENTS) {
+			throw new ApiError(
+				"bad_request",
+				"This voucher requires a minimum bill of R500.00.",
+			);
+		}
+	}
+
 	// Not tied to a stamp/points program for a reward like the welcome voucher.
 	const program = await db.query.loyaltyPrograms.findFirst({
 		where: eq(loyaltyPrograms.rewardDefinitionId, existing.rewardDefinitionId),
@@ -399,7 +433,10 @@ export async function redeemCustomerReward(
 			transactionType: "redeem",
 			quantity: 0,
 			billReference: params.billReference,
-			notes: `Redeemed: ${existing.name}`,
+			notes:
+				params.billTotalCents != null
+					? `Redeemed: ${existing.name} (bill total R${(params.billTotalCents / 100).toFixed(2)})`
+					: `Redeemed: ${existing.name}`,
 			idempotencyKey: `redeem:${params.rewardId}`,
 		})
 		.onConflictDoNothing()
