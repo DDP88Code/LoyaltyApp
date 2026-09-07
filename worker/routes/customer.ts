@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionPayload } from "@shared/api";
@@ -213,15 +213,20 @@ export const customer = new Hono<AppEnv>()
 			itemRows.length === 0
 				? []
 				: await db
-					.select()
+					.select({
+						id: menuItemVariants.id,
+						menuItemId: menuItemVariants.menuItemId,
+						name: menuItemVariants.name,
+						priceCents: menuItemVariants.priceCents,
+						sortOrder: menuItemVariants.sortOrder,
+					})
 					.from(menuItemVariants)
+					.innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
 					.where(
 						and(
 							eq(menuItemVariants.active, true),
-							inArray(
-								menuItemVariants.menuItemId,
-								itemRows.map((item) => item.id),
-							),
+							eq(menuItems.businessId, profile.businessId),
+							eq(menuItems.active, true),
 						),
 					)
 					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
