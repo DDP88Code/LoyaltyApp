@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	AdminAuditLogsPayload,
+	AdminBirthdayRewardIssuanceReportPayload,
 	AdminCustomerDetailPayload,
 	AdminDashboardPayload,
 	AdminLookupsPayload,
@@ -30,6 +31,11 @@ const staffQueryKey = ["admin", "staff"] as const;
 const auditQueryKey = ["admin", "audit"] as const;
 const settingsQueryKey = ["admin", "settings"] as const;
 const reportsQueryKey = ["admin", "reports"] as const;
+const birthdayIssuanceReportsQueryKey = [
+	"admin",
+	"reports",
+	"birthday-issuance",
+] as const;
 
 function invalidateAdminPages(queryClient: ReturnType<typeof useQueryClient>) {
 	void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
@@ -43,6 +49,9 @@ function invalidateAdminPages(queryClient: ReturnType<typeof useQueryClient>) {
 	void queryClient.invalidateQueries({ queryKey: auditQueryKey });
 	void queryClient.invalidateQueries({ queryKey: settingsQueryKey });
 	void queryClient.invalidateQueries({ queryKey: reportsQueryKey });
+	void queryClient.invalidateQueries({
+		queryKey: birthdayIssuanceReportsQueryKey,
+	});
 	void queryClient.invalidateQueries({ queryKey: ["customer", "home"] });
 	void queryClient.invalidateQueries({ queryKey: ["customer", "rewards"] });
 }
@@ -374,6 +383,23 @@ export function useAdminReports(query: ReportsQuery) {
 		queryFn: () =>
 			apiFetch<AdminReportsPayload>(
 				`/api/admin/reports${toQueryString({ ...query })}`,
+			),
+	});
+}
+
+export interface BirthdayIssuanceReportQuery {
+	from?: string;
+	to?: string;
+}
+
+export function useAdminBirthdayIssuanceReport(
+	query: BirthdayIssuanceReportQuery,
+) {
+	return useQuery({
+		queryKey: [...birthdayIssuanceReportsQueryKey, query],
+		queryFn: () =>
+			apiFetch<AdminBirthdayRewardIssuanceReportPayload>(
+				`/api/admin/reports/birthday-issuance${toQueryString({ ...query })}`,
 			),
 	});
 }

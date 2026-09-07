@@ -3,7 +3,11 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState, LoadingState } from "@/components/ui/States";
-import { useAdminLookups, useAdminReports } from "@/features/admin/core/api";
+import {
+	useAdminBirthdayIssuanceReport,
+	useAdminLookups,
+	useAdminReports,
+} from "@/features/admin/core/api";
 import { AdminPanel, AdminStatCard, TinyBars } from "@/features/admin/core/widgets";
 
 function toDateInputValue(value: Date): string {
@@ -24,6 +28,10 @@ export function AdminReportsPage() {
 		from: query.from,
 		to: query.to,
 		locationId: query.locationId || undefined,
+	});
+	const birthdayReport = useAdminBirthdayIssuanceReport({
+		from: query.from,
+		to: query.to,
 	});
 
 	const charts = useMemo(() => {
@@ -55,7 +63,28 @@ export function AdminReportsPage() {
 		};
 	}, [reports.data]);
 
-	if (reports.isPending || lookups.isPending) return <LoadingState label="Loading reports..." />;
+	const birthdayCharts = useMemo(() => {
+		if (!birthdayReport.data) {
+			return {
+				series: [] as number[],
+				max: 0,
+				recentRows: [] as { date: string; value: number }[],
+			};
+		}
+
+		const series = birthdayReport.data.dailyIssued.map((point) => point.value);
+		const recentRows = birthdayReport.data.dailyIssued.slice().reverse().slice(0, 10);
+
+		return {
+			series,
+			max: Math.max(0, ...series),
+			recentRows,
+		};
+	}, [birthdayReport.data]);
+
+	if (reports.isPending || lookups.isPending || birthdayReport.isPending) {
+		return <LoadingState label="Loading reports..." />;
+	}
 	if (reports.isError) {
 		return (
 			<main className="p-6">
@@ -63,6 +92,17 @@ export function AdminReportsPage() {
 					title="Could not load reports"
 					description={reports.error.message}
 					onRetry={() => void reports.refetch()}
+				/>
+			</main>
+		);
+	}
+	if (birthdayReport.isError) {
+		return (
+			<main className="p-6">
+				<ErrorState
+					title="Could not load birthday report"
+					description={birthdayReport.error.message}
+					onRetry={() => void birthdayReport.refetch()}
 				/>
 			</main>
 		);
@@ -141,6 +181,82 @@ export function AdminReportsPage() {
 				</AdminPanel>
 				<AdminPanel title="Rewards Redeemed Over Time" description="Redeemed rewards in range.">
 					<TinyBars points={charts.redeemedSeries} max={charts.maxRewards} colorClass="bg-brand-success/45" />
+				</AdminPanel>
+			</section>
+
+			<section className="mt-6">
+				<AdminPanel
+					title="Birthday Reward Issuance"
+					description="Daily visibility for Birthday Treat issuance over the selected range."
+				>
+					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+						<AdminStatCard
+							title="Total Issued"
+							value={String(birthdayReport.data.totalIssued)}
+							subtitle={birthdayReport.data.rewardName}
+						/>
+						<AdminStatCard
+							title="Issued Today"
+							value={String(birthdayReport.data.issuedToday)}
+							subtitle={birthdayReport.data.timeZone}
+						/>
+						<AdminStatCard
+							title="Available"
+							value={String(birthdayReport.data.available)}
+							subtitle={`${birthdayReport.data.redeemed} redeemed`}
+						/>
+						<AdminStatCard
+							title="Expired/Cancelled"
+							value={String(birthdayReport.data.expiredOrCancelled)}
+							subtitle={
+								birthdayReport.data.latestIssuedAt
+									? `Latest issue ${birthdayReport.data.latestIssuedAt.slice(0, 10)}`
+									: "No birthday rewards in range"
+							}
+						/>
+					</div>
+
+					<div className="mt-4 grid gap-4 xl:grid-cols-2">
+						<div>
+							<p className="text-xs uppercase tracking-wide text-brand-muted">
+								Daily Birthday Issuance Trend
+							</p>
+							<div className="mt-2">
+								<TinyBars
+									points={birthdayCharts.series}
+									max={birthdayCharts.max}
+									colorClass="bg-brand-warning/45"
+								/>
+							</div>
+						</div>
+
+						<div className="overflow-x-auto">
+							<table className="min-w-full text-sm">
+								<thead>
+									<tr className="border-b border-brand-border text-left text-brand-muted">
+										<th className="px-2 py-2 font-medium">Date</th>
+										<th className="px-2 py-2 font-medium">Issued</th>
+									</tr>
+								</thead>
+								<tbody>
+									{birthdayCharts.recentRows.length === 0 ? (
+										<tr>
+											<td className="px-2 py-3 text-brand-muted" colSpan={2}>
+												No birthday issuance records in this range.
+											</td>
+										</tr>
+									) : (
+										birthdayCharts.recentRows.map((row) => (
+											<tr key={row.date} className="border-b border-brand-border/50">
+												<td className="px-2 py-2">{row.date}</td>
+												<td className="px-2 py-2">{row.value}</td>
+											</tr>
+										))
+									)}
+								</tbody>
+							</table>
+						</div>
+					</div>
 				</AdminPanel>
 			</section>
 

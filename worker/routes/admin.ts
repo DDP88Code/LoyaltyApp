@@ -18,6 +18,7 @@ import { z } from "zod";
 import type {
 	AdminAuditLogEntry,
 	AdminAuditLogsPayload,
+	AdminBirthdayRewardIssuanceReportPayload,
 	AdminCustomerDetail,
 	AdminCustomerDetailPayload,
 	AdminDashboardPayload,
@@ -83,6 +84,7 @@ import {
 } from "@worker/db/schema";
 import {
 	LEGACY_HIDDEN_LOCATION_NAME,
+	MVP_BIRTHDAY_REWARD_NAME,
 	MVP_LOCATION_NAME,
 	SETTINGS_CODE_TTL_KEY,
 	SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
@@ -151,6 +153,13 @@ const reportsQuerySchema = z.object({
 	to: z.coerce.date().optional(),
 	locationId: z.string().trim().max(64).optional(),
 });
+
+const birthdayReportQuerySchema = z.object({
+	from: z.coerce.date().optional(),
+	to: z.coerce.date().optional(),
+});
+
+const REPORT_TIME_ZONE = "Africa/Johannesburg";
 
 const loyaltyProgramUpdateSchema = z
 	.object({
@@ -539,6 +548,31 @@ function monthRange(now = new Date()): { monthStart: Date; nextMonthStart: Date 
 
 function asDateKey(value: Date): string {
 	return value.toISOString().slice(0, 10);
+}
+
+function asTimeZoneDateKey(value: Date, timeZone: string): string {
+	const formatter = new Intl.DateTimeFormat("en-CA", {
+		timeZone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	});
+
+	const map = new Map<string, string>();
+	for (const part of formatter.formatToParts(value)) {
+		if (part.type === "year" || part.type === "month" || part.type === "day") {
+			map.set(part.type, part.value);
+		}
+	}
+
+	const year = map.get("year");
+	const month = map.get("month");
+	const day = map.get("day");
+	if (!year || !month || !day) {
+		throw new ApiError("internal_error", "Failed to format report date.");
+	}
+
+	return `${year}-${month}-${day}`;
 }
 
 function enumerateDays(start: Date, end: Date): string[] {
@@ -2130,6 +2164,93 @@ export const admin = new Hono<AppEnv>()
 
 		return ok<AdminReportsPayload>(c, payload);
 	})
+
+	.get(
+		"/reports/birthday-issuance",
+		validate("query", birthdayReportQuerySchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const db = getDb(c.env);
+			const query = c.req.valid("query");
+
+			const range = normalizeReportDateRange(query);
+			const dayKeys = enumerateDays(range.from, range.to);
+
+			const rows = await db
+				.select({
+					issuedAt: customerRewards.issuedAt,
+					expiresAt: customerRewards.expiresAt,
+					status: customerRewards.status,
+				})
+				.from(customerRewards)
+				.innerJoin(
+					rewardDefinitions,
+					eq(customerRewards.rewardDefinitionId, rewardDefinitions.id),
+				)
+				.where(
+					and(
+						eq(customerRewards.businessId, profile.businessId),
+						eq(rewardDefinitions.businessId, profile.businessId),
+						eq(rewardDefinitions.name, MVP_BIRTHDAY_REWARD_NAME),
+						gte(customerRewards.issuedAt, range.from),
+						lte(customerRewards.issuedAt, range.toInclusive),
+					),
+				)
+				.orderBy(asc(customerRewards.issuedAt));
+
+			const issuedByDay = new Map<string, number>();
+			for (const row of rows) {
+				const day = asTimeZoneDateKey(row.issuedAt, REPORT_TIME_ZONE);
+				issuedByDay.set(day, (issuedByDay.get(day) ?? 0) + 1);
+			}
+
+			const now = new Date();
+			let available = 0;
+			let redeemed = 0;
+			let expiredOrCancelled = 0;
+			let latestIssuedAt: Date | null = null;
+
+			for (const row of rows) {
+				const displayExpired =
+					row.status === "available" &&
+					row.expiresAt !== null &&
+					row.expiresAt.getTime() < now.getTime();
+
+				if (displayExpired || row.status === "expired" || row.status === "cancelled") {
+					expiredOrCancelled += 1;
+				} else if (row.status === "redeemed") {
+					redeemed += 1;
+				} else {
+					available += 1;
+				}
+
+				if (!latestIssuedAt || row.issuedAt.getTime() > latestIssuedAt.getTime()) {
+					latestIssuedAt = row.issuedAt;
+				}
+			}
+
+			const todayKey = asTimeZoneDateKey(new Date(), REPORT_TIME_ZONE);
+
+			const payload: AdminBirthdayRewardIssuanceReportPayload = {
+				from: range.from.toISOString(),
+				to: range.to.toISOString(),
+				timeZone: REPORT_TIME_ZONE,
+				rewardName: MVP_BIRTHDAY_REWARD_NAME,
+				totalIssued: rows.length,
+				issuedToday: issuedByDay.get(todayKey) ?? 0,
+				available,
+				redeemed,
+				expiredOrCancelled,
+				latestIssuedAt: latestIssuedAt?.toISOString() ?? null,
+				dailyIssued: dayKeys.map((date) => ({
+					date,
+					value: issuedByDay.get(date) ?? 0,
+				})),
+			};
+
+			return ok<AdminBirthdayRewardIssuanceReportPayload>(c, payload);
+		},
+	)
 
 	.get("/staff", validate("query", staffListQuerySchema), async (c) => {
 		const profile = c.get("profile");

@@ -245,3 +245,17 @@ export interface AdminReportsPayload {
 	rewardsRedeemedOverTime: DayValuePoint[];
 	staffActivity: ReportStaffActivity[];
 }
+
+export interface AdminBirthdayRewardIssuanceReportPayload {
+	from: string;
+	to: string;
+	timeZone: string;
+	rewardName: string;
+	totalIssued: number;
+	issuedToday: number;
+	available: number;
+	redeemed: number;
+	expiredOrCancelled: number;
+	latestIssuedAt: string | null;
+	dailyIssued: DayValuePoint[];
+}
