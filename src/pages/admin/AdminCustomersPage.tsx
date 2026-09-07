@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import type { AdminSendTestNotificationPayload } from "@shared/admin";
 import type { RewardSummary } from "@shared/loyalty";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ import {
 	useAdminLookups,
 	useCreateAdminAdjustment,
 	useRedeemAdminReward,
+	useSendAdminTestNotification,
 } from "@/features/admin/core/api";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { AdminPanel } from "@/features/admin/core/widgets";
@@ -101,6 +103,10 @@ function rewardStatusLabel(status: RewardSummary["status"]) {
 	return "Cancelled";
 }
 
+function yesNo(value: boolean): "Yes" | "No" {
+	return value ? "Yes" : "No";
+}
+
 export function AdminCustomersPage() {
 	const isOnline = useOnlineStatus();
 	const [searchInput, setSearchInput] = useState("");
@@ -122,6 +128,9 @@ export function AdminCustomersPage() {
 	const [redeemBillReference, setRedeemBillReference] = useState("");
 	const [redeemNote, setRedeemNote] = useState("");
 	const [redeemBillTotalRand, setRedeemBillTotalRand] = useState("");
+	const [testResult, setTestResult] =
+		useState<AdminSendTestNotificationPayload | null>(null);
+	const [testError, setTestError] = useState<string | null>(null);
 	const [fieldErrors, setFieldErrors] = useState<AdjustmentErrors>({});
 
 	const customers = useAdminCustomers({ search, limit: PAGE_SIZE, offset });
@@ -129,6 +138,7 @@ export function AdminCustomersPage() {
 	const detail = useAdminCustomerDetail(selectedCustomerId);
 	const createAdjustment = useCreateAdminAdjustment();
 	const redeemReward = useRedeemAdminReward();
+	const sendTestNotification = useSendAdminTestNotification();
 
 	const localValidation = validateAdjustmentForm({
 		programId,
@@ -184,6 +194,11 @@ export function AdminCustomersPage() {
 		setRedeemBillTotalRand("");
 	}, [redeemTarget]);
 
+	useEffect(() => {
+		setTestResult(null);
+		setTestError(null);
+	}, [selectedCustomerId]);
+
 	if (customers.isPending) return <LoadingState label="Loading customers..." />;
 	if (customers.isError) {
 		return (
@@ -199,6 +214,7 @@ export function AdminCustomersPage() {
 
 	const rows = customers.data.customers;
 	const selected = detail.data?.customer ?? null;
+	const pushState = detail.data?.pushState ?? null;
 
 	const redeemMinBillRand =
 		redeemTarget?.minBillCents != null ? redeemTarget.minBillCents / 100 : null;
@@ -332,11 +348,70 @@ export function AdminCustomersPage() {
 								<p>Email: {selected?.email}</p>
 								<p>Mobile: {selected?.mobileNumber || "Not provided"}</p>
 								<p>Status: {selected?.active ? "Active" : "Inactive"}</p>
+								<p>Account notifications opt-in: {selected ? yesNo(selected.notificationOptIn) : "-"}</p>
+								<p>Marketing opt-in: {selected ? yesNo(selected.marketingOptIn) : "-"}</p>
+								<p>Active push subscriptions: {pushState?.activePushSubscriptions ?? 0}</p>
+								<p>
+									Latest push last seen: {pushState?.latestPushSubscriptionLastSeenAt
+										? new Date(pushState.latestPushSubscriptionLastSeenAt).toLocaleString("en-ZA")
+										: "Not available"}
+								</p>
 								<p>Join date: {selected ? new Date(selected.createdAt).toLocaleString("en-ZA") : "-"}</p>
 								<p>
 									Coffee progress: {detail.data?.coffee ? `${detail.data.coffee.current}/${detail.data.coffee.threshold ?? "?"}` : "No coffee program"}
 								</p>
 							</div>
+						</AdminPanel>
+
+						<AdminPanel
+							title="Push Notification Test"
+							description="Send one test notification to this selected customer only."
+						>
+							<div className="flex flex-wrap items-center gap-3">
+								<Button
+									disabled={!isOnline || !selectedCustomerId}
+									loading={sendTestNotification.isPending}
+									onClick={() => {
+										if (!selectedCustomerId) return;
+										setTestError(null);
+										setTestResult(null);
+										sendTestNotification
+											.mutateAsync(selectedCustomerId)
+											.then((payload) => {
+												setTestResult(payload);
+												void detail.refetch();
+											})
+											.catch((error: unknown) => {
+												setTestError(
+													error instanceof Error
+														? error.message
+														: "Could not send test notification.",
+												);
+											});
+									}}
+								>
+									Send test notification
+								</Button>
+								{!isOnline && (
+									<p className="text-sm text-brand-danger">
+										You are offline. Connect to send a test push.
+									</p>
+								)}
+							</div>
+
+							{testError && (
+								<p className="mt-3 text-sm text-brand-danger">{testError}</p>
+							)}
+
+							{testResult && (
+								<div className="mt-4 grid gap-2 text-sm">
+									<p>In-app notification created: {yesNo(testResult.inAppNotificationCreated)}</p>
+									<p>Push subscription found: {yesNo(testResult.pushSubscriptionFound)}</p>
+									<p>Push attempted: {yesNo(testResult.pushAttempted)}</p>
+									<p>Push sent: {yesNo(testResult.pushSent)}</p>
+									<p>Reason if not sent: {testResult.reason ?? "-"}</p>
+								</div>
+							)}
 						</AdminPanel>
 
 						<AdminPanel

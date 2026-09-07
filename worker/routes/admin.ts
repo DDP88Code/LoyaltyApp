@@ -21,6 +21,7 @@ import type {
 	AdminBirthdayRewardIssuanceReportPayload,
 	AdminCustomerDetail,
 	AdminCustomerDetailPayload,
+	AdminCustomerPushState,
 	AdminDashboardPayload,
 	AdminLookupsPayload,
 	AdminLoyaltyProgram,
@@ -29,6 +30,7 @@ import type {
 	AdminRewardDefinitionsPayload,
 	AdminRewardRedemptionPayload,
 	AdminReportsPayload,
+	AdminSendTestNotificationPayload,
 	AdminSettingsUpdateInput,
 	AdminSettingsPayload,
 	ReportStaffActivity,
@@ -77,8 +79,10 @@ import {
 	menuCategories,
 	menuItemVariants,
 	menuItems,
+	notifications,
 	profiles,
 	promotions,
+	pushSubscriptions,
 	rewardDefinitions,
 	user,
 } from "@worker/db/schema";
@@ -517,6 +521,46 @@ function buildCustomerReference(
 	return [customer.id, customer.email, customer.mobileNumber]
 		.filter((value) => Boolean(value))
 		.join(" | ");
+}
+
+async function buildCustomerPushState(
+	db: ReturnType<typeof getDb>,
+	input: {
+		businessId: string;
+		customerId: string;
+		notificationOptIn: boolean;
+		marketingOptIn: boolean;
+	},
+): Promise<AdminCustomerPushState> {
+	const [[activeSubscriptionsRow], latestSubscription] = await Promise.all([
+		db
+			.select({ value: count() })
+			.from(pushSubscriptions)
+			.where(
+				and(
+					eq(pushSubscriptions.businessId, input.businessId),
+					eq(pushSubscriptions.customerId, input.customerId),
+					eq(pushSubscriptions.active, true),
+				),
+			),
+		db.query.pushSubscriptions.findFirst({
+			where: and(
+				eq(pushSubscriptions.businessId, input.businessId),
+				eq(pushSubscriptions.customerId, input.customerId),
+				eq(pushSubscriptions.active, true),
+			),
+			orderBy: (t, { desc }) => [desc(t.lastSeenAt), desc(t.updatedAt)],
+			columns: { lastSeenAt: true },
+		}),
+	]);
+
+	return {
+		notificationOptIn: input.notificationOptIn,
+		marketingOptIn: input.marketingOptIn,
+		activePushSubscriptions: activeSubscriptionsRow?.value ?? 0,
+		latestPushSubscriptionLastSeenAt:
+			latestSubscription?.lastSeenAt?.toISOString() ?? null,
+	};
 }
 
 function isStaffScopedRole(
@@ -1291,6 +1335,13 @@ export const admin = new Hono<AppEnv>()
 			throw new ApiError("not_found", "That customer was not found.");
 		}
 
+		const pushState = await buildCustomerPushState(db, {
+			businessId: profile.businessId,
+			customerId: customer.id,
+			notificationOptIn: customer.notificationOptIn,
+			marketingOptIn: customer.marketingOptIn,
+		});
+
 		const [coffee, rewards, transactions] = await Promise.all([
 			getCoffeeProgress(db, profile.businessId, customer.id),
 			(async () => {
@@ -1353,15 +1404,111 @@ export const admin = new Hono<AppEnv>()
 			email: customer.email,
 			mobileNumber: customer.mobileNumber,
 			active: customer.active,
+			notificationOptIn: customer.notificationOptIn,
+			marketingOptIn: customer.marketingOptIn,
 			createdAt: customer.createdAt.toISOString(),
 			reference: buildCustomerReference(customer),
 		};
 
 		return ok<AdminCustomerDetailPayload>(c, {
 			customer: detail,
+			pushState,
 			coffee,
 			rewards,
 			transactions: transactions.transactions,
+		});
+	})
+
+	.post("/customers/:customerId/notifications/test", async (c) => {
+		const admin = c.get("profile");
+		const db = getDb(c.env);
+		const notificationService = createNotificationService(db, c.env);
+		const customerId = c.req.param("customerId");
+
+		const customer = await db.query.profiles.findFirst({
+			where: and(
+				eq(profiles.id, customerId),
+				eq(profiles.businessId, admin.businessId),
+				eq(profiles.role, "customer"),
+			),
+			columns: {
+				id: true,
+				active: true,
+				notificationOptIn: true,
+				marketingOptIn: true,
+			},
+		});
+		if (!customer) {
+			throw new ApiError("not_found", "That customer was not found.");
+		}
+
+		const pushState = await buildCustomerPushState(db, {
+			businessId: admin.businessId,
+			customerId: customer.id,
+			notificationOptIn: customer.notificationOptIn,
+			marketingOptIn: customer.marketingOptIn,
+		});
+
+		const createResult = await notificationService.createNotification({
+			businessId: admin.businessId,
+			customerId: customer.id,
+			type: "system",
+			title: "Fives Rewards Test",
+			message: "Push notifications are working 🎉",
+			actionUrl: "/app/notifications",
+			sourceType: "admin_test_push",
+			sourceId: `${admin.id}:${customer.id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+			pushAudience: "account",
+		});
+
+		const inAppNotificationCreated = createResult.status === "created";
+		const pushSubscriptionFound = pushState.activePushSubscriptions > 0;
+		const pushConfigured = Boolean(
+			c.env.WEB_PUSH_VAPID_PUBLIC_KEY && c.env.WEB_PUSH_VAPID_PRIVATE_KEY,
+		);
+		const pushAttempted =
+			inAppNotificationCreated &&
+			pushConfigured &&
+			customer.active &&
+			customer.notificationOptIn &&
+			pushSubscriptionFound;
+
+		let pushSent = false;
+		if (createResult.notificationId) {
+			const saved = await db.query.notifications.findFirst({
+				where: eq(notifications.id, createResult.notificationId),
+				columns: { pushSentAt: true },
+			});
+			pushSent = Boolean(saved?.pushSentAt);
+		}
+
+		let reason: string | null = null;
+		if (!inAppNotificationCreated) {
+			reason =
+				createResult.status === "duplicate"
+					? "A duplicate test notification was skipped."
+					: "In-app notification could not be created.";
+		} else if (!pushConfigured) {
+			reason = "Web push is not configured for this Worker environment.";
+		} else if (!customer.active) {
+			reason = "Customer account is inactive.";
+		} else if (!customer.notificationOptIn) {
+			reason = "Customer has account notifications turned off.";
+		} else if (!pushSubscriptionFound) {
+			reason = "No active push subscriptions were found for this customer.";
+		} else if (!pushSent) {
+			reason =
+				"Push was attempted but not accepted by any active subscription endpoint.";
+		}
+
+		return ok<AdminSendTestNotificationPayload>(c, {
+			inAppNotificationCreated,
+			pushSubscriptionFound,
+			pushAttempted,
+			pushSent,
+			reason,
+			notificationId: createResult.notificationId,
+			pushState,
 		});
 	})
 

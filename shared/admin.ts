@@ -95,15 +95,35 @@ export interface AdminCustomerDetail {
 	email: string;
 	mobileNumber: string | null;
 	active: boolean;
+	notificationOptIn: boolean;
+	marketingOptIn: boolean;
 	createdAt: string;
 	reference: string;
 }
 
+export interface AdminCustomerPushState {
+	notificationOptIn: boolean;
+	marketingOptIn: boolean;
+	activePushSubscriptions: number;
+	latestPushSubscriptionLastSeenAt: string | null;
+}
+
 export interface AdminCustomerDetailPayload {
 	customer: AdminCustomerDetail;
+	pushState: AdminCustomerPushState;
 	coffee: CoffeeProgress | null;
 	rewards: RewardSummary[];
 	transactions: AdminTransactionRecord[];
+}
+
+export interface AdminSendTestNotificationPayload {
+	inAppNotificationCreated: boolean;
+	pushSubscriptionFound: boolean;
+	pushAttempted: boolean;
+	pushSent: boolean;
+	reason: string | null;
+	notificationId: string | null;
+	pushState: AdminCustomerPushState;
 }
 
 export interface AdminRewardDefinition {

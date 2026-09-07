@@ -10,6 +10,7 @@ import type {
 	AdminRewardDefinitionsPayload,
 	AdminReportsPayload,
 	AdminRewardRedemptionPayload,
+	AdminSendTestNotificationPayload,
 	AdminSettingsPayload,
 	AdminSettingsUpdateInput,
 	AdminStaffDeletePayload,
@@ -150,6 +151,20 @@ export function useRedeemAdminReward() {
 				{
 					method: "POST",
 					body: JSON.stringify(body),
+				},
+			),
+		onSuccess: () => invalidateAdminPages(queryClient),
+	});
+}
+
+export function useSendAdminTestNotification() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (customerId: string) =>
+			apiFetch<AdminSendTestNotificationPayload>(
+				`/api/admin/customers/${customerId}/notifications/test`,
+				{
+					method: "POST",
 				},
 			),
 		onSuccess: () => invalidateAdminPages(queryClient),
