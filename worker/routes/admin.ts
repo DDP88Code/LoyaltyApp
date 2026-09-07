@@ -2621,14 +2621,19 @@ export const admin = new Hono<AppEnv>()
 			.where(where)
 			.orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
 
-		const itemIds = rows.map((item) => item.id);
 		const variantRows =
-			itemIds.length === 0
+			rows.length === 0
 				? []
 				: await db
-					.select()
+					.select({ variant: menuItemVariants })
 					.from(menuItemVariants)
-					.where(inArray(menuItemVariants.menuItemId, itemIds))
+					.innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
+					.where(
+						and(
+							eq(menuItems.businessId, businessId),
+							categoryId ? eq(menuItems.categoryId, categoryId) : undefined,
+						),
+					)
 					.orderBy(
 						asc(menuItemVariants.sortOrder),
 						asc(menuItemVariants.name),
@@ -2636,9 +2641,9 @@ export const admin = new Hono<AppEnv>()
 
 		const variantsByItemId = new Map<string, AdminMenuItemVariant[]>();
 		for (const row of variantRows) {
-			const list = variantsByItemId.get(row.menuItemId) ?? [];
-			list.push(toAdminVariant(row));
-			variantsByItemId.set(row.menuItemId, list);
+			const list = variantsByItemId.get(row.variant.menuItemId) ?? [];
+			list.push(toAdminVariant(row.variant));
+			variantsByItemId.set(row.variant.menuItemId, list);
 		}
 
 		return ok<AdminMenuItemsPayload>(c, {
