@@ -35,6 +35,7 @@ import {
 	listCustomerRewards,
 	listCustomerTransactions,
 } from "@worker/lib/loyalty";
+import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
@@ -71,15 +72,25 @@ export const customer = new Hono<AppEnv>()
 
 	.patch("/profile", validate("json", updateProfileSchema), async (c) => {
 		const profile = c.get("profile");
+		const db = getDb(c.env);
 		// The row is located by the session's profile id, so a customer can only
 		// ever update themselves — there is no id in the request to tamper with.
-		const [updated] = await getDb(c.env)
+		const [updated] = await db
 			.update(profiles)
 			.set(c.req.valid("json"))
 			.where(eq(profiles.id, profile.id))
 			.returning();
 
-		return ok<SessionPayload>(c, { user: toSessionUser(updated ?? profile) });
+		const latest = updated ?? profile;
+		await reconcileBirthdayRewardForCustomer(db, {
+			id: latest.id,
+			businessId: latest.businessId,
+			role: latest.role,
+			active: latest.active,
+			birthday: latest.birthday,
+		});
+
+		return ok<SessionPayload>(c, { user: toSessionUser(latest) });
 	})
 
 	.delete("/account", async (c) => {

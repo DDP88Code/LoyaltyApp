@@ -1,6 +1,11 @@
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
 import { secureHeaders } from "hono/secure-headers";
 import { getAuth } from "@worker/auth";
+import { getDb } from "@worker/db/client";
+import { businesses } from "@worker/db/schema";
+import { issueBirthdayRewardsForBusiness } from "@worker/lib/birthdayRewards";
+import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { ApiError, fail } from "@worker/lib/http";
 import { requestOrigin } from "@worker/lib/session";
 import { admin } from "@worker/routes/admin";
@@ -65,4 +70,30 @@ app.all("*", async (c) => {
 	return response;
 });
 
-export default app;
+async function handleScheduled(_event: ScheduledEvent, env: Env) {
+	try {
+		const db = getDb(env);
+		await ensureMvpDefaults(db, env.BUSINESS_SLUG);
+		const activeBusinesses = await db
+			.select({ id: businesses.id })
+			.from(businesses)
+			.where(eq(businesses.active, true));
+
+		for (const business of activeBusinesses) {
+			const summary = await issueBirthdayRewardsForBusiness(db, business.id);
+			console.log("Birthday reward cron summary", {
+				businessId: business.id,
+				...summary,
+			});
+		}
+	} catch (error) {
+		console.error("Birthday reward cron failed", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+export default {
+	fetch: app.fetch,
+	scheduled: handleScheduled,
+};

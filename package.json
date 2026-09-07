@@ -12,6 +12,7 @@
     "deploy:prod": "npm run build:prod && wrangler deploy --env production",
     "lint": "npm run typecheck",
     "test": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/phase13-smoke.ps1 && pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1",
+    "test:birthday": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/birthday-reward-smoke.ps1",
     "test:auth": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cf-typegen": "wrangler types",

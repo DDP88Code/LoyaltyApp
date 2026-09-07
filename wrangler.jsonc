@@ -14,6 +14,10 @@
 		"enabled": true
 	},
 
+	"triggers": {
+		"crons": ["10 22 * * *"]
+	},
+
 	"vars": {
 		"APP_ENV": "development",
 		"BUSINESS_SLUG": "fives-pub-and-grill"
@@ -37,6 +41,9 @@
 
 	"env": {
 		"production": {
+			"triggers": {
+				"crons": ["10 22 * * *"]
+			},
 			"vars": {
 				"APP_ENV": "production",
 				"BUSINESS_SLUG": "fives-pub-and-grill"

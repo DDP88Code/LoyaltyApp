@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { COFFEE_CURRENCY_CODE, DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@shared/domain";
 import type { Db } from "@worker/db/client";
 import {
@@ -17,6 +17,15 @@ export const MVP_LOCATION_ADDRESS = "Placeholder address - update in Admin.";
 export const MVP_WELCOME_REWARD_NAME = "Welcome to Fives";
 export const MVP_FREE_COFFEE_REWARD_NAME = "Free Coffee";
 export const MVP_COFFEE_PROGRAM_NAME = "Fives Coffee Rewards";
+export const MVP_BIRTHDAY_REWARD_NAME = "Birthday Treat";
+export const MVP_BIRTHDAY_REWARD_DESCRIPTION =
+	"Free small hot beverage of your choice.";
+export const MVP_BIRTHDAY_REWARD_CUSTOMER_DESCRIPTION =
+	"Enjoy a free small hot beverage of your choice for your birthday.";
+export const MVP_BIRTHDAY_REWARD_TERMS =
+	"One small hot beverage of your choice. One birthday reward per member per year.";
+export const MVP_BIRTHDAY_REWARD_VALID_DAYS = 30;
+export const MVP_BIRTHDAY_REWARD_ITEM_REFERENCE = "small_hot_beverage";
 export const WELCOME_VOUCHER_MIN_BILL_CENTS = 50_000;
 
 export const SETTINGS_WELCOME_REWARD_KEY = "welcome_reward_enabled";
@@ -47,7 +56,81 @@ export interface MvpDefaultsResult {
 	locationId: string;
 	welcomeRewardId: string;
 	freeCoffeeRewardId: string;
+	birthdayRewardId: string;
 	coffeeProgramId: string;
+}
+
+export async function ensureBirthdayRewardDefinition(db: Db, businessId: string) {
+	let rows = await db
+		.select()
+		.from(rewardDefinitions)
+		.where(
+			and(
+				eq(rewardDefinitions.businessId, businessId),
+				eq(rewardDefinitions.name, MVP_BIRTHDAY_REWARD_NAME),
+			),
+		)
+		.orderBy(asc(rewardDefinitions.createdAt));
+
+	if (rows.length === 0) {
+		await db
+			.insert(rewardDefinitions)
+			.values({
+				businessId,
+				name: MVP_BIRTHDAY_REWARD_NAME,
+				description: MVP_BIRTHDAY_REWARD_DESCRIPTION,
+				rewardType: "free_item",
+				itemReference: MVP_BIRTHDAY_REWARD_ITEM_REFERENCE,
+				validDays: MVP_BIRTHDAY_REWARD_VALID_DAYS,
+				active: true,
+				terms: MVP_BIRTHDAY_REWARD_TERMS,
+			})
+			.onConflictDoNothing();
+
+		rows = await db
+			.select()
+			.from(rewardDefinitions)
+			.where(
+				and(
+					eq(rewardDefinitions.businessId, businessId),
+					eq(rewardDefinitions.name, MVP_BIRTHDAY_REWARD_NAME),
+				),
+			)
+			.orderBy(asc(rewardDefinitions.createdAt));
+	}
+
+	const activeRows = rows.filter((row) => row.active);
+	if (activeRows.length > 1) {
+		const keepId = activeRows[0]?.id;
+		if (keepId) {
+			await db
+				.update(rewardDefinitions)
+				.set({ active: false })
+				.where(
+					and(
+						eq(rewardDefinitions.businessId, businessId),
+						eq(rewardDefinitions.name, MVP_BIRTHDAY_REWARD_NAME),
+						eq(rewardDefinitions.active, true),
+						ne(rewardDefinitions.id, keepId),
+					),
+				);
+			rows = rows.map((row) =>
+				row.id === keepId
+					? row
+					: {
+						...row,
+						active: false,
+					},
+			);
+		}
+	}
+
+	const birthdayReward = rows.find((row) => row.active) ?? rows[0];
+	if (!birthdayReward) {
+		throw new Error("Birthday reward definition could not be initialized.");
+	}
+
+	return birthdayReward;
 }
 
 /**
@@ -223,6 +306,8 @@ export async function ensureMvpDefaults(
 		if (linked) coffeeProgram = linked;
 	}
 
+	const birthdayReward = await ensureBirthdayRewardDefinition(db, business.id);
+
 	await Promise.all([
 		ensureSettingIfMissing(
 			db,
@@ -249,6 +334,7 @@ export async function ensureMvpDefaults(
 		locationId: location.id,
 		welcomeRewardId: welcomeReward.id,
 		freeCoffeeRewardId: freeCoffeeReward.id,
+		birthdayRewardId: birthdayReward.id,
 		coffeeProgramId: coffeeProgram.id,
 	};
 }

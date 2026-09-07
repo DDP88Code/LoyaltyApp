@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@worker/db/client";
 import { profiles, user } from "@worker/db/schema";
+import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { issueWelcomeReward } from "@worker/lib/loyalty";
 
@@ -42,6 +43,13 @@ export async function ensureAuthUserProfile(
 	}
 
 	await issueWelcomeReward(db, defaults.businessId, profile.id);
+	await reconcileBirthdayRewardForCustomer(db, {
+		id: profile.id,
+		businessId: profile.businessId,
+		role: profile.role,
+		active: profile.active,
+		birthday: profile.birthday,
+	});
 
 	return profile;
 }
