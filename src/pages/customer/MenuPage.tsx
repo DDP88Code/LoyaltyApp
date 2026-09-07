@@ -255,14 +255,26 @@ export function MenuPage() {
 												{category.items.map((item) => (
 													<div key={item.id} className="border-b border-brand-border px-4 py-3 last:border-b-0">
 														<div className="flex items-start justify-between gap-3">
-															<div className="min-w-0">
-																<p className={`font-medium ${!item.available ? "text-brand-muted" : ""}`}>{item.name}</p>
-																{item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
-																{item.variants.length > 0 && (
-																	<p className="mt-1 text-xs text-brand-muted">
-																		{item.variants.map((variant) => `${variant.name} ${formatCents(variant.priceCents)}`).join(" | ")}
-																	</p>
-																)}
+															<div className="min-w-0 flex-1">
+																<div className="flex items-start gap-3">
+																	{item.imageKey ? (
+																		<img
+																			src={mediaObjectUrl(item.imageKey)}
+																			alt={item.name}
+																			className="h-14 w-14 shrink-0 rounded-lg object-cover"
+																			loading="lazy"
+																		/>
+																	) : null}
+																	<div className="min-w-0">
+																		<p className={`font-medium ${!item.available ? "text-brand-muted" : ""}`}>{item.name}</p>
+																		{item.description && <p className="mt-1 text-sm text-brand-muted">{item.description}</p>}
+																		{item.variants.length > 0 && (
+																			<p className="mt-1 text-xs text-brand-muted">
+																				{item.variants.map((variant) => `${variant.name} ${formatCents(variant.priceCents)}`).join(" | ")}
+																			</p>
+																		)}
+																	</div>
+																</div>
 															</div>
 															<p className="shrink-0 text-right font-semibold text-brand-secondary">{displayPrice(item)}</p>
 														</div>

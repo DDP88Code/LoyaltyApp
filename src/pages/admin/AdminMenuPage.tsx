@@ -149,6 +149,7 @@ export function AdminMenuPage() {
 	const [removeItemImage, setRemoveItemImage] = useState(false);
 
 	const [formError, setFormError] = useState<string | null>(null);
+	const [itemImagePreviewUrl, setItemImagePreviewUrl] = useState<string | null>(null);
 
 	const orderedCategories = useMemo(
 		() =>
@@ -239,6 +240,17 @@ export function AdminMenuPage() {
 			setItemForm((current) => ({ ...current, categoryId: firstCategory.id }));
 		}
 	}, [categories, itemForm.categoryId]);
+
+	useEffect(() => {
+		if (!itemImageFile) {
+			setItemImagePreviewUrl(null);
+			return;
+		}
+
+		const nextUrl = URL.createObjectURL(itemImageFile);
+		setItemImagePreviewUrl(nextUrl);
+		return () => URL.revokeObjectURL(nextUrl);
+	}, [itemImageFile]);
 
 	async function maybeUploadImage(file: File | null): Promise<string | null> {
 		if (!file) return null;
@@ -356,12 +368,18 @@ export function AdminMenuPage() {
 				variants: variantPayload,
 			};
 
-			if (selectedItemId) {
-				await updateItem.mutateAsync({ id: selectedItemId, ...payload });
-			} else {
-				const created = await createItem.mutateAsync(payload);
-				setSelectedItemId(created.id);
+			const saved = selectedItemId
+				? await updateItem.mutateAsync({ id: selectedItemId, ...payload })
+				: await createItem.mutateAsync(payload);
+
+			if (!selectedItemId) {
+				setSelectedItemId(saved.id);
 			}
+
+			setItemForm((current) => ({
+				...current,
+				imageKey: saved.imageKey,
+			}));
 
 			setItemImageFile(null);
 			setRemoveItemImage(false);
@@ -849,13 +867,19 @@ export function AdminMenuPage() {
 									/>
 								</div>
 
-								{itemForm.imageKey && !removeItemImage && !itemImageFile && (
+								{itemImagePreviewUrl ? (
+									<img
+										src={itemImagePreviewUrl}
+										alt="Selected menu item image preview"
+										className="h-28 w-full rounded-xl object-cover"
+									/>
+								) : itemForm.imageKey && !removeItemImage ? (
 									<img
 										src={mediaObjectUrl(itemForm.imageKey)}
 										alt={itemForm.name || "Menu item image"}
 										className="h-28 w-full rounded-xl object-cover"
 									/>
-								)}
+								) : null}
 
 								<label className="text-sm font-medium" htmlFor="itemImage">
 									Item image
@@ -864,17 +888,33 @@ export function AdminMenuPage() {
 									id="itemImage"
 									type="file"
 									accept="image/png,image/jpeg,image/webp"
-									onChange={(event) =>
-										setItemImageFile(event.target.files?.[0] ?? null)
-									}
+									onChange={(event) => {
+										const file = event.target.files?.[0] ?? null;
+										setItemImageFile(file);
+										if (file) setRemoveItemImage(false);
+									}}
 									className="text-sm"
 								/>
+
+								{itemImageFile && (
+									<Button
+										variant="outline"
+										onClick={() => setItemImageFile(null)}
+									>
+										Remove selected image
+									</Button>
+								)}
 
 								{itemForm.imageKey && (
 									<ToggleRow
 										label="Remove existing image"
 										checked={removeItemImage}
-										onChange={setRemoveItemImage}
+										onChange={(checked) => {
+											setRemoveItemImage(checked);
+											if (checked) {
+												setItemImageFile(null);
+											}
+										}}
 									/>
 								)}
 

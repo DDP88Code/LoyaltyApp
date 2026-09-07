@@ -102,6 +102,7 @@ import {
 	getCoffeeProgress,
 	redeemCustomerReward,
 } from "@worker/lib/loyalty";
+import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import {
 	assertOwnedMenuMediaKey,
@@ -402,6 +403,7 @@ const promotionFieldsSchema = z.object({
 	startAt: z.coerce.date(),
 	endAt: z.coerce.date(),
 	active: z.boolean().default(true),
+	notifyCustomers: z.boolean().default(false),
 	ctaText: z.string().trim().min(1).max(80).nullable().optional(),
 	ctaUrl: ctaUrlSchema.nullable().optional(),
 });
@@ -487,6 +489,8 @@ function toAdminPromotion(row: typeof promotions.$inferSelect): AdminPromotion {
 		startAt: row.startAt.toISOString(),
 		endAt: row.endAt.toISOString(),
 		active: row.active,
+		notifyCustomers: row.notifyCustomers,
+		notificationSentAt: row.notificationSentAt?.toISOString() ?? null,
 		ctaText: row.ctaText,
 		ctaUrl: row.ctaUrl,
 		createdAt: row.createdAt.toISOString(),
@@ -3196,52 +3200,50 @@ export const admin = new Hono<AppEnv>()
 		}
 
 		try {
-			const created = await db.transaction(async (tx) => {
-				const [item] = await tx
-					.insert(menuItems)
-					.values({
-						businessId: profile.businessId,
-						categoryId: category.id,
-						name: input.name,
-						description: input.description,
-						optionNotes: input.optionNotes ?? "",
-						priceCents: input.priceCents,
-						imageKey: input.imageKey ?? null,
-						active: input.active,
-						available: input.available,
-						popular: input.popular,
-						vegetarian: input.vegetarian,
-						spicy: input.spicy,
-						isNew: input.isNew,
-						subjectToAvailability: input.subjectToAvailability,
-						sortOrder: input.sortOrder,
-					})
-					.returning();
+			const [item] = await db
+				.insert(menuItems)
+				.values({
+					businessId: profile.businessId,
+					categoryId: category.id,
+					name: input.name,
+					description: input.description,
+					optionNotes: input.optionNotes ?? "",
+					priceCents: input.priceCents,
+					imageKey: input.imageKey ?? null,
+					active: input.active,
+					available: input.available,
+					popular: input.popular,
+					vegetarian: input.vegetarian,
+					spicy: input.spicy,
+					isNew: input.isNew,
+					subjectToAvailability: input.subjectToAvailability,
+					sortOrder: input.sortOrder,
+				})
+				.returning();
 
-				if (!item) {
-					throw new ApiError("internal_error", "Failed to create menu item.");
-				}
+			if (!item) {
+				throw new ApiError("internal_error", "Failed to create menu item.");
+			}
 
-				if (input.variants.length > 0) {
-					await tx.insert(menuItemVariants).values(
-						input.variants.map((variant) => ({
-							menuItemId: item.id,
-							name: variant.name,
-							priceCents: variant.priceCents,
-							sortOrder: variant.sortOrder,
-							active: variant.active,
-						})),
-					);
-				}
+			if (input.variants.length > 0) {
+				await db.insert(menuItemVariants).values(
+					input.variants.map((variant) => ({
+						menuItemId: item.id,
+						name: variant.name,
+						priceCents: variant.priceCents,
+						sortOrder: variant.sortOrder,
+						active: variant.active,
+					})),
+				);
+			}
 
-				const variants = await tx
-					.select()
-					.from(menuItemVariants)
-					.where(eq(menuItemVariants.menuItemId, item.id))
-					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
+			const variants = await db
+				.select()
+				.from(menuItemVariants)
+				.where(eq(menuItemVariants.menuItemId, item.id))
+				.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
 
-				return toAdminItem(item, variants.map(toAdminVariant));
-			});
+			const created = toAdminItem(item, variants.map(toAdminVariant));
 
 			return ok<AdminMenuItem>(c, created, 201);
 		} catch (error) {
@@ -3285,62 +3287,60 @@ export const admin = new Hono<AppEnv>()
 		}
 
 		try {
-			const updated = await db.transaction(async (tx) => {
-				const [row] = await tx
-					.update(menuItems)
-					.set({
-						categoryId: input.categoryId,
-						name: input.name,
-						description: input.description,
-						optionNotes:
-							input.optionNotes === null ? "" : input.optionNotes,
-						priceCents: input.priceCents,
-						imageKey: input.imageKey,
-						active: input.active,
-						available: input.available,
-						popular: input.popular,
-						vegetarian: input.vegetarian,
-						spicy: input.spicy,
-						isNew: input.isNew,
-						subjectToAvailability: input.subjectToAvailability,
-						sortOrder: input.sortOrder,
-					})
-					.where(eq(menuItems.id, existing.id))
-					.returning();
+			const [row] = await db
+				.update(menuItems)
+				.set({
+					categoryId: input.categoryId,
+					name: input.name,
+					description: input.description,
+					optionNotes:
+						input.optionNotes === null ? "" : input.optionNotes,
+					priceCents: input.priceCents,
+					imageKey: input.imageKey,
+					active: input.active,
+					available: input.available,
+					popular: input.popular,
+					vegetarian: input.vegetarian,
+					spicy: input.spicy,
+					isNew: input.isNew,
+					subjectToAvailability: input.subjectToAvailability,
+					sortOrder: input.sortOrder,
+				})
+				.where(eq(menuItems.id, existing.id))
+				.returning();
 
-				if (!row) {
-					throw new ApiError("internal_error", "Failed to update menu item.");
+			if (!row) {
+				throw new ApiError("internal_error", "Failed to update menu item.");
+			}
+
+			if (input.variants !== undefined) {
+				await db
+					.delete(menuItemVariants)
+					.where(eq(menuItemVariants.menuItemId, existing.id));
+
+				if (input.variants.length > 0) {
+					await db.insert(menuItemVariants).values(
+						input.variants.map((variant) => ({
+							menuItemId: existing.id,
+							name: variant.name,
+							priceCents: variant.priceCents,
+							sortOrder: variant.sortOrder,
+							active: variant.active,
+						})),
+					);
 				}
+			}
 
-				if (input.variants !== undefined) {
-					await tx
-						.delete(menuItemVariants)
-						.where(eq(menuItemVariants.menuItemId, existing.id));
+			const variants = await db
+				.select()
+				.from(menuItemVariants)
+				.where(eq(menuItemVariants.menuItemId, existing.id))
+				.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
 
-					if (input.variants.length > 0) {
-						await tx.insert(menuItemVariants).values(
-							input.variants.map((variant) => ({
-								menuItemId: existing.id,
-								name: variant.name,
-								priceCents: variant.priceCents,
-								sortOrder: variant.sortOrder,
-								active: variant.active,
-							})),
-						);
-					}
-				}
-
-				const variants = await tx
-					.select()
-					.from(menuItemVariants)
-					.where(eq(menuItemVariants.menuItemId, existing.id))
-					.orderBy(asc(menuItemVariants.sortOrder), asc(menuItemVariants.name));
-
-				return {
-					item: row,
-					variants: variants.map(toAdminVariant),
-				};
-			});
+			const updated = {
+				item: row,
+				variants: variants.map(toAdminVariant),
+			};
 
 			if (
 				input.imageKey !== undefined &&
@@ -3427,6 +3427,7 @@ export const admin = new Hono<AppEnv>()
 				startAt: input.startAt,
 				endAt: input.endAt,
 				active: input.active,
+				notifyCustomers: input.notifyCustomers,
 				ctaText: input.ctaText ?? null,
 				ctaUrl: input.ctaUrl ?? null,
 			})
@@ -3434,6 +3435,17 @@ export const admin = new Hono<AppEnv>()
 
 		if (!created) {
 			throw new ApiError("internal_error", "Failed to create promotion.");
+		}
+
+		if (created.notifyCustomers && created.notificationSentAt === null) {
+			const summary = await notifyActivePromotionsAwaitingBroadcast(
+				db,
+				c.env,
+				profile.businessId,
+			);
+			if (summary.scannedPromotions > 0) {
+				console.log("Promotion notify sweep after create", summary);
+			}
 		}
 
 		return ok<AdminPromotion>(c, toAdminPromotion(created), 201);
@@ -3486,6 +3498,7 @@ export const admin = new Hono<AppEnv>()
 					startAt: input.startAt,
 					endAt: input.endAt,
 					active: input.active,
+					notifyCustomers: input.notifyCustomers,
 					ctaText: input.ctaText,
 					ctaUrl: input.ctaUrl,
 				})
@@ -3503,6 +3516,17 @@ export const admin = new Hono<AppEnv>()
 				!(await isImageKeyStillInUse(db, profile.businessId, existing.imageKey))
 			) {
 				await deleteMenuImageSafe(c.env.MEDIA, existing.imageKey);
+			}
+
+			if (updated.notifyCustomers && updated.notificationSentAt === null) {
+				const summary = await notifyActivePromotionsAwaitingBroadcast(
+					db,
+					c.env,
+					profile.businessId,
+				);
+				if (summary.scannedPromotions > 0) {
+					console.log("Promotion notify sweep after update", summary);
+				}
 			}
 
 			return ok<AdminPromotion>(c, toAdminPromotion(updated));
