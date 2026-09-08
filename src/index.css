@@ -62,12 +62,12 @@
 		@apply outline-brand-secondary outline-2 outline-offset-2;
 	}
 
-	/* Keep native date picker affordance visible on dark surfaces. */
-	input[type="date"] {
+	/* Keep native date/datetime picker affordance visible on dark surfaces. */
+	input:is([type="date"], [type="datetime-local"]) {
 		color-scheme: dark;
 	}
 
-	input[type="date"]::-webkit-calendar-picker-indicator {
+	input:is([type="date"], [type="datetime-local"])::-webkit-calendar-picker-indicator {
 		filter: brightness(0) invert(1);
 		opacity: 0.85;
 	}
