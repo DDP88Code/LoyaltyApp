@@ -26,18 +26,18 @@ export function Input({
 			: undefined;
 
 	return (
-		<div className="flex flex-col gap-1.5">
+		<div className="flex min-w-0 flex-col gap-1.5">
 			<label htmlFor={inputId} className="text-sm font-medium">
 				{label}
 			</label>
-			<div className="relative">
+			<div className="relative min-w-0">
 				<input
 					{...props}
 					id={inputId}
 					aria-invalid={error ? true : undefined}
 					aria-describedby={describedBy}
 					className={cn(
-						"min-h-12 w-full rounded-xl border bg-brand-surface px-4 text-base placeholder:text-brand-muted",
+						"box-border min-h-12 w-full min-w-0 max-w-full rounded-xl border bg-brand-surface px-4 text-base placeholder:text-brand-muted",
 						error ? "border-brand-danger" : "border-brand-border",
 						trailingControl ? "pr-12" : undefined,
 						className,

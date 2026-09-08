@@ -61,6 +61,16 @@
 	:focus-visible {
 		@apply outline-brand-secondary outline-2 outline-offset-2;
 	}
+
+	/* Keep native date picker affordance visible on dark surfaces. */
+	input[type="date"] {
+		color-scheme: dark;
+	}
+
+	input[type="date"]::-webkit-calendar-picker-indicator {
+		filter: brightness(0) invert(1);
+		opacity: 0.85;
+	}
 }
 
 @layer utilities {
