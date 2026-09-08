@@ -91,7 +91,7 @@ export function FivesCodePage() {
 						Expires in {formatCountdown(secondsRemaining)}
 					</p>
 					<p className="max-w-xs text-sm text-brand-muted">
-						Show this QR code to your waiter or give them the 6-digit code.
+						Show this QR code to the staff member or give them the 6-digit code.
 					</p>
 				</>
 			)}
