@@ -18,6 +18,7 @@ import {
 	useUpdateMenuItem,
 	useUploadMenuImage,
 } from "@/features/admin/menu/api";
+import { AdminMenuItemPicker } from "@/features/admin/menu/AdminMenuItemPicker";
 import { mediaObjectUrl } from "@/lib/media";
 import { formatCents } from "@/lib/money";
 
@@ -622,22 +623,12 @@ export function AdminMenuPage() {
 							/>
 						) : (
 							<div className="mt-4 flex flex-col gap-3">
-								<label className="text-sm font-medium" htmlFor="itemSelect">
-									Edit existing item
-								</label>
-								<select
-									id="itemSelect"
-									className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
-									value={selectedItemId}
-									onChange={(event) => setSelectedItemId(event.target.value)}
-								>
-									<option value="">Create new item</option>
-									{items.map((item) => (
-										<option key={item.id} value={item.id}>
-											{item.name}
-										</option>
-									))}
-								</select>
+								<AdminMenuItemPicker
+									items={items}
+									categories={orderedCategories}
+									selectedItemId={selectedItemId}
+									onSelectItem={setSelectedItemId}
+								/>
 
 								<label className="text-sm font-medium" htmlFor="itemCategory">
 									Category

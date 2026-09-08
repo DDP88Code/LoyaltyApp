@@ -72,4 +72,24 @@
 		-ms-overflow-style: none;
 		scrollbar-width: none;
 	}
+
+	.gold-scrollbar {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, var(--brand-secondary) 70%, black)
+			color-mix(in oklab, var(--brand-surface-raised) 75%, black);
+	}
+
+	.gold-scrollbar::-webkit-scrollbar {
+		width: 8px;
+	}
+
+	.gold-scrollbar::-webkit-scrollbar-track {
+		background: color-mix(in oklab, var(--brand-surface-raised) 75%, black);
+		border-radius: 9999px;
+	}
+
+	.gold-scrollbar::-webkit-scrollbar-thumb {
+		background: color-mix(in oklab, var(--brand-secondary) 70%, black);
+		border-radius: 9999px;
+	}
 }
