@@ -18,6 +18,7 @@ import {
 	useUpdateMenuItem,
 	useUploadMenuImage,
 } from "@/features/admin/menu/api";
+import { AdminImageUpload } from "@/features/admin/core/AdminImageUpload";
 import { AdminMenuItemPicker } from "@/features/admin/menu/AdminMenuItemPicker";
 import { mediaObjectUrl } from "@/lib/media";
 import { formatCents } from "@/lib/money";
@@ -150,7 +151,6 @@ export function AdminMenuPage() {
 	const [removeItemImage, setRemoveItemImage] = useState(false);
 
 	const [formError, setFormError] = useState<string | null>(null);
-	const [itemImagePreviewUrl, setItemImagePreviewUrl] = useState<string | null>(null);
 
 	const orderedCategories = useMemo(
 		() =>
@@ -241,17 +241,6 @@ export function AdminMenuPage() {
 			setItemForm((current) => ({ ...current, categoryId: firstCategory.id }));
 		}
 	}, [categories, itemForm.categoryId]);
-
-	useEffect(() => {
-		if (!itemImageFile) {
-			setItemImagePreviewUrl(null);
-			return;
-		}
-
-		const nextUrl = URL.createObjectURL(itemImageFile);
-		setItemImagePreviewUrl(nextUrl);
-		return () => URL.revokeObjectURL(nextUrl);
-	}, [itemImageFile]);
 
 	async function maybeUploadImage(file: File | null): Promise<string | null> {
 		if (!file) return null;
@@ -551,34 +540,26 @@ export function AdminMenuPage() {
 								}
 							/>
 
-							{categoryForm.imageKey && !removeCategoryImage && !categoryImageFile && (
-								<img
-									src={mediaObjectUrl(categoryForm.imageKey)}
-									alt={categoryForm.name || "Category image"}
-									className="h-28 w-full rounded-xl object-cover"
-								/>
-							)}
-
-							<label className="text-sm font-medium" htmlFor="categoryImage">
-								Category image
-							</label>
-							<input
-								id="categoryImage"
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								onChange={(event) =>
-									setCategoryImageFile(event.target.files?.[0] ?? null)
+							<AdminImageUpload
+								label="Category image"
+								selectedFile={categoryImageFile}
+								onSelectedFileChange={(file) => {
+									setCategoryImageFile(file);
+									if (file) setRemoveCategoryImage(false);
+								}}
+								existingImageKey={categoryForm.imageKey}
+								existingImageUrl={
+									categoryForm.imageKey ? mediaObjectUrl(categoryForm.imageKey) : null
 								}
-								className="text-sm"
+								existingImageAlt={categoryForm.name || "Category image"}
+								removeExisting={removeCategoryImage}
+								onRemoveExistingChange={(checked) => {
+									setRemoveCategoryImage(checked);
+									if (checked) {
+										setCategoryImageFile(null);
+									}
+								}}
 							/>
-
-							{categoryForm.imageKey && (
-								<ToggleRow
-									label="Remove existing image"
-									checked={removeCategoryImage}
-									onChange={setRemoveCategoryImage}
-								/>
-							)}
 
 							<div className="flex flex-wrap gap-3">
 								<Button
@@ -858,56 +839,26 @@ export function AdminMenuPage() {
 									/>
 								</div>
 
-								{itemImagePreviewUrl ? (
-									<img
-										src={itemImagePreviewUrl}
-										alt="Selected menu item image preview"
-										className="h-28 w-full rounded-xl object-cover"
-									/>
-								) : itemForm.imageKey && !removeItemImage ? (
-									<img
-										src={mediaObjectUrl(itemForm.imageKey)}
-										alt={itemForm.name || "Menu item image"}
-										className="h-28 w-full rounded-xl object-cover"
-									/>
-								) : null}
-
-								<label className="text-sm font-medium" htmlFor="itemImage">
-									Item image
-								</label>
-								<input
-									id="itemImage"
-									type="file"
-									accept="image/png,image/jpeg,image/webp"
-									onChange={(event) => {
-										const file = event.target.files?.[0] ?? null;
+								<AdminImageUpload
+									label="Item image"
+									selectedFile={itemImageFile}
+									onSelectedFileChange={(file) => {
 										setItemImageFile(file);
 										if (file) setRemoveItemImage(false);
 									}}
-									className="text-sm"
+									existingImageKey={itemForm.imageKey}
+									existingImageUrl={
+										itemForm.imageKey ? mediaObjectUrl(itemForm.imageKey) : null
+									}
+									existingImageAlt={itemForm.name || "Menu item image"}
+									removeExisting={removeItemImage}
+									onRemoveExistingChange={(checked) => {
+										setRemoveItemImage(checked);
+										if (checked) {
+											setItemImageFile(null);
+										}
+									}}
 								/>
-
-								{itemImageFile && (
-									<Button
-										variant="outline"
-										onClick={() => setItemImageFile(null)}
-									>
-										Remove selected image
-									</Button>
-								)}
-
-								{itemForm.imageKey && (
-									<ToggleRow
-										label="Remove existing image"
-										checked={removeItemImage}
-										onChange={(checked) => {
-											setRemoveItemImage(checked);
-											if (checked) {
-												setItemImageFile(null);
-											}
-										}}
-									/>
-								)}
 
 								<div className="flex flex-wrap gap-3">
 									<Button

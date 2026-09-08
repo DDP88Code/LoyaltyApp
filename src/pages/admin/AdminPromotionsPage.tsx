@@ -6,6 +6,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
+import { AdminImageUpload } from "@/features/admin/core/AdminImageUpload";
 import {
 	useAdminPromotions,
 	useCreatePromotion,
@@ -332,36 +333,26 @@ export function AdminPromotionsPage() {
 								}
 							/>
 
-							{form.imageKey && !removeImage && !imageFile && (
-								<img
-									src={mediaObjectUrl(form.imageKey)}
-									alt={form.title || "Promotion image"}
-									className="h-36 w-full rounded-xl object-cover"
-								/>
-							)}
-
-							<label className="text-sm font-medium" htmlFor="promotionImage">
-								Promotion image
-							</label>
-							<input
-								id="promotionImage"
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
-								className="text-sm"
+							<AdminImageUpload
+								label="Promotion image"
+								selectedFile={imageFile}
+								onSelectedFileChange={(file) => {
+									setImageFile(file);
+									if (file) setRemoveImage(false);
+								}}
+								existingImageKey={form.imageKey}
+								existingImageUrl={
+									form.imageKey ? mediaObjectUrl(form.imageKey) : null
+								}
+								existingImageAlt={form.title || "Promotion image"}
+								removeExisting={removeImage}
+								onRemoveExistingChange={(checked) => {
+									setRemoveImage(checked);
+									if (checked) {
+										setImageFile(null);
+									}
+								}}
 							/>
-
-							{form.imageKey && (
-								<label className="inline-flex min-h-10 items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										checked={removeImage}
-										onChange={(event) => setRemoveImage(event.target.checked)}
-										className="size-4 accent-brand-primary"
-									/>
-									<span>Remove existing image</span>
-								</label>
-							)}
 
 							<div className="flex flex-wrap gap-3">
 								<Button onClick={() => void onSavePromotion()} loading={loadingMutation}>
