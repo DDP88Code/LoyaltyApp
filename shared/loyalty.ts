@@ -82,6 +82,7 @@ export interface CustomerHomePayload {
 	coffee: CoffeeProgress | null;
 	availableRewards: RewardSummary[];
 	activePromotion: PromotionSummary | null;
+	activePromotions: PromotionSummary[];
 	pointsEnabled: boolean;
 }
 

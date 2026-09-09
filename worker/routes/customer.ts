@@ -427,31 +427,33 @@ export const customer = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const now = new Date();
 
-		const [coffee, rewards, pointsEnabled, activePromotion] =
+		const [coffee, rewards, pointsEnabled, activePromotionRows] =
 			await Promise.all([
 				getCoffeeProgress(db, profile.businessId, profile.id),
 				listCustomerRewards(db, profile.businessId, profile.id),
 				isPointsProgramActive(db, profile.businessId),
-				db.query.promotions.findFirst({
+				db.query.promotions.findMany({
 					where: and(
 						eq(promotions.businessId, profile.businessId),
 						eq(promotions.active, true),
 						lte(promotions.startAt, now),
 						gte(promotions.endAt, now),
 					),
-					orderBy: (row, { desc }) => desc(row.startAt),
+					orderBy: (row, { desc }) => [desc(row.startAt)],
 				}),
 			]);
 
 		const availableRewards = rewards
 			.filter((reward) => reward.status === "available")
 			.slice(0, REWARD_PREVIEW_SIZE);
+		const activePromotions = activePromotionRows.map(toPromotionSummary);
 
 		return ok<CustomerHomePayload>(c, {
 			user: toSessionUser(profile),
 			coffee,
 			availableRewards,
-			activePromotion: activePromotion ? toPromotionSummary(activePromotion) : null,
+			activePromotion: activePromotions[0] ?? null,
+			activePromotions,
 			pointsEnabled,
 		});
 	})

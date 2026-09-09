@@ -93,11 +93,16 @@ export function HomePage() {
 				</Card>
 			)}
 
-			{promotions.length === 1 ? (
-				<PromotionCard promotion={promotions[0]!} />
-			) : promotions.length > 1 ? (
-				<PromotionCarousel promotions={promotions} />
-			) : null}
+			{promotions.length > 0 && (
+				<section className="flex flex-col gap-2">
+					<h2 className="text-lg">Promotions</h2>
+					{promotions.length === 1 ? (
+						<PromotionCard promotion={promotions[0]!} />
+					) : (
+						<PromotionCarousel promotions={promotions} />
+					)}
+				</section>
+			)}
 
 			<Link
 				to="/app/menu"
