@@ -1565,7 +1565,7 @@ export const admin = new Hono<AppEnv>()
 				idempotencyKey: input.idempotencyKey,
 			});
 
-			await Promise.allSettled(
+			const rewardNotificationTask = Promise.allSettled(
 				issuedRewards.map((reward) =>
 					notificationService.notifyRewardEarned({
 						businessId: admin.businessId,
@@ -1575,6 +1575,7 @@ export const admin = new Hono<AppEnv>()
 					}),
 				),
 			);
+			c.executionCtx.waitUntil(rewardNotificationTask);
 
 			const coffee =
 				program.currencyCode === COFFEE_CURRENCY_CODE
