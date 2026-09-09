@@ -100,6 +100,124 @@ function isLikelyValidAuthKey(value: string): boolean {
 	}
 }
 
+const WEB_PUSH_MAX_PAYLOAD_BYTES = 3800;
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+	const total = parts.reduce((sum, part) => sum + part.length, 0);
+	const result = new Uint8Array(total);
+	let offset = 0;
+	for (const part of parts) {
+		result.set(part, offset);
+		offset += part.length;
+	}
+	return result;
+}
+
+async function hmacSha256(keyBytes: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+	const key = await crypto.subtle.importKey(
+		"raw",
+		keyBytes,
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+	const signature = await crypto.subtle.sign("HMAC", key, data);
+	return new Uint8Array(signature);
+}
+
+/** HKDF-Extract-then-Expand for outputs no longer than one SHA-256 block (32 bytes). */
+async function hkdf(
+	salt: Uint8Array,
+	ikm: Uint8Array,
+	info: Uint8Array,
+	length: number,
+): Promise<Uint8Array> {
+	const prk = await hmacSha256(salt, ikm);
+	const t1 = await hmacSha256(prk, concatBytes(info, new Uint8Array([1])));
+	return t1.slice(0, length);
+}
+
+/**
+ * Encrypts a Web Push message body per RFC 8291 (aes128gcm) so the browser's
+ * Push API can decrypt it and hand the service worker a real `event.data`
+ * payload, instead of the service worker having to guess the notification by
+ * fetching "the latest unread" one.
+ */
+async function encryptWebPushPayload(
+	plaintext: Uint8Array,
+	p256dhKey: string,
+	authKey: string,
+): Promise<Uint8Array> {
+	const subscriberPublicKeyBytes = base64UrlDecode(p256dhKey);
+	const authSecret = base64UrlDecode(authKey);
+
+	const subscriberPublicKey = await crypto.subtle.importKey(
+		"raw",
+		subscriberPublicKeyBytes,
+		{ name: "ECDH", namedCurve: "P-256" },
+		true,
+		[],
+	);
+
+	const localKeyPair = (await crypto.subtle.generateKey(
+		{ name: "ECDH", namedCurve: "P-256" },
+		true,
+		["deriveBits"],
+	)) as CryptoKeyPair;
+	const localPublicKey = new Uint8Array(
+		(await crypto.subtle.exportKey("raw", localKeyPair.publicKey)) as ArrayBuffer,
+	);
+
+	const sharedSecret = new Uint8Array(
+		await crypto.subtle.deriveBits(
+			// The generated Workers types mislabel this WebCrypto field as
+			// `$public`; the runtime still expects the standard `public` key.
+			{ name: "ECDH", public: subscriberPublicKey } as unknown as SubtleCryptoDeriveKeyAlgorithm,
+			localKeyPair.privateKey,
+			256,
+		),
+	);
+
+	const textEncoder = new TextEncoder();
+	const keyInfo = concatBytes(
+		textEncoder.encode("WebPush: info\0"),
+		subscriberPublicKeyBytes,
+		localPublicKey,
+	);
+	const ikm = await hkdf(authSecret, sharedSecret, keyInfo, 32);
+
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const contentEncryptionKey = await hkdf(
+		salt,
+		ikm,
+		textEncoder.encode("Content-Encoding: aes128gcm\0"),
+		16,
+	);
+	const nonce = await hkdf(salt, ikm, textEncoder.encode("Content-Encoding: nonce\0"), 12);
+
+	// A single record: the 0x02 delimiter marks it as the final (only) record.
+	const recordPlaintext = concatBytes(plaintext, new Uint8Array([2]));
+
+	const aesKey = await crypto.subtle.importKey(
+		"raw",
+		contentEncryptionKey,
+		{ name: "AES-GCM" },
+		false,
+		["encrypt"],
+	);
+	const ciphertext = new Uint8Array(
+		await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, recordPlaintext),
+	);
+
+	const header = new Uint8Array(16 + 4 + 1 + localPublicKey.length);
+	header.set(salt, 0);
+	new DataView(header.buffer).setUint32(16, ciphertext.length, false);
+	header[20] = localPublicKey.length;
+	header.set(localPublicKey, 21);
+
+	return concatBytes(header, ciphertext);
+}
+
 let cachedPairVerification:
 	| {
 		publicKey: string;
@@ -241,7 +359,7 @@ class WebPushProvider implements PushProvider {
 
 	async send(
 		subscription: PushSubscriptionRecord,
-		_payload: PushNotificationPayload,
+		payload: PushNotificationPayload,
 	): Promise<PushDeliveryResult> {
 		if (!isWebPushConfigured(this.env)) {
 			return { ok: false, gone: false, status: 0 };
@@ -271,6 +389,38 @@ class WebPushProvider implements PushProvider {
 			});
 		}
 
+		let encryptedBody: Uint8Array | null = null;
+		if (p256dhValid && authValid) {
+			try {
+				const plaintext = new TextEncoder().encode(
+					JSON.stringify({
+						id: payload.notificationId,
+						type: payload.type,
+						title: payload.title,
+						message: payload.message,
+						actionUrl: payload.actionUrl,
+					}),
+				);
+				if (plaintext.length <= WEB_PUSH_MAX_PAYLOAD_BYTES) {
+					encryptedBody = await encryptWebPushPayload(
+						plaintext,
+						subscription.p256dhKey,
+						subscription.authKey,
+					);
+				} else {
+					console.warn("Web push payload too large, sending silent push", {
+						subscriptionId: subscription.id,
+						payloadBytes: plaintext.length,
+					});
+				}
+			} catch (error) {
+				console.warn("Web push payload encryption failed, sending silent push", {
+					subscriptionId: subscription.id,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+
 		let response: Response;
 		try {
 			response = await fetch(subscription.endpoint, {
@@ -279,8 +429,15 @@ class WebPushProvider implements PushProvider {
 					Authorization: `vapid t=${jwt.token}, k=${publicKey}`,
 					TTL: String(PUSH_TTL_SECONDS),
 					Urgency: PUSH_URGENCY,
-					"Content-Length": "0",
+					...(encryptedBody
+						? {
+							"Content-Encoding": "aes128gcm",
+							"Content-Type": "application/octet-stream",
+							"Content-Length": String(encryptedBody.length),
+						}
+						: { "Content-Length": "0" }),
 				},
+				body: encryptedBody ?? undefined,
 			});
 		} catch {
 			console.warn("Web push network error", {
