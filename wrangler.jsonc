@@ -39,6 +39,12 @@
 		}
 	],
 
+	"send_email": [
+		{
+			"name": "EMAIL"
+		}
+	],
+
 	"env": {
 		"production": {
 			"triggers": {
@@ -60,6 +66,11 @@
 				{
 					"binding": "MEDIA",
 					"bucket_name": "fives-rewards-media"
+				}
+			],
+			"send_email": [
+				{
+					"name": "EMAIL"
 				}
 			]
 		}

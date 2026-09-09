@@ -8,10 +8,12 @@ import { AdminLayout } from "@/features/admin/core/AdminLayout";
 import { CustomerLayout } from "@/features/customer/CustomerLayout";
 import { StaffLayout } from "@/features/staff/StaffLayout";
 import { LandingPage } from "@/pages/LandingPage";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { PrivacyPage } from "@/pages/PrivacyPage";
 import { RegisterPage } from "@/pages/RegisterPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TermsPage } from "@/pages/TermsPage";
 import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
 import { AdminCustomersPage } from "@/pages/admin/AdminCustomersPage";
@@ -41,6 +43,8 @@ export const router = createBrowserRouter([
 		children: [
 			{ path: "/login", element: <LoginPage /> },
 			{ path: "/register", element: <RegisterPage /> },
+			{ path: "/forgot-password", element: <ForgotPasswordPage /> },
+			{ path: "/reset-password", element: <ResetPasswordPage /> },
 		],
 	},
 	{

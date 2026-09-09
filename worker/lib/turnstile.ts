@@ -8,7 +8,7 @@ const TURNSTILE_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 const consumedTurnstileTokens = new Map<string, number>();
 
-export type TurnstileAuthAction = "sign-in" | "sign-up";
+export type TurnstileAuthAction = "sign-in" | "sign-up" | "forgot-password";
 
 type TurnstileVerificationResult =
 	| { ok: true }
@@ -43,6 +43,7 @@ async function sha256Hex(value: string): Promise<string> {
 function isProtectedAuthPath(pathname: string): TurnstileAuthAction | null {
 	if (pathname.endsWith("/auth/sign-in/email")) return "sign-in";
 	if (pathname.endsWith("/auth/sign-up/email")) return "sign-up";
+	if (pathname.endsWith("/auth/request-password-reset")) return "forgot-password";
 	return null;
 }
 

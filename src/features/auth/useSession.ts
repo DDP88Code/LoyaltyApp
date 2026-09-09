@@ -145,3 +145,46 @@ export function useSignOut() {
 		},
 	});
 }
+
+/** Better Auth's authenticated password-change endpoint; requires the current password. */
+export function useChangePassword() {
+	return useMutation({
+		mutationFn: async (input: {
+			currentPassword: string;
+			newPassword: string;
+		}) => {
+			assertOk(await authClient.changePassword(input));
+		},
+	});
+}
+
+/**
+ * Kicks off Better Auth's native reset-password email flow. The server
+ * always replies with the same generic outcome whether or not the email
+ * exists, so nothing here should branch on success/failure content.
+ */
+export function useRequestPasswordReset() {
+	return useMutation({
+		mutationFn: async (input: { email: string; turnstileToken?: string }) => {
+			const { turnstileToken, email } = input;
+			assertOk(
+				await authClient.requestPasswordReset({
+					email,
+					redirectTo: `${window.location.origin}/reset-password`,
+					fetchOptions: turnstileToken
+						? { headers: { "cf-turnstile-response": turnstileToken } }
+						: undefined,
+				}),
+			);
+		},
+	});
+}
+
+/** Consumes the single-use reset token from the emailed link to set a new password. */
+export function useResetPassword() {
+	return useMutation({
+		mutationFn: async (input: { newPassword: string; token: string }) => {
+			assertOk(await authClient.resetPassword(input));
+		},
+	});
+}

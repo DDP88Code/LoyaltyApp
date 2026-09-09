@@ -71,7 +71,7 @@ export function TurnstileWidget({
 	onExpired,
 }: {
 	siteKey: string;
-	action: "sign-in" | "sign-up";
+	action: "sign-in" | "sign-up" | "forgot-password";
 	resetKey: number;
 	onTokenChange: (token: string | null) => void;
 	onExpired: () => void;

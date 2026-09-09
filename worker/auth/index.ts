@@ -1,15 +1,18 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
+import { BRAND } from "@shared/branding";
 import { authSchemaOptions } from "@worker/auth/config";
 import { getDb } from "@worker/db/client";
 import * as schema from "@worker/db/schema";
+import { buildPasswordResetEmail } from "@worker/lib/notifications/passwordResetEmail";
 import {
 	ensureAuthUserProfile,
 	ensureAuthUserProfileById,
 } from "@worker/lib/provisioning";
 
 const DAY_SECONDS = 60 * 60 * 24;
+const PASSWORD_RESET_FROM = { email: "noreply@fivessportsbar.app", name: BRAND.shortName };
 
 function createAuth(env: Env, baseURL: string) {
 	const db = getDb(env);
@@ -26,6 +29,23 @@ function createAuth(env: Env, baseURL: string) {
 			minPasswordLength: 10,
 			// No transactional email provider yet, so verification would lock everyone out.
 			requireEmailVerification: false,
+			sendResetPassword: async ({ user, url }) => {
+				const { html, text } = buildPasswordResetEmail(url);
+				try {
+					await env.EMAIL.send({
+						to: user.email,
+						from: PASSWORD_RESET_FROM,
+						subject: "Reset your Fives Sports Bar password",
+						html,
+						text,
+					});
+				} catch (error) {
+					// Never log the reset URL/token — only that delivery failed.
+					console.error("Failed to send password reset email", {
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			},
 		},
 		session: {
 			expiresIn: 30 * DAY_SECONDS,

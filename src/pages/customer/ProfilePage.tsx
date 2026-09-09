@@ -3,6 +3,7 @@ import { Bell, BellOff, LogOut, Pencil, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { changePasswordSchema, type ChangePasswordInput } from "@shared/auth";
 import { birthdaySchema, mobileNumberSchema } from "@shared/profile";
 import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
@@ -10,7 +11,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useSession, useSignOut } from "@/features/auth/useSession";
+import { useChangePassword, useSession, useSignOut } from "@/features/auth/useSession";
 import {
 	useCustomerPushConfig,
 	useDeleteCustomerPushSubscription,
@@ -238,6 +239,8 @@ export function ProfilePage() {
 				)}
 			</Card>
 
+			<ChangePasswordCard />
+
 			<Card>
 				<div className="flex items-start justify-between gap-3">
 					<div>
@@ -385,6 +388,72 @@ function Field({ label, value }: { label: string; value: string }) {
 			<dt className="text-brand-muted">{label}</dt>
 			<dd className="font-medium">{value}</dd>
 		</div>
+	);
+}
+
+function ChangePasswordCard() {
+	const changePassword = useChangePassword();
+	const [success, setSuccess] = useState<string | null>(null);
+	const {
+		register,
+		handleSubmit,
+		reset,
+		formState: { errors },
+	} = useForm<ChangePasswordInput>({ resolver: zodResolver(changePasswordSchema) });
+
+	const onSubmit = handleSubmit((values) => {
+		setSuccess(null);
+		changePassword.mutate(
+			{ currentPassword: values.currentPassword, newPassword: values.newPassword },
+			{
+				onSuccess: () => {
+					reset();
+					setSuccess("Your password has been changed.");
+				},
+			},
+		);
+	});
+
+	return (
+		<Card>
+			<CardTitle>Security</CardTitle>
+			<CardDescription>Change your account password.</CardDescription>
+
+			<form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4" noValidate>
+				{changePassword.isError && (
+					<p role="alert" className="text-sm text-brand-danger">
+						{changePassword.error.message}
+					</p>
+				)}
+				{success && <p className="text-sm text-brand-success">{success}</p>}
+
+				<Input
+					label="Current password"
+					type="password"
+					autoComplete="current-password"
+					error={errors.currentPassword?.message}
+					{...register("currentPassword")}
+				/>
+				<Input
+					label="New password"
+					type="password"
+					autoComplete="new-password"
+					error={errors.newPassword?.message}
+					{...register("newPassword")}
+				/>
+				<Input
+					label="Confirm new password"
+					type="password"
+					autoComplete="new-password"
+					error={errors.confirmNewPassword?.message}
+					{...register("confirmNewPassword")}
+				/>
+
+				<Button type="submit" loading={changePassword.isPending} fullWidth>
+					Change password
+				</Button>
+			</form>
+		</Card>
 	);
 }
 

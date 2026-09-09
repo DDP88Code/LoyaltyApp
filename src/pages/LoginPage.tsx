@@ -123,6 +123,13 @@ export function LoginPage() {
 					{...register("password")}
 				/>
 
+				<Link
+					to="/forgot-password"
+					className="self-end text-sm text-brand-secondary underline"
+				>
+					Forgot password?
+				</Link>
+
 				{turnstileEnabled ? (
 					<TurnstileWidget
 						siteKey={turnstileSiteKey}
