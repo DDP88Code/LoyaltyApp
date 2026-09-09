@@ -1,5 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bell, BellOff, LogOut, Pencil, ShieldAlert } from "lucide-react";
+import {
+	Bell,
+	BellOff,
+	Eye,
+	EyeOff,
+	LogOut,
+	Pencil,
+	Shield,
+	ShieldAlert,
+} from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -239,8 +248,6 @@ export function ProfilePage() {
 				)}
 			</Card>
 
-			<ChangePasswordCard />
-
 			<Card>
 				<div className="flex items-start justify-between gap-3">
 					<div>
@@ -338,6 +345,8 @@ export function ProfilePage() {
 				Sign out
 			</Button>
 
+			<ChangePasswordCard />
+
 			<Card>
 				<div className="flex items-start gap-3">
 					<ShieldAlert className="size-5 shrink-0 text-brand-danger" aria-hidden />
@@ -393,7 +402,11 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function ChangePasswordCard() {
 	const changePassword = useChangePassword();
+	const [expanded, setExpanded] = useState(false);
 	const [success, setSuccess] = useState<string | null>(null);
+	const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+	const [showNewPassword, setShowNewPassword] = useState(false);
+	const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 	const {
 		register,
 		handleSubmit,
@@ -401,13 +414,26 @@ function ChangePasswordCard() {
 		formState: { errors },
 	} = useForm<ChangePasswordInput>({ resolver: zodResolver(changePasswordSchema) });
 
+	const collapseAndClear = () => {
+		reset();
+		setShowCurrentPassword(false);
+		setShowNewPassword(false);
+		setShowConfirmNewPassword(false);
+		setExpanded(false);
+	};
+
+	const openForm = () => {
+		setSuccess(null);
+		setExpanded(true);
+	};
+
 	const onSubmit = handleSubmit((values) => {
 		setSuccess(null);
 		changePassword.mutate(
 			{ currentPassword: values.currentPassword, newPassword: values.newPassword },
 			{
 				onSuccess: () => {
-					reset();
+					collapseAndClear();
 					setSuccess("Your password has been changed.");
 				},
 			},
@@ -416,43 +442,112 @@ function ChangePasswordCard() {
 
 	return (
 		<Card>
-			<CardTitle>Security</CardTitle>
-			<CardDescription>Change your account password.</CardDescription>
-
-			<form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4" noValidate>
-				{changePassword.isError && (
-					<p role="alert" className="text-sm text-brand-danger">
-						{changePassword.error.message}
-					</p>
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex items-start gap-2.5">
+					<Shield className="mt-0.5 size-5 shrink-0 text-brand-secondary" aria-hidden />
+					<div>
+						<CardTitle>Security</CardTitle>
+						<CardDescription>Change your account password.</CardDescription>
+					</div>
+				</div>
+				{expanded ? (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => {
+							setSuccess(null);
+							collapseAndClear();
+						}}
+					>
+						Cancel
+					</Button>
+				) : (
+					<Button type="button" variant="outline" size="sm" onClick={openForm}>
+						Change password
+					</Button>
 				)}
-				{success && <p className="text-sm text-brand-success">{success}</p>}
+			</div>
 
-				<Input
-					label="Current password"
-					type="password"
-					autoComplete="current-password"
-					error={errors.currentPassword?.message}
-					{...register("currentPassword")}
-				/>
-				<Input
-					label="New password"
-					type="password"
-					autoComplete="new-password"
-					error={errors.newPassword?.message}
-					{...register("newPassword")}
-				/>
-				<Input
-					label="Confirm new password"
-					type="password"
-					autoComplete="new-password"
-					error={errors.confirmNewPassword?.message}
-					{...register("confirmNewPassword")}
-				/>
+			{success && !expanded && <p className="mt-2 text-sm text-brand-success">{success}</p>}
 
-				<Button type="submit" loading={changePassword.isPending} fullWidth>
-					Change password
-				</Button>
-			</form>
+			<div
+				aria-hidden={!expanded}
+				className={`overflow-hidden transition-all duration-300 ease-out ${
+					expanded
+						? "visible mt-4 max-h-[36rem] opacity-100"
+						: "invisible max-h-0 opacity-0 pointer-events-none"
+				}`}
+			>
+				<form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+					{changePassword.isError && (
+						<p role="alert" className="text-sm text-brand-danger">
+							{changePassword.error.message}
+						</p>
+					)}
+
+					<Input
+						label="Current password"
+						type={showCurrentPassword ? "text" : "password"}
+						autoComplete="current-password"
+						error={errors.currentPassword?.message}
+						trailingControl={
+							<button
+								type="button"
+								onClick={() => setShowCurrentPassword((current) => !current)}
+								aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+								aria-pressed={showCurrentPassword}
+								className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:text-brand-text"
+							>
+								{showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+							</button>
+						}
+						{...register("currentPassword")}
+					/>
+					<Input
+						label="New password"
+						type={showNewPassword ? "text" : "password"}
+						autoComplete="new-password"
+						error={errors.newPassword?.message}
+						trailingControl={
+							<button
+								type="button"
+								onClick={() => setShowNewPassword((current) => !current)}
+								aria-label={showNewPassword ? "Hide password" : "Show password"}
+								aria-pressed={showNewPassword}
+								className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:text-brand-text"
+							>
+								{showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+							</button>
+						}
+						{...register("newPassword")}
+					/>
+					<Input
+						label="Confirm new password"
+						type={showConfirmNewPassword ? "text" : "password"}
+						autoComplete="new-password"
+						error={errors.confirmNewPassword?.message}
+						trailingControl={
+							<button
+								type="button"
+								onClick={() =>
+									setShowConfirmNewPassword((current) => !current)
+								}
+								aria-label={showConfirmNewPassword ? "Hide password" : "Show password"}
+								aria-pressed={showConfirmNewPassword}
+								className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:text-brand-text"
+							>
+								{showConfirmNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+							</button>
+						}
+						{...register("confirmNewPassword")}
+					/>
+
+					<Button type="submit" loading={changePassword.isPending} fullWidth>
+						Change password
+					</Button>
+				</form>
+			</div>
 		</Card>
 	);
 }

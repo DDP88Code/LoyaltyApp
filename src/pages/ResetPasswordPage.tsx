@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { type ResetPasswordInput, resetPasswordSchema } from "@shared/auth";
@@ -14,6 +15,8 @@ export function ResetPasswordPage() {
 	const navigate = useNavigate();
 	const resetPassword = useResetPassword();
 	const [success, setSuccess] = useState(false);
+	const [showNewPassword, setShowNewPassword] = useState(false);
+	const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 	const {
 		register,
 		handleSubmit,
@@ -72,16 +75,40 @@ export function ResetPasswordPage() {
 
 				<Input
 					label="New password"
-					type="password"
+					type={showNewPassword ? "text" : "password"}
 					autoComplete="new-password"
 					error={errors.newPassword?.message}
+					trailingControl={
+						<button
+							type="button"
+							onClick={() => setShowNewPassword((current) => !current)}
+							aria-label={showNewPassword ? "Hide password" : "Show password"}
+							aria-pressed={showNewPassword}
+							className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:text-brand-text"
+						>
+							{showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+						</button>
+					}
 					{...register("newPassword")}
 				/>
 				<Input
 					label="Confirm new password"
-					type="password"
+					type={showConfirmNewPassword ? "text" : "password"}
 					autoComplete="new-password"
 					error={errors.confirmNewPassword?.message}
+					trailingControl={
+						<button
+							type="button"
+							onClick={() =>
+								setShowConfirmNewPassword((current) => !current)
+							}
+							aria-label={showConfirmNewPassword ? "Hide password" : "Show password"}
+							aria-pressed={showConfirmNewPassword}
+							className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:text-brand-text"
+						>
+							{showConfirmNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+						</button>
+					}
 					{...register("confirmNewPassword")}
 				/>
 
