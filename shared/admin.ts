@@ -219,12 +219,14 @@ export interface AdminSettingsPayload {
 	welcomeRewardEnabled: boolean;
 	loyaltyCodeTtlSeconds: number;
 	staffVoucherRedemptionEnabled: boolean;
+	promotionCarouselSpeedSeconds: number;
 }
 
 export interface AdminSettingsUpdateInput {
 	welcomeRewardEnabled?: boolean;
 	loyaltyCodeTtlSeconds?: number;
 	staffVoucherRedemptionEnabled?: boolean;
+	promotionCarouselSpeedSeconds?: number;
 }
 
 export interface AdminRewardRedemptionPayload {

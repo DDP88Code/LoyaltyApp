@@ -83,6 +83,7 @@ export interface CustomerHomePayload {
 	availableRewards: RewardSummary[];
 	activePromotion: PromotionSummary | null;
 	activePromotions: PromotionSummary[];
+	promotionCarouselSpeedSeconds: number;
 	pointsEnabled: boolean;
 }
 

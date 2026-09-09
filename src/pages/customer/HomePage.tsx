@@ -28,6 +28,9 @@ export function HomePage() {
 
 	const { coffee, availableRewards, pointsEnabled } = home.data;
 	const promotions = resolvePromotions(home.data);
+	const promotionCarouselSpeedSeconds = resolvePromotionCarouselSpeedSeconds(
+		home.data,
+	);
 	const remaining = coffee && coffee.threshold ? coffee.threshold - coffee.current : null;
 	const rewardReady = remaining === 0;
 
@@ -99,7 +102,10 @@ export function HomePage() {
 					{promotions.length === 1 ? (
 						<PromotionCard promotion={promotions[0]!} />
 					) : (
-						<PromotionCarousel promotions={promotions} />
+						<PromotionCarousel
+							promotions={promotions}
+							autoAdvanceSeconds={promotionCarouselSpeedSeconds}
+						/>
 					)}
 				</section>
 			)}
@@ -123,6 +129,18 @@ function resolvePromotions(homeData: CustomerHomePayload): PromotionSummary[] {
 		return fromList;
 	}
 	return homeData.activePromotion ? [homeData.activePromotion] : [];
+}
+
+function resolvePromotionCarouselSpeedSeconds(homeData: CustomerHomePayload): number {
+	if (
+		Number.isInteger(homeData.promotionCarouselSpeedSeconds) &&
+		homeData.promotionCarouselSpeedSeconds >= 2 &&
+		homeData.promotionCarouselSpeedSeconds <= 15
+	) {
+		return homeData.promotionCarouselSpeedSeconds;
+	}
+
+	return 3;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -149,7 +167,13 @@ function usePrefersReducedMotion(): boolean {
 	return reducedMotion;
 }
 
-function PromotionCarousel({ promotions }: { promotions: PromotionSummary[] }) {
+function PromotionCarousel({
+	promotions,
+	autoAdvanceSeconds,
+}: {
+	promotions: PromotionSummary[];
+	autoAdvanceSeconds: number;
+}) {
 	const scrollerRef = useRef<HTMLDivElement | null>(null);
 	const currentIndexRef = useRef(0);
 	const resumeAutoAdvanceAtRef = useRef(0);
@@ -183,10 +207,10 @@ function PromotionCarousel({ promotions }: { promotions: PromotionSummary[] }) {
 				left: scroller.clientWidth * nextIndex,
 				behavior: "smooth",
 			});
-		}, 3_000);
+		}, autoAdvanceSeconds * 1_000);
 
 		return () => window.clearInterval(timer);
-	}, [promotions.length, prefersReducedMotion]);
+	}, [autoAdvanceSeconds, promotions.length, prefersReducedMotion]);
 
 	const pauseAutoAdvance = () => {
 		resumeAutoAdvanceAtRef.current = Date.now() + 6_000;

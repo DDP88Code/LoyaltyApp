@@ -30,6 +30,7 @@ import {
 } from "@shared/profile";
 import { getDb } from "@worker/db/client";
 import {
+	appSettings,
 	auditLogs,
 	customerRewards,
 	loyaltyCodes,
@@ -54,6 +55,7 @@ import {
 import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { createNotificationService } from "@worker/lib/notifications/service";
+import { SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY } from "@worker/lib/defaults";
 import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
@@ -70,6 +72,22 @@ const notificationsQuerySchema = z.object({
 });
 
 const REWARD_PREVIEW_SIZE = 3;
+const PROMOTION_CAROUSEL_SPEED_DEFAULT_SECONDS = 3;
+const PROMOTION_CAROUSEL_SPEED_MIN_SECONDS = 2;
+const PROMOTION_CAROUSEL_SPEED_MAX_SECONDS = 15;
+
+function parsePromotionCarouselSpeedSeconds(valueJson: unknown): number {
+	if (
+		typeof valueJson === "number" &&
+		Number.isInteger(valueJson) &&
+		valueJson >= PROMOTION_CAROUSEL_SPEED_MIN_SECONDS &&
+		valueJson <= PROMOTION_CAROUSEL_SPEED_MAX_SECONDS
+	) {
+		return valueJson;
+	}
+
+	return PROMOTION_CAROUSEL_SPEED_DEFAULT_SECONDS;
+}
 
 function toNotificationSummary(
 	row: typeof notifications.$inferSelect,
@@ -427,7 +445,7 @@ export const customer = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const now = new Date();
 
-		const [coffee, rewards, pointsEnabled, activePromotionRows] =
+		const [coffee, rewards, pointsEnabled, activePromotionRows, carouselSpeedSetting] =
 			await Promise.all([
 				getCoffeeProgress(db, profile.businessId, profile.id),
 				listCustomerRewards(db, profile.businessId, profile.id),
@@ -440,6 +458,13 @@ export const customer = new Hono<AppEnv>()
 						gte(promotions.endAt, now),
 					),
 					orderBy: (row, { desc }) => [desc(row.startAt)],
+				}),
+				db.query.appSettings.findFirst({
+					where: and(
+						eq(appSettings.businessId, profile.businessId),
+						eq(appSettings.key, SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY),
+					),
+					columns: { valueJson: true },
 				}),
 			]);
 
@@ -454,6 +479,9 @@ export const customer = new Hono<AppEnv>()
 			availableRewards,
 			activePromotion: activePromotions[0] ?? null,
 			activePromotions,
+			promotionCarouselSpeedSeconds: parsePromotionCarouselSpeedSeconds(
+				carouselSpeedSetting?.valueJson,
+			),
 			pointsEnabled,
 		});
 	})

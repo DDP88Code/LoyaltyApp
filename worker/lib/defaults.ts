@@ -33,6 +33,8 @@ export const SETTINGS_WELCOME_REWARD_KEY = "welcome_reward_enabled";
 export const SETTINGS_CODE_TTL_KEY = "loyalty_code_ttl_seconds";
 export const SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED =
 	"staff_voucher_redemption_enabled";
+export const SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY =
+	"promotion_carousel_speed_seconds";
 
 async function ensureSettingIfMissing(
 	db: Db,
@@ -327,6 +329,12 @@ export async function ensureMvpDefaults(
 			business.id,
 			SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
 			false,
+		),
+		ensureSettingIfMissing(
+			db,
+			business.id,
+			SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
+			3,
 		),
 	]);
 

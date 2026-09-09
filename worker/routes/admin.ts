@@ -92,6 +92,7 @@ import {
 	MVP_BIRTHDAY_REWARD_NAME,
 	MVP_LOCATION_NAME,
 	SETTINGS_CODE_TTL_KEY,
+	SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
 	SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
 	SETTINGS_WELCOME_REWARD_KEY,
 	WELCOME_VOUCHER_MIN_BILL_CENTS,
@@ -122,6 +123,22 @@ const STAFF_ASSIGNABLE_ROLES = ["staff", "admin"] as const;
 const TRANSACTION_FILTER_TYPES = TRANSACTION_TYPES;
 const DEFAULT_DASHBOARD_DAYS = 30;
 const MENU_GROUPS: readonly MenuGroup[] = ["food", "drinks"];
+const PROMOTION_CAROUSEL_SPEED_DEFAULT_SECONDS = 3;
+const PROMOTION_CAROUSEL_SPEED_MIN_SECONDS = 2;
+const PROMOTION_CAROUSEL_SPEED_MAX_SECONDS = 15;
+
+function parsePromotionCarouselSpeedSeconds(valueJson: unknown): number {
+	if (
+		typeof valueJson === "number" &&
+		Number.isInteger(valueJson) &&
+		valueJson >= PROMOTION_CAROUSEL_SPEED_MIN_SECONDS &&
+		valueJson <= PROMOTION_CAROUSEL_SPEED_MAX_SECONDS
+	) {
+		return valueJson;
+	}
+
+	return PROMOTION_CAROUSEL_SPEED_DEFAULT_SECONDS;
+}
 
 const normalizeLocationName = (name: string) =>
 	name === LEGACY_HIDDEN_LOCATION_NAME ? MVP_LOCATION_NAME : name;
@@ -251,6 +268,12 @@ const settingsUpdateSchema = z
 		welcomeRewardEnabled: z.boolean().optional(),
 		loyaltyCodeTtlSeconds: z.coerce.number().int().min(60).max(3600).optional(),
 		staffVoucherRedemptionEnabled: z.boolean().optional(),
+		promotionCarouselSpeedSeconds: z.coerce
+			.number()
+			.int()
+			.min(PROMOTION_CAROUSEL_SPEED_MIN_SECONDS)
+			.max(PROMOTION_CAROUSEL_SPEED_MAX_SECONDS)
+			.optional(),
 	})
 	.refine((input) => Object.keys(input).length > 0, {
 		message: "At least one field must be provided.",
@@ -2928,13 +2951,19 @@ export const admin = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		await ensureMvpDefaults(db, c.env.BUSINESS_SLUG);
 
-		const [welcomeSetting, ttlSetting, staffVoucherSetting] = await Promise.all([
+		const [welcomeSetting, ttlSetting, staffVoucherSetting, carouselSpeedSetting] =
+			await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
 			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
 			getSettingValue(
 				db,
 				profile.businessId,
 				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
 			),
 		]);
 
@@ -2949,6 +2978,9 @@ export const admin = new Hono<AppEnv>()
 				typeof staffVoucherSetting?.valueJson === "boolean"
 					? staffVoucherSetting.valueJson
 					: false,
+			promotionCarouselSpeedSeconds: parsePromotionCarouselSpeedSeconds(
+				carouselSpeedSetting?.valueJson,
+			),
 		};
 
 		return ok<AdminSettingsPayload>(c, payload);
@@ -2967,6 +2999,11 @@ export const admin = new Hono<AppEnv>()
 				db,
 				profile.businessId,
 				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
 			),
 		]);
 
@@ -2997,13 +3034,28 @@ export const admin = new Hono<AppEnv>()
 			);
 		}
 
-		const [welcomeSetting, ttlSetting, staffVoucherSetting] = await Promise.all([
+		if (input.promotionCarouselSpeedSeconds !== undefined) {
+			await upsertSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
+				input.promotionCarouselSpeedSeconds,
+			);
+		}
+
+		const [welcomeSetting, ttlSetting, staffVoucherSetting, carouselSpeedSetting] =
+			await Promise.all([
 			getSettingValue(db, profile.businessId, SETTINGS_WELCOME_REWARD_KEY),
 			getSettingValue(db, profile.businessId, SETTINGS_CODE_TTL_KEY),
 			getSettingValue(
 				db,
 				profile.businessId,
 				SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+			),
+			getSettingValue(
+				db,
+				profile.businessId,
+				SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY,
 			),
 		]);
 
@@ -3018,6 +3070,9 @@ export const admin = new Hono<AppEnv>()
 				typeof staffVoucherSetting?.valueJson === "boolean"
 					? staffVoucherSetting.valueJson
 					: false,
+			promotionCarouselSpeedSeconds: parsePromotionCarouselSpeedSeconds(
+				carouselSpeedSetting?.valueJson,
+			),
 		};
 
 		await db.insert(auditLogs).values({
@@ -3038,6 +3093,9 @@ export const admin = new Hono<AppEnv>()
 					typeof previous[2]?.valueJson === "boolean"
 						? previous[2].valueJson
 						: false,
+				promotionCarouselSpeedSeconds: parsePromotionCarouselSpeedSeconds(
+					previous[3]?.valueJson,
+				),
 			},
 			newValueJson: payload,
 		});

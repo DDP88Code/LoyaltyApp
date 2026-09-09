@@ -13,6 +13,8 @@ export function AdminSettingsPage() {
 	const [staffVoucherRedemptionEnabled, setStaffVoucherRedemptionEnabled] =
 		useState(false);
 	const [ttlMinutes, setTtlMinutes] = useState("10");
+	const [promotionCarouselSpeedSeconds, setPromotionCarouselSpeedSeconds] =
+		useState("3");
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 
@@ -21,6 +23,9 @@ export function AdminSettingsPage() {
 		setWelcomeRewardEnabled(settings.data.welcomeRewardEnabled);
 		setStaffVoucherRedemptionEnabled(settings.data.staffVoucherRedemptionEnabled);
 		setTtlMinutes(String(Math.round(settings.data.loyaltyCodeTtlSeconds / 60)));
+		setPromotionCarouselSpeedSeconds(
+			String(settings.data.promotionCarouselSpeedSeconds),
+		);
 	}, [settings.data]);
 
 	if (settings.isPending) return <LoadingState label="Loading settings..." />;
@@ -46,15 +51,27 @@ export function AdminSettingsPage() {
 			return;
 		}
 
+		const speedSeconds = Number(promotionCarouselSpeedSeconds);
+		if (!Number.isInteger(speedSeconds) || speedSeconds < 2 || speedSeconds > 15) {
+			setError(
+				"Promotion carousel speed must be a whole number between 2 and 15 seconds.",
+			);
+			return;
+		}
+
 		try {
 			const next = await updateSettings.mutateAsync({
 				welcomeRewardEnabled,
 				staffVoucherRedemptionEnabled,
 				loyaltyCodeTtlSeconds: minutes * 60,
+				promotionCarouselSpeedSeconds: speedSeconds,
 			});
 			setWelcomeRewardEnabled(next.welcomeRewardEnabled);
 			setStaffVoucherRedemptionEnabled(next.staffVoucherRedemptionEnabled);
 			setTtlMinutes(String(Math.round(next.loyaltyCodeTtlSeconds / 60)));
+			setPromotionCarouselSpeedSeconds(
+				String(next.promotionCarouselSpeedSeconds),
+			);
 			setSuccess("Settings saved.");
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not save settings.");
@@ -65,7 +82,7 @@ export function AdminSettingsPage() {
 		<main className="mx-auto w-full max-w-4xl p-6">
 			<PageHeader
 				title="Settings"
-				subtitle="Manage operational controls for welcome rewards, voucher redemption, and loyalty code validity."
+				subtitle="Manage operational controls for welcome rewards, voucher redemption, loyalty code validity, and promotions."
 			/>
 			<AdminPanel title="Operational settings" description="Changes are saved to D1 and audited.">
 				<div className="grid gap-3 md:max-w-md">
@@ -102,6 +119,18 @@ export function AdminSettingsPage() {
 					<p className="text-xs text-brand-muted">
 						Current value: {Number(ttlMinutes) * 60 || settings.data.loyaltyCodeTtlSeconds} seconds
 					</p>
+					<Input
+						label="Promotion carousel speed"
+						type="number"
+						min={2}
+						max={15}
+						step={1}
+						value={promotionCarouselSpeedSeconds}
+						onChange={(event) =>
+							setPromotionCarouselSpeedSeconds(event.target.value)
+						}
+						hint="Seconds between automatic promotion slides. Allowed range: 2 to 15 seconds."
+					/>
 				</div>
 
 				{error && <p className="mt-3 text-sm text-brand-danger">{error}</p>}

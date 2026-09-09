@@ -304,6 +304,7 @@ export async function seedDevelopmentData(
 	const settings: ReadonlyArray<{ key: string; valueJson: unknown }> = [
 		{ key: "welcome_reward_enabled", valueJson: true },
 		{ key: "loyalty_code_ttl_seconds", valueJson: 600 },
+		{ key: "promotion_carousel_speed_seconds", valueJson: 3 },
 	];
 	for (const setting of settings) {
 		const existing = await db.query.appSettings.findFirst({
