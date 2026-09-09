@@ -110,6 +110,19 @@ function Get-D1Count([string]$sql) {
 	return [int]$row.value
 }
 
+function Get-SeedEntityCount(
+	$seedPayload,
+	[string]$bucket,
+	[string]$entity
+) {
+	if ($null -eq $seedPayload) { return 0 }
+	$bucketValue = $seedPayload.$bucket
+	if ($null -eq $bucketValue) { return 0 }
+	$property = $bucketValue.PSObject.Properties[$entity]
+	if ($null -eq $property) { return 0 }
+	return [int]$property.Value
+}
+
 function Ensure-UserWithRole(
 	[string]$email,
 	[string]$name,
@@ -167,10 +180,14 @@ function Resolve-ByQr($staffSession, [string]$qrToken) {
 }
 
 $seedOne = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession)
-$seedTwo = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession)
 $businessId = [string]$seedOne.data.businessId
 
 Assert-True (-not [string]::IsNullOrWhiteSpace($businessId)) "Seed did not return business id"
+
+$coffeeProgramAfterFirstSeed = Get-D1FirstRow "SELECT lp.qualifying_purchases_required as threshold FROM loyalty_programs lp WHERE lp.business_id = '$businessId' AND lp.currency_code = 'COFFEE' LIMIT 1"
+$thresholdAfterFirstSeed = [int]$coffeeProgramAfterFirstSeed.threshold
+
+$seedTwo = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession)
 Assert-True ($businessId -eq [string]$seedTwo.data.businessId) "Seed business id changed between runs"
 
 $businessCount = Get-D1Count "SELECT COUNT(*) as value FROM businesses WHERE id = '$businessId'"
@@ -186,7 +203,15 @@ Assert-True ($freeCoffeeCount -eq 1) "Expected exactly one Free Coffee reward de
 Assert-True ($coffeeProgramCount -eq 1) "Expected exactly one coffee loyalty program"
 
 $coffeeProgramRow = Get-D1FirstRow "SELECT lp.qualifying_purchases_required as threshold, rd.name as rewardName FROM loyalty_programs lp LEFT JOIN reward_definitions rd ON rd.id = lp.reward_definition_id WHERE lp.business_id = '$businessId' AND lp.currency_code = 'COFFEE' LIMIT 1"
-Assert-True (([int]$coffeeProgramRow.threshold) -eq 10) "Default coffee threshold should be 10 after seed reconciliation"
+$thresholdAfterSecondSeed = [int]$coffeeProgramRow.threshold
+
+$coffeeProgramsCreatedInSeedOne = Get-SeedEntityCount $seedOne.data "created" "loyalty_programs"
+if ($coffeeProgramsCreatedInSeedOne -gt 0) {
+	Assert-True ($thresholdAfterSecondSeed -eq 10) "Default coffee threshold should start at 10 when program is first created"
+} else {
+	Assert-True ($thresholdAfterSecondSeed -eq $thresholdAfterFirstSeed) "Seed reconciliation should preserve existing coffee threshold"
+}
+
 Assert-True (([string]$coffeeProgramRow.rewardName) -eq "Free Coffee") "Coffee program should reference Free Coffee"
 
 $adminSession = Ensure-UserWithRole "admin@example.test" "Admin User" "admin" $password
