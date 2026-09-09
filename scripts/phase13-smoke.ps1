@@ -123,6 +123,18 @@ function Get-SeedEntityCount(
 	return [int]$property.Value
 }
 
+function Get-FreeCoffeeRewardCount([string]$businessId, [string]$customerId) {
+	return Get-D1Count "SELECT COUNT(*) as value FROM customer_rewards cr INNER JOIN reward_definitions rd ON rd.id = cr.reward_definition_id WHERE cr.business_id = '$businessId' AND cr.customer_id = '$customerId' AND rd.reward_type = 'free_item' AND rd.item_reference = 'COFFEE'"
+}
+
+function Get-RewardEarnedNotificationCount(
+	[string]$businessId,
+	[string]$customerId,
+	[string]$rewardId
+) {
+	return Get-D1Count "SELECT COUNT(*) as value FROM notifications WHERE business_id = '$businessId' AND customer_id = '$customerId' AND type = 'reward_earned' AND source_type = 'reward_issue' AND source_id = '$rewardId'"
+}
+
 function Ensure-UserWithRole(
 	[string]$email,
 	[string]$name,
@@ -278,6 +290,131 @@ Invoke-Json "Patch" "/api/admin/loyalty/programs/$coffeeProgramId" $adminSession
 	qualifyingPurchasesRequired = 3
 	active = $true
 } | Out-Null
+
+# Focused reward consistency checks
+$staffThresholdEmail = "phase13.staff-threshold.$stamp@example.test"
+$staffThresholdSession = Register-Session "Phase13 Staff Threshold" $staffThresholdEmail $password
+$staffThresholdCustomerId = Get-CustomerId $staffThresholdSession
+
+npx wrangler d1 execute fives-rewards-db --local --command "UPDATE profiles SET notification_opt_in = 1 WHERE id = '$staffThresholdCustomerId'" | Out-Null
+
+$staffPushConfig = Invoke-Json "Get" "/api/customer/push/config" $staffThresholdSession
+if ($staffPushConfig.data.configured) {
+	Invoke-Json "Post" "/api/customer/push/subscriptions" $staffThresholdSession @{
+		endpoint = "https://example.invalid/phase13/$stamp"
+		p256dhKey = "BOr6nVb8GxH0xH8gH1J2uR7V8vH3mN0qvVYv5E0aB6jzJxv4eM0bYv2J8fQ2lG8t7U9rS6wX3yZ1aB2cD4eF5g"
+		authKey = "dGVzdC1ub3QtYS1yZWFsLWF1dGg"
+		deviceLabel = "Phase13 invalid push"
+	} | Out-Null
+}
+
+$staffPrefill = Invoke-Json "Post" "/api/staff/customers/$staffThresholdCustomerId/coffee" $staffSession @{
+	locationId = $locationId
+	quantity = 2
+	billReference = "PH13-STAFF-PREFILL"
+	idempotencyKey = "phase13-staff-prefill-$stamp"
+}
+Assert-True (($staffPrefill.data.newlyIssuedCount -eq 0)) "Staff prefill should not issue a reward before threshold"
+
+$staffFinalIdempotency = "phase13-staff-final-$stamp"
+$staffFinal = Invoke-Json "Post" "/api/staff/customers/$staffThresholdCustomerId/coffee" $staffSession @{
+	locationId = $locationId
+	quantity = 1
+	billReference = "PH13-STAFF-FINAL"
+	idempotencyKey = $staffFinalIdempotency
+}
+Assert-True (($staffFinal.data.newlyIssuedCount -eq 1)) "Staff final coffee should issue exactly one reward"
+
+$staffFreeRewards = @($staffFinal.data.availableFreeCoffees)
+Assert-True ($staffFreeRewards.Count -eq 1) "Staff final coffee should expose exactly one available free coffee"
+$staffRewardId = [string]$staffFreeRewards[0].id
+
+$staffRewardCount = Get-FreeCoffeeRewardCount $businessId $staffThresholdCustomerId
+Assert-True ($staffRewardCount -eq 1) "Staff final coffee should persist exactly one free coffee reward"
+
+$staffNotificationCount = Get-RewardEarnedNotificationCount $businessId $staffThresholdCustomerId $staffRewardId
+Assert-True ($staffNotificationCount -eq 1) "Staff final coffee reward should create one reward notification"
+
+$staffNotification = Get-D1FirstRow "SELECT title, message, push_sent_at as pushSentAt FROM notifications WHERE business_id = '$businessId' AND customer_id = '$staffThresholdCustomerId' AND type = 'reward_earned' AND source_type = 'reward_issue' AND source_id = '$staffRewardId' LIMIT 1"
+$title = ([string]$staffNotification.title).Trim()
+$message = ([string]$staffNotification.message).Trim()
+Assert-True (($title.StartsWith("Free Coffee Unlocked"))) "Reward notification title mismatch"
+Assert-True (($message -eq "Your next coffee is on us.")) "Reward notification message mismatch"
+
+if ($staffPushConfig.data.configured) {
+	Assert-True ($null -eq $staffNotification.pushSentAt) "Push failure should not block reward issuance"
+} else {
+	Write-Output "Web push not configured in local smoke environment; push-failure assertion skipped."
+}
+
+$staffFinalDuplicate = Invoke-Json "Post" "/api/staff/customers/$staffThresholdCustomerId/coffee" $staffSession @{
+	locationId = $locationId
+	quantity = 1
+	billReference = "PH13-STAFF-FINAL"
+	idempotencyKey = $staffFinalIdempotency
+}
+Assert-True (($staffFinalDuplicate.data.newlyIssuedCount -eq 0)) "Duplicate staff final coffee should not issue a second reward"
+Assert-True ((Get-FreeCoffeeRewardCount $businessId $staffThresholdCustomerId) -eq 1) "Duplicate staff earn should not create extra rewards"
+Assert-True ((Get-RewardEarnedNotificationCount $businessId $staffThresholdCustomerId $staffRewardId) -eq 1) "Duplicate staff earn should not create extra notifications"
+
+$adminAdjustmentEmail = "phase13.admin-adjust.$stamp@example.test"
+$adminAdjustmentSession = Register-Session "Phase13 Admin Adjust" $adminAdjustmentEmail $password
+$adminAdjustmentCustomerId = Get-CustomerId $adminAdjustmentSession
+
+Invoke-Json "Post" "/api/staff/customers/$adminAdjustmentCustomerId/coffee" $staffSession @{
+	locationId = $locationId
+	quantity = 2
+	billReference = "PH13-ADMIN-PREFILL"
+	idempotencyKey = "phase13-admin-prefill-$stamp"
+} | Out-Null
+
+$adminAdjustmentIdempotency = "phase13-admin-adjust-$stamp"
+$adminAdjustment = Invoke-Json "Post" "/api/admin/customers/$adminAdjustmentCustomerId/adjustments" $adminSession @{
+	programId = $coffeeProgramId
+	locationId = $locationId
+	transactionType = "adjustment"
+	quantity = 1
+	reason = "Phase 13 threshold consistency check"
+	billReference = "PH13-ADMIN-ADJUST"
+	idempotencyKey = $adminAdjustmentIdempotency
+}
+Assert-True (-not [string]::IsNullOrWhiteSpace([string]$adminAdjustment.data.transactionId)) "Admin adjustment should create a transaction"
+Assert-True ((Get-FreeCoffeeRewardCount $businessId $adminAdjustmentCustomerId) -eq 1) "Positive admin adjustment crossing threshold should issue one reward"
+
+$adminRewardRow = Get-D1FirstRow "SELECT cr.id as rewardId FROM customer_rewards cr INNER JOIN reward_definitions rd ON rd.id = cr.reward_definition_id WHERE cr.business_id = '$businessId' AND cr.customer_id = '$adminAdjustmentCustomerId' AND rd.reward_type = 'free_item' AND rd.item_reference = 'COFFEE' ORDER BY cr.issued_at DESC LIMIT 1"
+$adminRewardId = [string]$adminRewardRow.rewardId
+Assert-True ((Get-RewardEarnedNotificationCount $businessId $adminAdjustmentCustomerId $adminRewardId) -eq 1) "Admin threshold reward should create one reward notification"
+
+$adminAdjustmentDuplicate = Invoke-Json "Post" "/api/admin/customers/$adminAdjustmentCustomerId/adjustments" $adminSession @{
+	programId = $coffeeProgramId
+	locationId = $locationId
+	transactionType = "adjustment"
+	quantity = 1
+	reason = "Phase 13 threshold consistency check"
+	billReference = "PH13-ADMIN-ADJUST"
+	idempotencyKey = $adminAdjustmentIdempotency
+}
+Assert-True (([string]$adminAdjustmentDuplicate.data.transactionId -eq [string]$adminAdjustment.data.transactionId)) "Duplicate admin adjustment should return the original transaction"
+Assert-True ((Get-FreeCoffeeRewardCount $businessId $adminAdjustmentCustomerId) -eq 1) "Duplicate admin adjustment should not issue extra rewards"
+Assert-True ((Get-RewardEarnedNotificationCount $businessId $adminAdjustmentCustomerId $adminRewardId) -eq 1) "Duplicate admin adjustment should not create extra notifications"
+
+$negativeAdjustmentEmail = "phase13.negative-adjust.$stamp@example.test"
+$negativeAdjustmentSession = Register-Session "Phase13 Negative Adjust" $negativeAdjustmentEmail $password
+$negativeAdjustmentCustomerId = Get-CustomerId $negativeAdjustmentSession
+
+Invoke-Json "Post" "/api/admin/customers/$negativeAdjustmentCustomerId/adjustments" $adminSession @{
+	programId = $coffeeProgramId
+	locationId = $locationId
+	transactionType = "reversal"
+	quantity = -1
+	reason = "Phase 13 negative adjustment check"
+	billReference = "PH13-NEG-ADJUST"
+	idempotencyKey = "phase13-neg-adjust-$stamp"
+} | Out-Null
+
+Assert-True ((Get-FreeCoffeeRewardCount $businessId $negativeAdjustmentCustomerId) -eq 0) "Negative adjustment must not issue rewards"
+$negativeNotificationCount = Get-D1Count "SELECT COUNT(*) as value FROM notifications WHERE business_id = '$businessId' AND customer_id = '$negativeAdjustmentCustomerId' AND type = 'reward_earned'"
+Assert-True ($negativeNotificationCount -eq 0) "Negative adjustment must not create reward notifications"
 
 # Security checks
 $journeyAvailable = Collect-CustomerRewards $journeySession | Where-Object { $_.status -eq "available" }

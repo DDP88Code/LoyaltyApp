@@ -274,6 +274,64 @@ export interface RecordCoffeeEarnParams {
 	idempotencyKey: string;
 }
 
+interface IssueThresholdRewardsForAccrualParams {
+	businessId: string;
+	customerId: string;
+	program: typeof loyaltyPrograms.$inferSelect;
+	beforeTotal: number;
+	positiveQuantity: number;
+}
+
+async function issueThresholdRewardsForAccrual(
+	db: Db,
+	params: IssueThresholdRewardsForAccrualParams,
+): Promise<IssuedRewardDetails[]> {
+	if (params.positiveQuantity <= 0) return [];
+	if (params.program.currencyCode !== COFFEE_CURRENCY_CODE) return [];
+
+	const threshold = params.program.qualifyingPurchasesRequired;
+	if (!threshold || threshold <= 0 || !params.program.rewardDefinitionId) return [];
+
+	const beforeCycles = Math.floor(params.beforeTotal / threshold);
+	const afterTotal = params.beforeTotal + params.positiveQuantity;
+	const afterCycles = Math.floor(afterTotal / threshold);
+	if (afterCycles <= beforeCycles) return [];
+
+	const reward = await db.query.rewardDefinitions.findFirst({
+		where: eq(rewardDefinitions.id, params.program.rewardDefinitionId),
+	});
+	const expiresAt = reward?.validDays
+		? new Date(Date.now() + reward.validDays * DAY_MS)
+		: null;
+
+	const issuedRewards: IssuedRewardDetails[] = [];
+	for (let cycle = beforeCycles + 1; cycle <= afterCycles; cycle++) {
+		const [row] = await db
+			.insert(customerRewards)
+			.values({
+				businessId: params.businessId,
+				customerId: params.customerId,
+				rewardDefinitionId: params.program.rewardDefinitionId,
+				expiresAt,
+				// Deterministic per cycle, so a race can never issue the same one twice.
+				issuanceKey: `stamp:${params.program.id}:${params.customerId}:${cycle}`,
+			})
+			.onConflictDoNothing()
+			.returning({ id: customerRewards.id });
+
+		if (row) {
+			issuedRewards.push({
+				id: row.id,
+				rewardDefinitionId: params.program.rewardDefinitionId,
+				rewardName: reward?.name ?? "Reward",
+				expiresAt,
+			});
+		}
+	}
+
+	return issuedRewards;
+}
+
 /**
  * Records a qualifying coffee purchase and issues any reward the customer has
  * now newly earned. The earn's own `idempotency_key` makes a retried request a
@@ -329,49 +387,17 @@ export async function recordCoffeeEarn(
 		.returning({ id: loyaltyTransactions.id });
 
 	const wasNewInsert = inserted.length > 0;
-	const afterTotal = wasNewInsert ? beforeTotal + params.quantity : beforeTotal;
 
-	const issuedRewardIds: string[] = [];
-	const issuedRewards: IssuedRewardDetails[] = [];
-	const threshold = program.qualifyingPurchasesRequired;
-
-	if (wasNewInsert && threshold && threshold > 0 && program.rewardDefinitionId) {
-		const beforeCycles = Math.floor(beforeTotal / threshold);
-		const afterCycles = Math.floor(afterTotal / threshold);
-
-		if (afterCycles > beforeCycles) {
-			const reward = await db.query.rewardDefinitions.findFirst({
-				where: eq(rewardDefinitions.id, program.rewardDefinitionId),
-			});
-			const expiresAt = reward?.validDays
-				? new Date(Date.now() + reward.validDays * DAY_MS)
-				: null;
-
-			for (let cycle = beforeCycles + 1; cycle <= afterCycles; cycle++) {
-				const [row] = await db
-					.insert(customerRewards)
-					.values({
-						businessId: params.businessId,
-						customerId: params.customerId,
-						rewardDefinitionId: program.rewardDefinitionId,
-						expiresAt,
-						// Deterministic per cycle, so a race can never issue the same one twice.
-						issuanceKey: `stamp:${program.id}:${params.customerId}:${cycle}`,
-					})
-					.onConflictDoNothing()
-					.returning({ id: customerRewards.id });
-				if (row) {
-					issuedRewardIds.push(row.id);
-					issuedRewards.push({
-						id: row.id,
-						rewardDefinitionId: program.rewardDefinitionId,
-						rewardName: reward?.name ?? "Reward",
-						expiresAt,
-					});
-				}
-			}
-		}
-	}
+	const issuedRewards = wasNewInsert
+		? await issueThresholdRewardsForAccrual(db, {
+				businessId: params.businessId,
+				customerId: params.customerId,
+				program,
+				beforeTotal,
+				positiveQuantity: params.quantity,
+			})
+		: [];
+	const issuedRewardIds = issuedRewards.map((reward) => reward.id);
 
 	return { issuedRewardIds, issuedRewards };
 }
@@ -546,7 +572,30 @@ export interface CreateLoyaltyAdjustmentParams {
 export async function createLoyaltyAdjustment(
 	db: Db,
 	params: CreateLoyaltyAdjustmentParams,
-): Promise<{ transactionId: string }> {
+): Promise<{ transactionId: string; issuedRewardIds: string[]; issuedRewards: IssuedRewardDetails[] }> {
+	const program = await db.query.loyaltyPrograms.findFirst({
+		where: and(
+			eq(loyaltyPrograms.id, params.programId),
+			eq(loyaltyPrograms.businessId, params.businessId),
+		),
+	});
+	if (!program) {
+		throw new ApiError("not_found", "That loyalty program was not found.");
+	}
+
+	const [beforeRow] = await db
+		.select({
+			total: sql<number>`coalesce(sum(${loyaltyTransactions.quantity}), 0)`,
+		})
+		.from(loyaltyTransactions)
+		.where(
+			and(
+				eq(loyaltyTransactions.customerId, params.customerId),
+				eq(loyaltyTransactions.programId, program.id),
+			),
+		);
+	const beforeTotal = beforeRow?.total ?? 0;
+
 	const transactionId = newId();
 	const inserted = await db
 		.insert(loyaltyTransactions)
@@ -573,8 +622,24 @@ export async function createLoyaltyAdjustment(
 		const existing = await db.query.loyaltyTransactions.findFirst({
 			where: eq(loyaltyTransactions.idempotencyKey, params.idempotencyKey),
 		});
-		return { transactionId: existing?.id ?? transactionId };
+		return {
+			transactionId: existing?.id ?? transactionId,
+			issuedRewardIds: [],
+			issuedRewards: [],
+		};
 	}
+
+	const issuedRewards =
+		params.transactionType === "adjustment" && params.quantity > 0
+			? await issueThresholdRewardsForAccrual(db, {
+					businessId: params.businessId,
+					customerId: params.customerId,
+					program,
+					beforeTotal,
+					positiveQuantity: params.quantity,
+				})
+			: [];
+	const issuedRewardIds = issuedRewards.map((reward) => reward.id);
 
 	await db.insert(auditLogs).values({
 		businessId: params.businessId,
@@ -591,6 +656,6 @@ export async function createLoyaltyAdjustment(
 		},
 	});
 
-	return { transactionId };
+	return { transactionId, issuedRewardIds, issuedRewards };
 }
 

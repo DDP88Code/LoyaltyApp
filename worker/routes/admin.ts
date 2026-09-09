@@ -1523,6 +1523,7 @@ export const admin = new Hono<AppEnv>()
 		async (c) => {
 			const admin = c.get("profile");
 			const db = getDb(c.env);
+			const notificationService = createNotificationService(db, c.env);
 			const customerId = c.req.param("customerId");
 			const input = c.req.valid("json");
 
@@ -1549,7 +1550,7 @@ export const admin = new Hono<AppEnv>()
 
 			await requireLocationInBusiness(db, admin.businessId, input.locationId);
 
-			const { transactionId } = await createLoyaltyAdjustment(db, {
+			const { transactionId, issuedRewards } = await createLoyaltyAdjustment(db, {
 				businessId: admin.businessId,
 				customerId: customer.id,
 				programId: program.id,
@@ -1563,6 +1564,17 @@ export const admin = new Hono<AppEnv>()
 				billReference: input.billReference ?? null,
 				idempotencyKey: input.idempotencyKey,
 			});
+
+			await Promise.allSettled(
+				issuedRewards.map((reward) =>
+					notificationService.notifyRewardEarned({
+						businessId: admin.businessId,
+						customerId: customer.id,
+						rewardName: reward.rewardName,
+						rewardId: reward.id,
+					}),
+				),
+			);
 
 			const coffee =
 				program.currencyCode === COFFEE_CURRENCY_CODE
