@@ -1,7 +1,9 @@
 const TURNSTILE_SITEVERIFY_URL =
 	"https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const PRODUCTION_TURNSTILE_HOSTNAME =
-	"fives-rewards-production.fives-rewards.workers.dev";
+const PRODUCTION_TURNSTILE_HOSTNAMES = [
+	"fives-rewards-production.fives-rewards.workers.dev",
+	"fivessportsbar.app",
+] as const;
 const TURNSTILE_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 const consumedTurnstileTokens = new Map<string, number>();
@@ -58,13 +60,13 @@ async function verifyTurnstileToken({
 	token,
 	remoteIp,
 	expectedAction,
-	expectedHostname,
+	expectedHostnames,
 }: {
 	secret: string;
 	token: string;
 	remoteIp: string | null;
 	expectedAction: TurnstileAuthAction;
-	expectedHostname: string | null;
+	expectedHostnames: readonly string[] | null;
 }): Promise<TurnstileVerificationResult> {
 	const nowMs = Date.now();
 	pruneExpiredTokenFingerprints(nowMs);
@@ -139,9 +141,9 @@ async function verifyTurnstileToken({
 		};
 	}
 
-	if (expectedHostname && parsed.hostname !== expectedHostname) {
+	if (expectedHostnames && !expectedHostnames.includes(parsed.hostname ?? "")) {
 		console.warn("Turnstile hostname mismatch", {
-			expectedHostname,
+			expectedHostnames,
 			actualHostname: parsed.hostname ?? "missing",
 			expectedAction,
 		});
@@ -180,9 +182,9 @@ export async function verifyTurnstileForAuthRequest(
 		};
 	}
 
-	const expectedHostname =
+	const expectedHostnames =
 		(env as { APP_ENV?: string }).APP_ENV === "production"
-			? PRODUCTION_TURNSTILE_HOSTNAME
+			? PRODUCTION_TURNSTILE_HOSTNAMES
 			: null;
 
 	return verifyTurnstileToken({
@@ -190,6 +192,6 @@ export async function verifyTurnstileForAuthRequest(
 		token,
 		remoteIp: request.headers.get("CF-Connecting-IP"),
 		expectedAction: action,
-		expectedHostname,
+		expectedHostnames,
 	});
 }
