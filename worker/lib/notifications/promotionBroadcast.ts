@@ -1,4 +1,5 @@
 import { and, eq, gte, isNull, lte } from "drizzle-orm";
+import { BRAND } from "@shared/branding";
 import type { Db } from "@worker/db/client";
 import { profiles, promotions } from "@worker/db/schema";
 import { createNotificationService } from "@worker/lib/notifications/service";
@@ -20,7 +21,7 @@ function promotionMessage(input: {
 	if (subtitle) return subtitle;
 	const description = input.description?.trim();
 	if (description) return description;
-	return "New promotion now available at Fives.";
+	return BRAND.notifications.promotionFallbackMessage;
 }
 
 export async function notifyActivePromotionsAwaitingBroadcast(

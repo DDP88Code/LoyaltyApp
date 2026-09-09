@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -60,7 +61,7 @@ export function PwaInstallPrompt() {
 	if (deferredPrompt) {
 		return (
 			<div className="fixed right-4 bottom-6 left-4 z-40 mx-auto max-w-md rounded-xl border border-brand-border bg-brand-surface-raised p-3 shadow-xl">
-				<p className="text-sm font-semibold">Install Fives Rewards</p>
+				<p className="text-sm font-semibold">Install {BRAND.rewardsName}</p>
 				<p className="mt-1 text-xs text-brand-muted">
 					Install for faster launch and a full-screen app experience.
 				</p>
@@ -92,7 +93,7 @@ export function PwaInstallPrompt() {
 	if (ios) {
 		return (
 			<div className="fixed right-4 bottom-6 left-4 z-40 mx-auto max-w-md rounded-xl border border-brand-border bg-brand-surface-raised p-3 shadow-xl">
-				<p className="text-sm font-semibold">Install Fives Rewards</p>
+				<p className="text-sm font-semibold">Install {BRAND.rewardsName}</p>
 				<p className="mt-1 text-xs text-brand-muted">
 					On iPhone/iPad, use Share then Add to Home Screen.
 				</p>

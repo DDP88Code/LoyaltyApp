@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import QRCode from "react-qr-code";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState, LoadingState } from "@/components/ui/States";
@@ -62,7 +63,7 @@ export function FivesCodePage() {
 
 	return (
 		<div className="flex flex-col items-center gap-5 p-5 text-center">
-			<PageHeader title="My Fives Code" />
+			<PageHeader title={`My ${BRAND.memberCodeName}`} />
 
 			{!isOnline && (
 				<p className="text-sm text-brand-danger">

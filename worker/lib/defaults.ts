@@ -1,4 +1,5 @@
 import { and, asc, eq, ne } from "drizzle-orm";
+import { BRAND } from "@shared/branding";
 import { COFFEE_CURRENCY_CODE, DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@shared/domain";
 import type { Db } from "@worker/db/client";
 import {
@@ -9,14 +10,14 @@ import {
 	rewardDefinitions,
 } from "@worker/db/schema";
 
-export const MVP_BUSINESS_NAME = "Fives Pub & Grill";
+export const MVP_BUSINESS_NAME = BRAND.fullName;
 export const MVP_LOCATION_NAME = "Fives - Pinehurst";
 export const LEGACY_HIDDEN_LOCATION_NAME = "Fives Main Branch";
 export const MVP_LOCATION_ADDRESS = "Placeholder address - update in Admin.";
 
-export const MVP_WELCOME_REWARD_NAME = "Welcome to Fives";
+export const MVP_WELCOME_REWARD_NAME = BRAND.displayNames.welcomeReward;
 export const MVP_FREE_COFFEE_REWARD_NAME = "Free Coffee";
-export const MVP_COFFEE_PROGRAM_NAME = "Fives Coffee Rewards";
+export const MVP_COFFEE_PROGRAM_NAME = BRAND.displayNames.coffeeProgram;
 export const MVP_BIRTHDAY_REWARD_NAME = "Birthday Treat";
 export const MVP_BIRTHDAY_REWARD_DESCRIPTION =
 	"Free small hot beverage of your choice.";
@@ -241,7 +242,7 @@ export async function ensureMvpDefaults(
 			.values({
 				businessId: business.id,
 				name: MVP_FREE_COFFEE_REWARD_NAME,
-				description: "Free coffee reward earned through Fives Coffee Rewards.",
+				description: `Free coffee reward earned through ${MVP_COFFEE_PROGRAM_NAME}.`,
 				rewardType: "free_item",
 				itemReference: COFFEE_CURRENCY_CODE,
 				validDays: 90,

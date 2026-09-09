@@ -7,6 +7,7 @@ import {
 	Sparkles,
 	UtensilsCrossed,
 } from "lucide-react";
+import { BRAND } from "@shared/branding";
 import type { MenuGroup } from "@shared/menu";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -112,9 +113,9 @@ export function MenuPage() {
 	return (
 		<div className="relative p-5 pb-28">
 			<section className="rounded-[1.4rem] border border-brand-border bg-[linear-gradient(140deg,rgba(201,123,60,0.16),rgba(20,17,15,0.88)_45%,rgba(31,26,22,0.94))] p-5">
-				<p className="text-xs tracking-[0.45em] text-brand-secondary uppercase">Fives</p>
+				<p className="text-xs tracking-[0.45em] text-brand-secondary uppercase">{BRAND.shortName}</p>
 				<h1 className="mt-2 text-3xl font-semibold">Menu</h1>
-				<p className="mt-1 text-sm text-brand-muted">Good food. Cold drinks. Good times.</p>
+				<p className="mt-1 text-sm text-brand-muted">{BRAND.tagline}</p>
 
 				<div className="mt-4 inline-flex rounded-full border border-brand-border bg-brand-background p-1">
 					<button

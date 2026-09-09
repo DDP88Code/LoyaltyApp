@@ -4,6 +4,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router";
 import { type SignInInput, signInSchema } from "@shared/auth";
+import { BRAND } from "@shared/branding";
 import { ROLE_HOME } from "@shared/roles";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -46,7 +47,7 @@ export function LoginPage() {
 	const onSubmit = handleSubmit((values) => {
 		if (turnstileMisconfigured) {
 			setTurnstileMessage(
-				"Sign-in verification is not configured. Please contact support.",
+				`Sign-in verification is not configured. Please contact support at ${BRAND.support.email}.`,
 			);
 			return;
 		}
@@ -77,7 +78,7 @@ export function LoginPage() {
 	return (
 		<AuthLayout
 			title="Sign in"
-			subtitle="Welcome back to Fives Rewards."
+			subtitle={`Welcome back to ${BRAND.rewardsName}.`}
 			footer={
 				<>
 					New here?{" "}
@@ -89,7 +90,9 @@ export function LoginPage() {
 		>
 			<form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
 				{turnstileMisconfigured && (
-					<FormError message="Sign-in verification is unavailable. Please contact support." />
+					<FormError
+						message={`Sign-in verification is unavailable. Please contact support at ${BRAND.support.email}.`}
+					/>
 				)}
 				{signIn.isError && <FormError message={signIn.error.message} />}
 

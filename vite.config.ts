@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
+import { BRAND } from "./shared/branding";
 
 export default defineConfig({
 	plugins: [
@@ -15,12 +16,12 @@ export default defineConfig({
 			srcDir: "src",
 			filename: "sw.js",
 			registerType: "autoUpdate",
-			includeAssets: ["favicon.svg", "icons/apple-touch-icon.png"],
+			includeAssets: ["favicon.svg", BRAND.assets.icons.appleTouch.slice(1)],
 			manifest: {
 				id: "/",
-				name: "Fives Rewards",
-				short_name: "Fives",
-				description: "Loyalty rewards for Fives Pub & Grill.",
+				name: BRAND.rewardsName,
+				short_name: BRAND.shortName,
+				description: `Loyalty rewards for ${BRAND.fullName}.`,
 				lang: "en-ZA",
 				dir: "ltr",
 				start_url: "/",
@@ -28,14 +29,14 @@ export default defineConfig({
 				display: "standalone",
 				display_override: ["standalone", "browser"],
 				orientation: "portrait",
-				background_color: "#14110f",
-				theme_color: "#14110f",
+				background_color: BRAND.colors.background,
+				theme_color: BRAND.colors.background,
 				categories: ["food", "lifestyle"],
 				icons: [
-					{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-					{ src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+					{ src: BRAND.assets.icons.app192, sizes: "192x192", type: "image/png" },
+					{ src: BRAND.assets.icons.app512, sizes: "512x512", type: "image/png" },
 					{
-						src: "/icons/icon-512-maskable.png",
+						src: BRAND.assets.icons.app512Maskable,
 						sizes: "512x512",
 						type: "image/png",
 						purpose: "maskable",

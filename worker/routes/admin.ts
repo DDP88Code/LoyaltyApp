@@ -49,6 +49,7 @@ import {
 	REWARD_TYPES,
 	TRANSACTION_TYPES,
 } from "@shared/domain";
+import { BRAND } from "@shared/branding";
 import type { AdjustmentResultPayload } from "@shared/loyalty";
 import type {
 	AdminMenuCategoriesPayload,
@@ -1457,7 +1458,7 @@ export const admin = new Hono<AppEnv>()
 			businessId: admin.businessId,
 			customerId: customer.id,
 			type: "system",
-			title: "Fives Rewards Test",
+			title: `${BRAND.rewardsName} Test`,
 			message: "Push notifications are working 🎉",
 			actionUrl: "/app/notifications",
 			sourceType: "admin_test_push",

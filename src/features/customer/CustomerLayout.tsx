@@ -1,5 +1,6 @@
 import { Bell, Coffee, Gift, QrCode, User, UtensilsCrossed } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
+import { BRAND } from "@shared/branding";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/features/auth/useSession";
 import { useCustomerUnreadNotifications } from "@/features/customer/api";
@@ -26,7 +27,7 @@ export function CustomerLayout() {
 			<header className="flex items-center justify-between border-b border-brand-border px-5 py-4">
 				<div>
 					<p className="text-xs tracking-[0.3em] text-brand-secondary uppercase">
-						Fives Rewards
+						{BRAND.shortName}
 					</p>
 					{user && (
 						<p className="text-sm text-brand-muted">Hi, {user.fullName}</p>

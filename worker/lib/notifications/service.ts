@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { BRAND } from "@shared/branding";
 import type { NotificationType } from "@shared/domain";
 import type { Db } from "@worker/db/client";
 import { notifications, profiles, pushSubscriptions } from "@worker/db/schema";
@@ -75,7 +76,7 @@ export interface NotificationService {
 
 function expiryMessage(rewardName: string, daysRemaining: number): string {
 	if (rewardName.toLowerCase().includes("welcome") || rewardName.includes("R50")) {
-		return `Your R50 Fives voucher expires in ${daysRemaining} days.`;
+		return `Your R50 ${BRAND.notifications.rewardExpiryVoucherLabel} expires in ${daysRemaining} days.`;
 	}
 	return `Your ${rewardName} reward expires in ${daysRemaining} days.`;
 }
@@ -333,8 +334,8 @@ export function createNotificationService(db: Db, env: Env): NotificationService
 				businessId: input.businessId,
 				customerId: input.customerId,
 				type: "system",
-				title: "Welcome to Fives",
-				message: "Your R50 welcome voucher is ready to use on qualifying bills.",
+				title: BRAND.displayNames.welcomeReward,
+				message: BRAND.notifications.welcomeVoucherMessage,
 				actionUrl: "/app/rewards",
 				sourceType: "reward_issue",
 				sourceId: input.customerRewardId,

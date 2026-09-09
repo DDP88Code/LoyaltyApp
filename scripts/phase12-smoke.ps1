@@ -16,7 +16,7 @@ Assert-True (Test-Path "dist/client/manifest.webmanifest") "Build manifest not f
 Assert-True (Test-Path "dist/client/sw.js") "Build service worker not found. Run npm run build first."
 
 $manifestResponse = Get-Content "dist/client/manifest.webmanifest" -Raw | ConvertFrom-Json
-Assert-True ($manifestResponse.name -eq "Fives Rewards") "Manifest name mismatch"
+Assert-True ($manifestResponse.name -eq "Fives Sports Bar Rewards") "Manifest name mismatch"
 Assert-True ($manifestResponse.short_name -eq "Fives") "Manifest short name mismatch"
 Assert-True ($manifestResponse.display -eq "standalone") "Manifest display must be standalone"
 Assert-True ($manifestResponse.start_url -eq "/") "Manifest start_url must be /"

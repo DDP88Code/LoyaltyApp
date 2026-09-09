@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { BRAND } from "@shared/branding";
 import {
 	COFFEE_CURRENCY_CODE,
 	DEFAULT_CURRENCY,
@@ -124,7 +125,7 @@ export async function seedDevelopmentData(
 		[business] = await db
 			.insert(businesses)
 			.values({
-				name: "Fives Pub & Grill",
+				name: BRAND.fullName,
 				slug: businessSlug,
 				currency: DEFAULT_CURRENCY,
 				timezone: DEFAULT_TIMEZONE,
@@ -174,7 +175,7 @@ export async function seedDevelopmentData(
 				rewardType: "free_item",
 				itemReference: COFFEE_CURRENCY_CODE,
 				validDays: 90,
-				terms: "Valid at participating Fives locations. Not exchangeable for cash.",
+				terms: `Valid at participating ${BRAND.shortName} locations. Not exchangeable for cash.`,
 			})
 			.returning();
 		count.record("reward_definitions", true);
@@ -192,7 +193,7 @@ export async function seedDevelopmentData(
 	if (!welcome) {
 		await db.insert(rewardDefinitions).values({
 			businessId,
-			name: "Welcome to Fives",
+			name: BRAND.displayNames.welcomeReward,
 			description: "R50.00 off your bill when you spend R500.00 or more.",
 			rewardType: "voucher",
 			valueCents: 5000,
@@ -216,7 +217,7 @@ export async function seedDevelopmentData(
 			.insert(loyaltyPrograms)
 			.values({
 				businessId,
-				name: "Fives Coffee Rewards",
+				name: BRAND.displayNames.coffeeProgram,
 				description: "Collect stamps on qualifying coffees and earn a free one.",
 				programType: "stamp",
 				currencyCode: COFFEE_CURRENCY_CODE,

@@ -1,5 +1,6 @@
 import { QrCode, Sparkles, UtensilsCrossed } from "lucide-react";
 import { Link } from "react-router";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
@@ -43,7 +44,7 @@ export function HomePage() {
 					<CardTitle>{coffee.programName}</CardTitle>
 					<CardDescription>
 						{rewardReady
-							? "Show your Fives Code to staff to redeem your free coffee."
+							? `Show your ${BRAND.memberCodeName} to staff to redeem your free coffee.`
 							: `${remaining} more to your next free coffee.`}
 					</CardDescription>
 					<div className="mt-4">
@@ -57,7 +58,7 @@ export function HomePage() {
 				className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-primary font-semibold text-brand-on-primary"
 			>
 				<QrCode className="size-4" aria-hidden />
-				Show My Fives Code
+				Show My {BRAND.memberCodeName}
 			</Link>
 
 			<Card>

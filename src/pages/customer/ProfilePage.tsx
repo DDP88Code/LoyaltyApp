@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { birthdaySchema, mobileNumberSchema } from "@shared/profile";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -186,7 +187,7 @@ export function ProfilePage() {
 							render={({ field }) => (
 								<PreferenceToggle
 									label="Marketing messages"
-									description="Offers and news from Fives Pub & Grill."
+									description={`Offers and news from ${BRAND.fullName}.`}
 									checked={field.value}
 									onChange={field.onChange}
 								/>

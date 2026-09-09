@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { BRAND } from "@shared/branding";
 import { Card } from "@/components/ui/Card";
 
 export function AuthLayout({
@@ -20,7 +21,7 @@ export function AuthLayout({
 					to="/"
 					className="text-sm tracking-[0.3em] text-brand-secondary uppercase"
 				>
-					Fives Rewards
+					{BRAND.rewardsName}
 				</Link>
 				<h1 className="mt-2 text-3xl">{title}</h1>
 				<p className="mt-2 text-sm text-brand-muted">{subtitle}</p>

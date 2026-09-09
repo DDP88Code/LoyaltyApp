@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { Outlet } from "react-router";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { useSession, useSignOut } from "@/features/auth/useSession";
 
@@ -13,7 +14,7 @@ export function StaffLayout() {
 			<header className="flex items-center justify-between border-b border-brand-border px-5 py-4">
 				<div>
 					<p className="text-xs tracking-[0.3em] text-brand-secondary uppercase">
-						Fives Staff
+						{`${BRAND.shortName} Staff`}
 					</p>
 					{user && <p className="text-sm text-brand-muted">{user.fullName}</p>}
 				</div>

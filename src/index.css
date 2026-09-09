@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Fives Rewards theme tokens.
+ * Brand theme tokens.
  * Components must reference the `brand-*` utilities, never raw hex values.
  */
 :root {

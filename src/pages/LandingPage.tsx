@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { BRAND } from "@shared/branding";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { ErrorState, LoadingState } from "@/components/ui/States";
@@ -15,11 +16,11 @@ export function LandingPage() {
 		<main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
 			<div className="text-center">
 				<p className="text-sm tracking-[0.3em] text-brand-secondary uppercase">
-					Fives Pub &amp; Grill
+					{BRAND.fullName}
 				</p>
-				<h1 className="mt-2 text-4xl">Fives Rewards</h1>
+				<h1 className="mt-2 text-4xl">{BRAND.rewardsName}</h1>
 				<p className="mt-2 text-sm text-brand-muted">
-					Ten coffees. One on the house.
+					{BRAND.tagline}
 				</p>
 			</div>
 

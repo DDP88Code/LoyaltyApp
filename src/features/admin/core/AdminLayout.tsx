@@ -12,6 +12,7 @@ import {
 	UtensilsCrossed,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { useSession, useSignOut } from "@/features/auth/useSession";
@@ -39,7 +40,7 @@ export function AdminLayout() {
 			<aside className="border-r border-brand-border bg-brand-surface/70 p-4 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
 				<div className="mb-4 rounded-xl border border-brand-border bg-brand-surface-raised px-3 py-3">
 					<p className="text-xs tracking-[0.3em] text-brand-secondary uppercase">
-						Fives Admin
+						{`${BRAND.shortName} Admin`}
 					</p>
 					{user && (
 						<>

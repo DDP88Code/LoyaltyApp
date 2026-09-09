@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Keyboard, ScanLine } from "lucide-react";
 import type { StaffResolvedCustomerPayload } from "@shared/loyaltyCode";
+import { BRAND } from "@shared/branding";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ErrorState, LoadingState } from "@/components/ui/States";
@@ -53,7 +54,7 @@ export function StaffHomePage() {
 	if (!effectiveLocationId) {
 		return (
 			<div className="flex flex-col gap-4 p-5">
-				<PageHeader title="Fives Staff" subtitle="Choose where you're working." />
+				<PageHeader title={`${BRAND.shortName} Staff`} subtitle="Choose where you're working." />
 				<LocationPicker
 					locations={locations}
 					selectedId={locationId}
@@ -135,7 +136,7 @@ export function StaffHomePage() {
 
 	return (
 		<div className="flex flex-col gap-4 p-5">
-			<PageHeader title="Fives Staff" />
+			<PageHeader title={`${BRAND.shortName} Staff`} />
 			{!isOnline && (
 				<p className="text-sm text-brand-danger">
 					Internet is required for scanning codes, adding coffee, and reward redemption.

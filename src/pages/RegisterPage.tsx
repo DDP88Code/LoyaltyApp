@@ -4,6 +4,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { PASSWORD_MIN_LENGTH, type RegisterInput, registerSchema } from "@shared/auth";
+import { BRAND } from "@shared/branding";
 import { ROLE_HOME } from "@shared/roles";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -42,7 +43,7 @@ export function RegisterPage() {
 	const onSubmit = handleSubmit((values) => {
 		if (turnstileMisconfigured) {
 			setTurnstileMessage(
-				"Registration verification is not configured. Please contact support.",
+				`Registration verification is not configured. Please contact support at ${BRAND.support.email}.`,
 			);
 			return;
 		}
@@ -73,7 +74,7 @@ export function RegisterPage() {
 	return (
 		<AuthLayout
 			title="Create your account"
-			subtitle="Join Fives Rewards and start collecting."
+			subtitle={`Join ${BRAND.rewardsName} and start collecting.`}
 			footer={
 				<>
 					Already a member?{" "}
@@ -85,7 +86,9 @@ export function RegisterPage() {
 		>
 			<form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
 				{turnstileMisconfigured && (
-					<FormError message="Registration verification is unavailable. Please contact support." />
+					<FormError
+						message={`Registration verification is unavailable. Please contact support at ${BRAND.support.email}.`}
+					/>
 				)}
 				{registerAccount.isError && (
 					<FormError message={registerAccount.error.message} />

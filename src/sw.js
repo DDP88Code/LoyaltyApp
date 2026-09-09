@@ -5,6 +5,7 @@ import {
 	precacheAndRoute,
 } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
+import { BRAND } from "@shared/branding";
 
 self.skipWaiting();
 clientsClaim();
@@ -18,7 +19,7 @@ registerRoute(
 );
 
 const DEFAULT_CLICK_URL = "/app/notifications";
-const DEFAULT_TITLE = "Fives Rewards";
+const DEFAULT_TITLE = BRAND.notifications.defaultTitle;
 const DEFAULT_BODY = "You have a new account update.";
 
 function toNotificationShape(value) {
@@ -93,8 +94,8 @@ self.addEventListener("push", (event) => {
 
 			await self.registration.showNotification(title, {
 				body,
-				icon: "/icons/icon-192.png",
-				badge: "/icons/icon-192.png",
+				icon: BRAND.assets.icons.app192,
+				badge: BRAND.assets.icons.app192,
 				tag: latest?.id ? `fives:${latest.id}` : undefined,
 				data: { url },
 				renotify: false,
