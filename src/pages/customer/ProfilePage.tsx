@@ -475,7 +475,7 @@ function ChangePasswordCard() {
 				aria-hidden={!expanded}
 				className={`overflow-hidden transition-all duration-300 ease-out ${
 					expanded
-						? "visible mt-4 max-h-[36rem] opacity-100"
+						? "visible mt-4 max-h-144 opacity-100"
 						: "invisible max-h-0 opacity-0 pointer-events-none"
 				}`}
 			>
