@@ -259,6 +259,18 @@ export async function issueWelcomeReward(
 		};
 	}
 
+	// Deferred until mobile exists: issuing on email alone let a deleted
+	// account's mobile silently reappear on a second email signed up before
+	// its own mobile PATCH landed.
+	if (!profile.mobileNumber) {
+		return {
+			issued: false,
+			customerRewardId: null,
+			rewardName: null,
+			expiresAt: null,
+		};
+	}
+
 	const markers = await buildWelcomeClaimMarkers(hashSecret, {
 		email: profile.email,
 		mobileNumber: profile.mobileNumber,

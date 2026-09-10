@@ -186,6 +186,11 @@ function Get-CustomerId($session) {
 	return [string]$me.data.user.id
 }
 
+function New-TestMobile([long]$seed) {
+	$digits = ([Math]::Abs($seed) % 100000000).ToString().PadLeft(8, "0")
+	return "06$digits"
+}
+
 function Ensure-UserWithRole(
 	[string]$email,
 	[string]$name,
@@ -255,7 +260,13 @@ if ($turnstileProtected) {
 $me = Invoke-Json "Get" "/api/me" $session
 Assert-True ($me.data.user.email -eq $email) "Registered user email mismatch"
 Assert-True ($me.data.user.role -eq "customer") "Registered user must default to customer"
-Assert-True ((Count-WelcomeRewards $session) -eq 1) "Welcome reward should be issued exactly once"
+Assert-True ((Count-WelcomeRewards $session) -eq 0) "Welcome reward must not be issued before mobile is saved"
+
+Update-Profile $session @{ mobileNumber = (New-TestMobile ($stamp + 1)) } | Out-Null
+Assert-True ((Count-WelcomeRewards $session) -eq 1) "Welcome reward should be issued exactly once mobile is saved"
+
+Update-Profile $session @{ mobileNumber = (New-TestMobile ($stamp + 1)) } | Out-Null
+Assert-True ((Count-WelcomeRewards $session) -eq 1) "Re-saving the same mobile must not duplicate the welcome reward"
 
 $duplicate = Invoke-ExpectHttpFailure {
 	Register-Session "Auth Regression" $email $password (New-TurnstileToken) | Out-Null
@@ -275,6 +286,7 @@ Assert-True ($afterSignOut.status -eq 401) "Sign-out must clear session cookie"
 $session = Login-Session $email $password (New-TurnstileToken)
 $afterSignIn = Invoke-Json "Get" "/api/me" $session
 Assert-True ($afterSignIn.data.user.email -eq $email) "Sign-in session did not persist"
+Assert-True ((Count-WelcomeRewards $session) -eq 1) "Sign-in reconciliation must not duplicate the welcome reward"
 
 # Missing-profile recovery: simulate an orphan auth account and verify /api/me heals it.
 $deleteRewardsSql = "DELETE FROM customer_rewards WHERE customer_id IN (SELECT id FROM profiles WHERE email = '$email')"
@@ -295,39 +307,47 @@ $bootstrapSession = Register-Session "Auth Bootstrap" $emailBootstrap $password 
 $bootstrapMe = Invoke-Json "Get" "/api/me" $bootstrapSession
 Assert-True ($bootstrapMe.data.user.email -eq $emailBootstrap) "Bootstrap signup user mismatch"
 Assert-True ($bootstrapMe.data.user.role -eq "customer") "Bootstrap signup should produce customer role"
-Assert-True ((Count-WelcomeRewards $bootstrapSession) -eq 1) "Bootstrap signup must issue one welcome reward"
+Assert-True ((Count-WelcomeRewards $bootstrapSession) -eq 0) "Bootstrap signup must not issue a welcome reward before mobile is saved"
+
+Update-Profile $bootstrapSession @{ mobileNumber = (New-TestMobile ($stamp + 2)) } | Out-Null
+Assert-True ((Count-WelcomeRewards $bootstrapSession) -eq 1) "Bootstrap signup must issue one welcome reward once mobile is saved"
 
 # Welcome claim anti-abuse: same email after account deletion should not get another welcome reward.
 $repeatEmail = "auth.repeat.$stamp@example.test"
 $repeatSession = Register-Session "Auth Repeat" $repeatEmail $password (New-TurnstileToken)
+Update-Profile $repeatSession @{ mobileNumber = (New-TestMobile ($stamp + 3)) } | Out-Null
 Assert-True ((Count-WelcomeRewards $repeatSession) -eq 1) "First registration should receive one welcome reward"
 $repeatDelete = Delete-Account $repeatSession
 Assert-True ($repeatDelete.data.deleted -eq $true) "Repeat test account deletion failed"
 $repeatRejoin = Register-Session "Auth Repeat" $repeatEmail $password (New-TurnstileToken)
+Update-Profile $repeatRejoin @{ mobileNumber = (New-TestMobile ($stamp + 4)) } | Out-Null
 Assert-True ((Count-WelcomeRewards $repeatRejoin) -eq 0) "Same email must not receive another welcome reward after deletion"
 
 # Welcome claim anti-abuse: known mobile marker should block a later welcome issuance attempt.
-$mobileShared = "082" + (($stamp % 10000000).ToString().PadLeft(7, "0"))
+$mobileShared = New-TestMobile ($stamp + 5)
 $mobileSourceEmail = "auth.mobile.source.$stamp@example.test"
 $mobileSourceSession = Register-Session "Auth Mobile Source" $mobileSourceEmail $password (New-TurnstileToken)
-Assert-True ((Count-WelcomeRewards $mobileSourceSession) -eq 1) "Mobile source should receive one welcome reward"
 Update-Profile $mobileSourceSession @{ mobileNumber = $mobileShared } | Out-Null
+Assert-True ((Count-WelcomeRewards $mobileSourceSession) -eq 1) "Mobile source should receive one welcome reward"
 $mobileSourceDelete = Delete-Account $mobileSourceSession
 Assert-True ($mobileSourceDelete.data.deleted -eq $true) "Mobile source deletion failed"
 
+# Reproduces the exact reported bug: signup runs before any mobile is saved, so a
+# different email sharing an already-claimed mobile must never receive a reward.
 $mobileReplayEmail = "auth.mobile.replay.$stamp@example.test"
 $mobileReplaySession = Register-Session "Auth Mobile Replay" $mobileReplayEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $mobileReplaySession) -eq 0) "Signup must not issue a welcome reward before mobile is saved"
 Update-Profile $mobileReplaySession @{ mobileNumber = $mobileShared } | Out-Null
-$mobileReplayCustomerId = Get-CustomerId $mobileReplaySession
-$removeReplayWelcomeSql = "DELETE FROM customer_rewards WHERE customer_id = '$mobileReplayCustomerId' AND reward_definition_id IN (SELECT id FROM reward_definitions WHERE welcome_reward = 1)"
-npx wrangler d1 execute fives-rewards-db --local --command $removeReplayWelcomeSql | Out-Null
+Assert-True ((Count-WelcomeRewards $mobileReplaySession) -eq 0) "Different email with a previously claimed known mobile must not receive a welcome reward"
+
 SignOut-Session $mobileReplaySession
 $mobileReplaySession = Login-Session $mobileReplayEmail $password (New-TurnstileToken)
-Assert-True ((Count-WelcomeRewards $mobileReplaySession) -eq 0) "Different email with a previously claimed known mobile must not receive a welcome reward"
+Assert-True ((Count-WelcomeRewards $mobileReplaySession) -eq 0) "Sign-in reconciliation must not retroactively issue a blocked welcome reward"
 
 # Unrelated new customer should still receive one welcome reward.
 $unrelatedEmail = "auth.unrelated.$stamp@example.test"
 $unrelatedSession = Register-Session "Auth Unrelated" $unrelatedEmail $password (New-TurnstileToken)
+Update-Profile $unrelatedSession @{ mobileNumber = (New-TestMobile ($stamp + 6)) } | Out-Null
 Assert-True ((Count-WelcomeRewards $unrelatedSession) -eq 1) "Unrelated new customer should receive one welcome reward"
 
 # Normal account deletion behavior should remain intact.

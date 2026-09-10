@@ -49,6 +49,7 @@ import { ApiError } from "@worker/lib/http";
 import {
 	getCoffeeProgress,
 	isPointsProgramActive,
+	issueWelcomeReward,
 	listCustomerRewards,
 	listCustomerTransactions,
 } from "@worker/lib/loyalty";
@@ -161,13 +162,38 @@ export const customer = new Hono<AppEnv>()
 			latest.mobileNumber &&
 			latest.mobileNumber !== profile.mobileNumber
 		) {
-			await registerKnownMobileWelcomeClaimMarker(
-				db,
-				getWelcomeClaimHashSecret(c.env),
-				latest.businessId,
-				latest.id,
-				latest.mobileNumber,
-			);
+			if (profile.mobileNumber === null) {
+				// Welcome issuance is deferred until mobile exists (see issueWelcomeReward);
+				// this profile save is that moment, so evaluate both fingerprints now.
+				const welcome = await issueWelcomeReward(
+					db,
+					getWelcomeClaimHashSecret(c.env),
+					latest.businessId,
+					latest.id,
+				);
+				if (welcome.issued && welcome.customerRewardId) {
+					try {
+						await notificationService.notifyWelcomeReward({
+							businessId: latest.businessId,
+							customerId: latest.id,
+							customerRewardId: welcome.customerRewardId,
+						});
+					} catch (error) {
+						console.error("Welcome notification failed", {
+							customerId: latest.id,
+							error: error instanceof Error ? error.message : String(error),
+						});
+					}
+				}
+			} else {
+				await registerKnownMobileWelcomeClaimMarker(
+					db,
+					getWelcomeClaimHashSecret(c.env),
+					latest.businessId,
+					latest.id,
+					latest.mobileNumber,
+				);
+			}
 		}
 
 		await reconcileBirthdayRewardForCustomer(

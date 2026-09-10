@@ -163,6 +163,11 @@ function Get-CustomerId($session) {
 	return [string]$me.data.user.id
 }
 
+function New-TestMobile([long]$seed) {
+	$digits = ([Math]::Abs($seed) % 100000000).ToString().PadLeft(8, "0")
+	return "06$digits"
+}
+
 function Find-StaffIdByEmail($adminSession, [string]$email) {
 	$encoded = [Uri]::EscapeDataString($email)
 	$list = Invoke-Json "Get" "/api/admin/staff?search=$encoded&limit=50&offset=0" $adminSession
@@ -258,6 +263,10 @@ if (-not $escalationBlocked) {
 
 $journeyCustomerId = Get-CustomerId $journeySession
 $otherCustomerId = Get-CustomerId $otherSession
+
+# Welcome reward is deferred until mobile exists; save it now so the journey
+# customer has their welcome voucher available for the checks further below.
+Invoke-Json "Patch" "/api/customer/profile" $journeySession @{ mobileNumber = (New-TestMobile $stamp) } | Out-Null
 
 $dashboard = Invoke-Json "Get" "/api/admin/dashboard?days=30" $adminSession
 $expectedTotalMembers = Get-D1Count "SELECT COUNT(*) as value FROM profiles WHERE business_id = '$businessId' AND role = 'customer'"

@@ -65,11 +65,23 @@
 	/* Keep native date/datetime picker affordance visible on dark surfaces. */
 	input:is([type="date"], [type="datetime-local"]) {
 		color-scheme: dark;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		box-sizing: border-box;
 	}
 
 	input:is([type="date"], [type="datetime-local"])::-webkit-calendar-picker-indicator {
 		filter: brightness(0) invert(1);
 		opacity: 0.85;
+	}
+
+	/* iOS Safari sizes its internal date value field by intrinsic content width
+	   rather than the input's box, which overflows narrow mobile/PWA layouts. */
+	input:is([type="date"], [type="datetime-local"])::-webkit-date-and-time-value {
+		width: 100%;
+		min-width: 0;
+		text-align: left;
 	}
 }
 
