@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { birthdaySchema, mobileNumberSchema } from "./profile";
 
 /**
  * Shared between the sign-up form and the Worker so a rule can never be
@@ -32,6 +33,8 @@ export const registerSchema = z.object({
 		.max(80, "That name is too long."),
 	email: emailSchema,
 	password: passwordSchema,
+	mobileNumber: mobileNumberSchema,
+	birthday: birthdaySchema.optional(),
 });
 
 export const changePasswordSchema = z

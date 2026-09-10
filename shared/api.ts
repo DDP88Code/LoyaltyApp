@@ -51,6 +51,8 @@ export interface SessionUser {
 	avatarUrl: string | null;
 	marketingOptIn: boolean;
 	notificationOptIn: boolean;
+	/** Whether the one-time first-use marketing/push prompt has already been answered. */
+	marketingPromptShown: boolean;
 }
 
 export interface SessionPayload {

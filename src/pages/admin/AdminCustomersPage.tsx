@@ -15,6 +15,7 @@ import {
 	useCreateAdminAdjustment,
 	useRedeemAdminReward,
 	useSendAdminTestNotification,
+	useUpdateAdminCustomerBirthday,
 } from "@/features/admin/core/api";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { AdminPanel } from "@/features/admin/core/widgets";
@@ -133,6 +134,8 @@ export function AdminCustomersPage() {
 		useState<AdminSendTestNotificationPayload | null>(null);
 	const [testError, setTestError] = useState<string | null>(null);
 	const [fieldErrors, setFieldErrors] = useState<AdjustmentErrors>({});
+	const [birthdayDraft, setBirthdayDraft] = useState("");
+	const [birthdayError, setBirthdayError] = useState<string | null>(null);
 
 	const customers = useAdminCustomers({ search, limit: PAGE_SIZE, offset });
 	const lookups = useAdminLookups();
@@ -140,6 +143,7 @@ export function AdminCustomersPage() {
 	const createAdjustment = useCreateAdminAdjustment();
 	const redeemReward = useRedeemAdminReward();
 	const sendTestNotification = useSendAdminTestNotification();
+	const updateBirthday = useUpdateAdminCustomerBirthday();
 
 	const localValidation = validateAdjustmentForm({
 		programId,
@@ -199,6 +203,11 @@ export function AdminCustomersPage() {
 		setTestResult(null);
 		setTestError(null);
 	}, [selectedCustomerId]);
+
+	useEffect(() => {
+		setBirthdayDraft(detail.data?.customer.birthday ?? "");
+		setBirthdayError(null);
+	}, [detail.data?.customer.birthday, selectedCustomerId]);
 
 	if (customers.isPending) return <LoadingState label="Loading customers..." />;
 	if (customers.isError) {
@@ -348,6 +357,7 @@ export function AdminCustomersPage() {
 							<div className="grid gap-2 text-sm">
 								<p>Email: {selected?.email}</p>
 								<p>Mobile: {selected?.mobileNumber || "Not provided"}</p>
+								<p>Birthday: {selected?.birthday || "Not set"}</p>
 								<p>Status: {selected?.active ? "Active" : "Inactive"}</p>
 								<p>Account notifications opt-in: {selected ? yesNo(selected.notificationOptIn) : "-"}</p>
 								<p>Marketing opt-in: {selected ? yesNo(selected.marketingOptIn) : "-"}</p>
@@ -362,6 +372,48 @@ export function AdminCustomersPage() {
 									Coffee progress: {detail.data?.coffee ? `${detail.data.coffee.current}/${detail.data.coffee.threshold ?? "?"}` : "No coffee program"}
 								</p>
 							</div>
+						</AdminPanel>
+
+						<AdminPanel
+							title="Birthday Correction"
+							description="Once a customer sets their birthday it is read-only to them; correct mistakes here."
+						>
+							<div className="flex flex-wrap items-end gap-3">
+								<Input
+									label="Birthday"
+									type="date"
+									value={birthdayDraft}
+									onChange={(event) => setBirthdayDraft(event.target.value)}
+								/>
+								<Button
+									disabled={!isOnline || !selectedCustomerId || updateBirthday.isPending}
+									loading={updateBirthday.isPending}
+									onClick={() => {
+										if (!selectedCustomerId) return;
+										setBirthdayError(null);
+										updateBirthday
+											.mutateAsync({
+												customerId: selectedCustomerId,
+												birthday: birthdayDraft || null,
+											})
+											.then(() => {
+												void detail.refetch();
+											})
+											.catch((error: unknown) => {
+												setBirthdayError(
+													error instanceof Error
+														? error.message
+														: "Could not update birthday.",
+												);
+											});
+									}}
+								>
+									Save correction
+								</Button>
+							</div>
+							{birthdayError && (
+								<p className="mt-2 text-sm text-brand-danger">{birthdayError}</p>
+							)}
 						</AdminPanel>
 
 						{showPushNotificationTest && (

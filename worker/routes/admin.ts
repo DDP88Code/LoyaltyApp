@@ -19,6 +19,7 @@ import type {
 	AdminAuditLogEntry,
 	AdminAuditLogsPayload,
 	AdminBirthdayRewardIssuanceReportPayload,
+	AdminCustomerBirthdayUpdatePayload,
 	AdminCustomerDetail,
 	AdminCustomerDetailPayload,
 	AdminCustomerPushState,
@@ -68,6 +69,7 @@ import type {
 	PromotionImageUploadPayload,
 } from "@shared/promotions";
 import { ROLES } from "@shared/roles";
+import { birthdaySchema } from "@shared/profile";
 import { getDb } from "@worker/db/client";
 import {
 	auditLogs,
@@ -104,6 +106,7 @@ import {
 	getCoffeeProgress,
 	redeemCustomerReward,
 } from "@worker/lib/loyalty";
+import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import {
@@ -126,6 +129,10 @@ const MENU_GROUPS: readonly MenuGroup[] = ["food", "drinks"];
 const PROMOTION_CAROUSEL_SPEED_DEFAULT_SECONDS = 3;
 const PROMOTION_CAROUSEL_SPEED_MIN_SECONDS = 2;
 const PROMOTION_CAROUSEL_SPEED_MAX_SECONDS = 15;
+
+const customerBirthdayUpdateSchema = z.object({
+	birthday: birthdaySchema.nullable(),
+});
 
 function parsePromotionCarouselSpeedSeconds(valueJson: unknown): number {
 	if (
@@ -1431,6 +1438,7 @@ export const admin = new Hono<AppEnv>()
 			fullName: customer.fullName,
 			email: customer.email,
 			mobileNumber: customer.mobileNumber,
+			birthday: customer.birthday,
 			active: customer.active,
 			notificationOptIn: customer.notificationOptIn,
 			marketingOptIn: customer.marketingOptIn,
@@ -1539,6 +1547,69 @@ export const admin = new Hono<AppEnv>()
 			pushState,
 		});
 	})
+
+	.patch(
+		"/customers/:customerId/birthday",
+		validate("json", customerBirthdayUpdateSchema),
+		async (c) => {
+			const admin = c.get("profile");
+			const db = getDb(c.env);
+			const notificationService = createNotificationService(db, c.env);
+			const customerId = c.req.param("customerId");
+			const input = c.req.valid("json");
+
+			const customer = await db.query.profiles.findFirst({
+				where: and(
+					eq(profiles.id, customerId),
+					eq(profiles.businessId, admin.businessId),
+					eq(profiles.role, "customer"),
+				),
+			});
+			if (!customer) {
+				throw new ApiError("not_found", "That customer was not found.");
+			}
+
+			const previousBirthday = customer.birthday;
+
+			const [updated] = await db
+				.update(profiles)
+				.set({ birthday: input.birthday })
+				.where(eq(profiles.id, customer.id))
+				.returning();
+			if (!updated) {
+				throw new ApiError("internal_error", "Failed to update birthday.");
+			}
+
+			await db.insert(auditLogs).values({
+				businessId: admin.businessId,
+				actorUserId: admin.authUserId,
+				actorRole: admin.role,
+				action: "admin.customer.birthday_corrected",
+				entityType: "customer",
+				entityId: customer.id,
+				oldValueJson: { birthday: previousBirthday },
+				newValueJson: { birthday: updated.birthday },
+			});
+
+			// Reconciliation is keyed on customerId+year, so a correction can never
+			// cause a second Birthday Treat in a year one was already issued.
+			await reconcileBirthdayRewardForCustomer(
+				db,
+				{
+					id: updated.id,
+					businessId: updated.businessId,
+					role: updated.role,
+					active: updated.active,
+					birthday: updated.birthday,
+				},
+				async (issued) => {
+					await notificationService.notifyBirthdayReward(issued);
+				},
+			);
+
+			return ok<AdminCustomerBirthdayUpdatePayload>(c, { updated: true });
+		},
+	)
 
 	.post(
 		"/customers/:customerId/adjustments",

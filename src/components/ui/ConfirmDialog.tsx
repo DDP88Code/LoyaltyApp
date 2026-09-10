@@ -7,6 +7,7 @@ export interface ConfirmDialogProps {
 	title: string;
 	description?: ReactNode;
 	confirmLabel: string;
+	cancelLabel?: string;
 	danger?: boolean;
 	loading?: boolean;
 	confirmDisabled?: boolean;
@@ -24,6 +25,7 @@ export function ConfirmDialog({
 	title,
 	description,
 	confirmLabel,
+	cancelLabel = "Cancel",
 	danger = false,
 	loading = false,
 	confirmDisabled = false,
@@ -54,7 +56,7 @@ export function ConfirmDialog({
 			{children && <div className="mt-4">{children}</div>}
 			<div className="mt-5 flex gap-3">
 				<Button variant="outline" fullWidth onClick={onCancel} disabled={loading}>
-					Cancel
+					{cancelLabel}
 				</Button>
 				<Button
 					variant={danger ? "danger" : "primary"}

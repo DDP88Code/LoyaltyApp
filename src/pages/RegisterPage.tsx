@@ -3,14 +3,28 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
-import { PASSWORD_MIN_LENGTH, type RegisterInput, registerSchema } from "@shared/auth";
+import { z } from "zod";
+import { emailSchema, PASSWORD_MIN_LENGTH, passwordSchema } from "@shared/auth";
 import { BRAND } from "@shared/branding";
+import { birthdaySchema, mobileNumberSchema } from "@shared/profile";
 import { ROLE_HOME } from "@shared/roles";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthLayout, FormError } from "@/features/auth/AuthLayout";
 import { TurnstileWidget } from "@/features/auth/TurnstileWidget";
 import { useRegister } from "@/features/auth/useSession";
+
+// Mirrors shared/auth.ts registerSchema, but allows an empty birthday input
+// (an unfilled <input type="date"> submits "", not undefined).
+const registerFormSchema = z.object({
+	name: z.string().trim().min(2, "Enter your name.").max(80, "That name is too long."),
+	email: emailSchema,
+	password: passwordSchema,
+	mobileNumber: mobileNumberSchema,
+	birthday: z.union([z.literal(""), birthdaySchema]),
+});
+
+type RegisterFormInput = z.infer<typeof registerFormSchema>;
 
 export function RegisterPage() {
 	const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +52,7 @@ export function RegisterPage() {
 		register,
 		handleSubmit,
 		formState: { errors },
-	} = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) });
+	} = useForm<RegisterFormInput>({ resolver: zodResolver(registerFormSchema) });
 
 	const onSubmit = handleSubmit((values) => {
 		if (turnstileMisconfigured) {
@@ -55,17 +69,20 @@ export function RegisterPage() {
 
 		const token = turnstileEnabled ? turnstileToken ?? undefined : undefined;
 		setTurnstileMessage(null);
-		registerAccount.mutate({ ...values, turnstileToken: token }, {
-			onSuccess: (user) => {
-				void navigate(ROLE_HOME[user.role], { replace: true });
+		registerAccount.mutate(
+			{ ...values, birthday: values.birthday || undefined, turnstileToken: token },
+			{
+				onSuccess: (user) => {
+					void navigate(ROLE_HOME[user.role], { replace: true });
+				},
+				onError: () => {
+					if (!turnstileEnabled) return;
+					setTurnstileToken(null);
+					setTurnstileResetKey((current) => current + 1);
+					setTurnstileMessage("Please complete verification again.");
+				},
 			},
-			onError: () => {
-				if (!turnstileEnabled) return;
-				setTurnstileToken(null);
-				setTurnstileResetKey((current) => current + 1);
-				setTurnstileMessage("Please complete verification again.");
-			},
-		});
+		);
 	});
 
 	const disableSubmit =
@@ -107,6 +124,22 @@ export function RegisterPage() {
 					inputMode="email"
 					error={errors.email?.message}
 					{...register("email")}
+				/>
+				<Input
+					label="Mobile number"
+					autoComplete="tel"
+					inputMode="tel"
+					placeholder="082 123 4567"
+					error={errors.mobileNumber?.message}
+					{...register("mobileNumber")}
+				/>
+				<Input
+					label="Birthday (optional)"
+					type="date"
+					autoComplete="bday"
+					hint="Add your birthday so we can send you a birthday treat 🎂"
+					error={errors.birthday?.message}
+					{...register("birthday")}
 				/>
 				<Input
 					label="Password"

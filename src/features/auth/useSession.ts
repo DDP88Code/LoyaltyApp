@@ -108,9 +108,11 @@ export function useRegister() {
 			name: string;
 			email: string;
 			password: string;
+			mobileNumber: string;
+			birthday?: string;
 			turnstileToken?: string;
 		}) => {
-			const { turnstileToken, ...registration } = input;
+			const { turnstileToken, mobileNumber, birthday, ...registration } = input;
 			// No role is sent. The Worker assigns "customer" server-side.
 			assertOk(
 				await authClient.signUp.email({
@@ -122,7 +124,18 @@ export function useRegister() {
 						: undefined,
 				}),
 			);
-			return loadSessionAfterAuth(queryClient);
+			await loadSessionAfterAuth(queryClient);
+			// Mobile/birthday live on the existing profile row, saved through the same
+			// PATCH route (and reward/anti-abuse reconciliation) a later profile edit uses.
+			const { user } = await apiFetch<SessionPayload>("/api/customer/profile", {
+				method: "PATCH",
+				body: JSON.stringify({
+					mobileNumber,
+					...(birthday ? { birthday } : {}),
+				}),
+			});
+			queryClient.setQueryData(sessionQueryKey, user);
+			return user;
 		},
 	});
 }

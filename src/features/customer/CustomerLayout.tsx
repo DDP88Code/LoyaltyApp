@@ -4,6 +4,7 @@ import { BRAND } from "@shared/branding";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/features/auth/useSession";
 import { useCustomerUnreadNotifications } from "@/features/customer/api";
+import { MarketingOptInModal } from "@/features/customer/MarketingOptInModal";
 
 const TABS = [
 	{ to: "/app", label: "Home", icon: Coffee, end: true },
@@ -24,6 +25,8 @@ export function CustomerLayout() {
 
 	return (
 		<div className="flex min-h-dvh flex-col pb-24">
+			<MarketingOptInModal />
+
 			<header className="flex items-center justify-between border-b border-brand-border px-5 py-4">
 				<div>
 					<p className="text-xs tracking-[0.3em] text-brand-secondary uppercase">

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	AdminAuditLogsPayload,
 	AdminBirthdayRewardIssuanceReportPayload,
+	AdminCustomerBirthdayUpdatePayload,
 	AdminCustomerDetailPayload,
 	AdminDashboardPayload,
 	AdminLookupsPayload,
@@ -165,6 +166,27 @@ export function useSendAdminTestNotification() {
 				`/api/admin/customers/${customerId}/notifications/test`,
 				{
 					method: "POST",
+				},
+			),
+		onSuccess: () => invalidateAdminPages(queryClient),
+	});
+}
+
+export function useUpdateAdminCustomerBirthday() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			customerId,
+			birthday,
+		}: {
+			customerId: string;
+			birthday: string | null;
+		}) =>
+			apiFetch<AdminCustomerBirthdayUpdatePayload>(
+				`/api/admin/customers/${customerId}/birthday`,
+				{
+					method: "PATCH",
+					body: JSON.stringify({ birthday }),
 				},
 			),
 		onSuccess: () => invalidateAdminPages(queryClient),

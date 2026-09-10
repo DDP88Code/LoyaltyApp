@@ -94,11 +94,17 @@ export interface AdminCustomerDetail {
 	fullName: string;
 	email: string;
 	mobileNumber: string | null;
+	birthday: string | null;
 	active: boolean;
 	notificationOptIn: boolean;
 	marketingOptIn: boolean;
 	createdAt: string;
 	reference: string;
+}
+
+/** Once a customer's birthday is set it is read-only to them; this is the audited admin correction. */
+export interface AdminCustomerBirthdayUpdatePayload {
+	updated: true;
 }
 
 export interface AdminCustomerPushState {

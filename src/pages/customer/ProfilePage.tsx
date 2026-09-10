@@ -187,6 +187,13 @@ export function ProfilePage() {
 						<Input
 							label="Birthday"
 							type="date"
+							disabled={Boolean(user.birthday)}
+							readOnly={Boolean(user.birthday)}
+							hint={
+								user.birthday
+									? "Already set. Ask a member of staff to correct it."
+									: undefined
+							}
 							error={errors.birthday?.message}
 							{...register("birthday")}
 						/>

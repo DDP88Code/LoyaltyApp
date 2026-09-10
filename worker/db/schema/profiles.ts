@@ -29,6 +29,7 @@ export const profiles = sqliteTable(
 		avatarUrl: text("avatar_url"),
 		marketingOptIn: flag("marketing_opt_in").notNull().default(false),
 		notificationOptIn: flag("notification_opt_in").notNull().default(true),
+		marketingPromptShown: flag("marketing_prompt_shown").notNull().default(false),
 		active: flag("active").notNull().default(true),
 		createdAt: createdAt(),
 		updatedAt: updatedAt(),

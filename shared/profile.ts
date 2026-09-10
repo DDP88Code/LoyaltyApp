@@ -37,6 +37,8 @@ export const updateProfileSchema = z
 		birthday: birthdaySchema.nullable(),
 		marketingOptIn: z.boolean(),
 		notificationOptIn: z.boolean(),
+		// Set once the first-use marketing/push prompt has been answered, so it never shows again.
+		marketingPromptShown: z.boolean(),
 	})
 	.partial()
 	.refine((value) => Object.keys(value).length > 0, {

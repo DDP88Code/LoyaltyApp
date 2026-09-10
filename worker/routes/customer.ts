@@ -134,6 +134,19 @@ export const customer = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const notificationService = createNotificationService(db, c.env);
 		const input = c.req.valid("json");
+
+		// Birthday is a one-time customer edit; once set, only an admin correction may change it.
+		if (
+			input.birthday !== undefined &&
+			profile.birthday !== null &&
+			input.birthday !== profile.birthday
+		) {
+			throw new ApiError(
+				"conflict",
+				"Your birthday has already been set. Ask a member of staff to correct it.",
+			);
+		}
+
 		// The row is located by the session's profile id, so a customer can only
 		// ever update themselves — there is no id in the request to tamper with.
 		const [updated] = await db

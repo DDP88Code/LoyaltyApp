@@ -19,5 +19,6 @@ export function toSessionUser(profile: Profile): SessionUser {
 		avatarUrl: profile.avatarUrl,
 		marketingOptIn: profile.marketingOptIn,
 		notificationOptIn: profile.notificationOptIn,
+		marketingPromptShown: profile.marketingPromptShown,
 	};
 }
