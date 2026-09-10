@@ -48,6 +48,7 @@
 
 	"env": {
 		"production": {
+			"workers_dev": false,
 			"triggers": {
 				"crons": ["10 22 * * *", "*/5 * * * *"]
 			},
