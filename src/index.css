@@ -62,25 +62,55 @@
 		@apply outline-brand-secondary outline-2 outline-offset-2;
 	}
 
-	/* Keep native date/datetime picker affordance visible on dark surfaces. */
-	input:is([type="date"], [type="datetime-local"]) {
-		color-scheme: dark;
+	.ios-date-input-wrapper {
+		display: block;
 		width: 100%;
+		inline-size: 100%;
 		max-width: 100%;
+		max-inline-size: 100%;
 		min-width: 0;
+		min-inline-size: 0;
 		box-sizing: border-box;
+		overflow: hidden;
+	}
+
+	/* Keep native date/datetime picker affordance visible on dark surfaces. */
+	input:is([type="date"], [type="datetime-local"]),
+	.ios-date-input-control {
+		color-scheme: dark;
+		display: block;
+		width: 100%;
+		inline-size: 100%;
+		max-width: 100%;
+		max-inline-size: 100%;
+		min-width: 0;
+		min-inline-size: 0;
+		box-sizing: border-box;
+		overflow: hidden;
+		-webkit-appearance: none;
+		appearance: none;
 	}
 
 	input:is([type="date"], [type="datetime-local"])::-webkit-calendar-picker-indicator {
+		display: block;
+		max-width: 100%;
+		max-inline-size: 100%;
+		box-sizing: border-box;
 		filter: brightness(0) invert(1);
 		opacity: 0.85;
 	}
 
-	/* iOS Safari sizes its internal date value field by intrinsic content width
-	   rather than the input's box, which overflows narrow mobile/PWA layouts. */
-	input:is([type="date"], [type="datetime-local"])::-webkit-date-and-time-value {
+	input:is([type="date"], [type="datetime-local"])::-webkit-date-and-time-value,
+	input:is([type="date"], [type="datetime-local"])::-webkit-datetime-edit {
+		display: block;
 		width: 100%;
+		inline-size: 100%;
+		max-width: 100%;
+		max-inline-size: 100%;
 		min-width: 0;
+		min-inline-size: 0;
+		box-sizing: border-box;
+		overflow: hidden;
 		text-align: left;
 	}
 }
