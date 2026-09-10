@@ -322,6 +322,8 @@ export function ProfilePage() {
 				</div>
 			</Card>
 
+			<ChangePasswordCard />
+
 			<Card>
 				<CardTitle>Legal</CardTitle>
 				<CardDescription>
@@ -344,8 +346,6 @@ export function ProfilePage() {
 			>
 				Sign out
 			</Button>
-
-			<ChangePasswordCard />
 
 			<Card>
 				<div className="flex items-start gap-3">
