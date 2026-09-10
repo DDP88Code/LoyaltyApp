@@ -193,7 +193,7 @@ function PromotionCarousel({
 	}, [promotions.length]);
 
 	useEffect(() => {
-		if (promotions.length <= 1 || prefersReducedMotion) return;
+		if (promotions.length <= 1) return;
 
 		const timer = window.setInterval(() => {
 			if (Date.now() < resumeAutoAdvanceAtRef.current) return;
@@ -205,7 +205,7 @@ function PromotionCarousel({
 			setCurrentIndex(nextIndex);
 			scroller.scrollTo({
 				left: scroller.clientWidth * nextIndex,
-				behavior: "smooth",
+				behavior: prefersReducedMotion ? "auto" : "smooth",
 			});
 		}, autoAdvanceSeconds * 1_000);
 
@@ -246,7 +246,9 @@ function PromotionCarousel({
 				onPointerDown={pauseAutoAdvance}
 				onTouchStart={pauseAutoAdvance}
 				onWheel={pauseAutoAdvance}
-				className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth [scrollbar-] [&::-webkit-scrollbar]:hidden"
+				className={`flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-] [&::-webkit-scrollbar]:hidden ${
+					prefersReducedMotion ? "scroll-auto" : "scroll-smooth"
+				}`}
 			>
 				{promotions.map((promotion) => (
 					<div key={promotion.id} className="w-full min-w-full snap-start">
