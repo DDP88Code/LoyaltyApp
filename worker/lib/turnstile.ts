@@ -1,7 +1,6 @@
 const TURNSTILE_SITEVERIFY_URL =
 	"https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const PRODUCTION_TURNSTILE_HOSTNAMES = [
-	"fives-rewards-production.fives-rewards.workers.dev",
 	"fivessportsbar.app",
 ] as const;
 const TURNSTILE_TOKEN_TTL_MS = 5 * 60 * 1000;
