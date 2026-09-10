@@ -88,6 +88,30 @@ export const customerRewards = sqliteTable(
 	],
 );
 
+export const welcomeRewardClaims = sqliteTable(
+	"welcome_reward_claims",
+	{
+		businessId: text("business_id")
+			.notNull()
+			.references(() => businesses.id, { onDelete: "cascade" }),
+		identityType: text("identity_type", { enum: ["email", "mobile"] })
+			.notNull(),
+		identityHash: text("identity_hash").notNull(),
+		claimedAt: timestampMs("claimed_at").notNull(),
+	},
+	(t) => [
+		uniqueIndex("welcome_reward_claims_identity_unq").on(
+			t.businessId,
+			t.identityType,
+			t.identityHash,
+		),
+		index("welcome_reward_claims_business_claimed_idx").on(
+			t.businessId,
+			t.claimedAt,
+		),
+	],
+);
+
 /**
  * Short-lived loyalty identification codes shown on MY FIVES CODE. These are
  * not login credentials. Only hashes are stored; expiry is enforced server-side.

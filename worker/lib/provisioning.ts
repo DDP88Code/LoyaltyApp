@@ -5,6 +5,7 @@ import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards"
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { issueWelcomeReward } from "@worker/lib/loyalty";
 import { createNotificationService } from "@worker/lib/notifications/service";
+import { getWelcomeClaimHashSecret } from "@worker/lib/welcomeRewardClaims";
 
 interface AuthIdentity {
 	id: string;
@@ -44,8 +45,14 @@ export async function ensureAuthUserProfile(
 	}
 
 	const notifications = createNotificationService(db, env);
+	const welcomeClaimHashSecret = getWelcomeClaimHashSecret(env);
 
-	const welcome = await issueWelcomeReward(db, defaults.businessId, profile.id);
+	const welcome = await issueWelcomeReward(
+		db,
+		welcomeClaimHashSecret,
+		defaults.businessId,
+		profile.id,
+	);
 	if (welcome.issued && welcome.customerRewardId) {
 		try {
 			await notifications.notifyWelcomeReward({

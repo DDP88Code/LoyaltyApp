@@ -37,7 +37,9 @@ export function PrivacyPage() {
 					You may request account deletion from your profile. When deletion is
 					requested, account data is removed according to system behavior, while
 					some records may be retained where required by law, to resolve
-					disputes, or to investigate fraud and abuse.
+					disputes, or to investigate fraud and abuse. This includes a limited
+					pseudonymous anti-abuse record used to prevent repeated welcome or
+					promotional claim abuse.
 				</p>
 				<p>
 					In line with POPIA, you may request access to, correction of, or

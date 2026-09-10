@@ -173,6 +173,40 @@ function Count-WelcomeRewards($session) {
 	return $welcome.Count
 }
 
+function Delete-Account($session) {
+	return Invoke-Json "Delete" "/api/customer/account" $session
+}
+
+function Update-Profile($session, $payload) {
+	return Invoke-Json "Patch" "/api/customer/profile" $session $payload
+}
+
+function Get-CustomerId($session) {
+	$me = Invoke-Json "Get" "/api/me" $session
+	return [string]$me.data.user.id
+}
+
+function Ensure-UserWithRole(
+	[string]$email,
+	[string]$name,
+	[string]$role,
+	[string]$passwordValue
+) {
+	try {
+		Register-Session $name $email $passwordValue (New-TurnstileToken) | Out-Null
+	} catch {
+		$status = Get-HttpStatusCode $_
+		if ($status -ne 422) {
+			throw
+		}
+	}
+
+	$sql = "UPDATE profiles SET role='$role', active=1 WHERE email='$email'"
+	npx wrangler d1 execute fives-rewards-db --local --command $sql | Out-Null
+
+	return Login-Session $email $passwordValue (New-TurnstileToken)
+}
+
 # Baseline development seed so all loyalty definitions/routes exist.
 Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.Commands.WebRequestSession) | Out-Null
 
@@ -251,7 +285,7 @@ npx wrangler d1 execute fives-rewards-db --local --command $deleteProfileSql | O
 $recoveredMe = Invoke-Json "Get" "/api/me" $session
 Assert-True ($recoveredMe.data.user.email -eq $email) "Missing profile was not auto-reconciled"
 Assert-True ($recoveredMe.data.user.role -eq "customer") "Recovered profile should remain customer"
-Assert-True ((Count-WelcomeRewards $session) -eq 1) "Recovery should issue one welcome reward exactly once"
+Assert-True ((Count-WelcomeRewards $session) -eq 0) "Recovery must not reissue a welcome reward"
 
 # Partial-failure prevention/recovery: remove business rows locally, then sign up again.
 npx wrangler d1 execute fives-rewards-db --local --command "DELETE FROM businesses" | Out-Null
@@ -262,5 +296,75 @@ $bootstrapMe = Invoke-Json "Get" "/api/me" $bootstrapSession
 Assert-True ($bootstrapMe.data.user.email -eq $emailBootstrap) "Bootstrap signup user mismatch"
 Assert-True ($bootstrapMe.data.user.role -eq "customer") "Bootstrap signup should produce customer role"
 Assert-True ((Count-WelcomeRewards $bootstrapSession) -eq 1) "Bootstrap signup must issue one welcome reward"
+
+# Welcome claim anti-abuse: same email after account deletion should not get another welcome reward.
+$repeatEmail = "auth.repeat.$stamp@example.test"
+$repeatSession = Register-Session "Auth Repeat" $repeatEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $repeatSession) -eq 1) "First registration should receive one welcome reward"
+$repeatDelete = Delete-Account $repeatSession
+Assert-True ($repeatDelete.data.deleted -eq $true) "Repeat test account deletion failed"
+$repeatRejoin = Register-Session "Auth Repeat" $repeatEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $repeatRejoin) -eq 0) "Same email must not receive another welcome reward after deletion"
+
+# Welcome claim anti-abuse: known mobile marker should block a later welcome issuance attempt.
+$mobileShared = "082" + (($stamp % 10000000).ToString().PadLeft(7, "0"))
+$mobileSourceEmail = "auth.mobile.source.$stamp@example.test"
+$mobileSourceSession = Register-Session "Auth Mobile Source" $mobileSourceEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $mobileSourceSession) -eq 1) "Mobile source should receive one welcome reward"
+Update-Profile $mobileSourceSession @{ mobileNumber = $mobileShared } | Out-Null
+$mobileSourceDelete = Delete-Account $mobileSourceSession
+Assert-True ($mobileSourceDelete.data.deleted -eq $true) "Mobile source deletion failed"
+
+$mobileReplayEmail = "auth.mobile.replay.$stamp@example.test"
+$mobileReplaySession = Register-Session "Auth Mobile Replay" $mobileReplayEmail $password (New-TurnstileToken)
+Update-Profile $mobileReplaySession @{ mobileNumber = $mobileShared } | Out-Null
+$mobileReplayCustomerId = Get-CustomerId $mobileReplaySession
+$removeReplayWelcomeSql = "DELETE FROM customer_rewards WHERE customer_id = '$mobileReplayCustomerId' AND reward_definition_id IN (SELECT id FROM reward_definitions WHERE welcome_reward = 1)"
+npx wrangler d1 execute fives-rewards-db --local --command $removeReplayWelcomeSql | Out-Null
+SignOut-Session $mobileReplaySession
+$mobileReplaySession = Login-Session $mobileReplayEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $mobileReplaySession) -eq 0) "Different email with a previously claimed known mobile must not receive a welcome reward"
+
+# Unrelated new customer should still receive one welcome reward.
+$unrelatedEmail = "auth.unrelated.$stamp@example.test"
+$unrelatedSession = Register-Session "Auth Unrelated" $unrelatedEmail $password (New-TurnstileToken)
+Assert-True ((Count-WelcomeRewards $unrelatedSession) -eq 1) "Unrelated new customer should receive one welcome reward"
+
+# Normal account deletion behavior should remain intact.
+$deleteOnlyEmail = "auth.delete.only.$stamp@example.test"
+$deleteOnlySession = Register-Session "Auth Delete" $deleteOnlyEmail $password (New-TurnstileToken)
+$deleteOnlyResult = Delete-Account $deleteOnlySession
+Assert-True ($deleteOnlyResult.data.deleted -eq $true) "Normal account deletion should still succeed"
+$afterDeleteOnly = Invoke-ExpectHttpFailure {
+	Invoke-Json "Get" "/api/me" $deleteOnlySession | Out-Null
+}
+Assert-True ($afterDeleteOnly.status -eq 401) "Deleted account session should no longer be valid"
+
+# Admin manual adjustment path should remain possible.
+$adminEmail = "auth.manual.admin.$stamp@example.test"
+$adminSession = Ensure-UserWithRole $adminEmail "Auth Manual Admin" "admin" $password
+$manualTargetId = Get-CustomerId $unrelatedSession
+$programs = Invoke-Json "Get" "/api/admin/loyalty/programs" $adminSession
+$coffeeProgram = $null
+foreach ($program in $programs.data.programs) {
+	if ([string]$program.currencyCode -eq "COFFEE") {
+		$coffeeProgram = $program
+		break
+	}
+}
+Assert-True ($null -ne $coffeeProgram) "Manual grant test could not find coffee program"
+$staffContext = Invoke-Json "Get" "/api/staff/context" $adminSession
+Assert-True ($staffContext.data.locations.Count -gt 0) "Manual grant test could not find a location"
+$locationId = [string]$staffContext.data.locations[0].id
+$adjustment = Invoke-Json "Post" "/api/admin/customers/$manualTargetId/adjustments" $adminSession @{
+	programId = [string]$coffeeProgram.id
+	locationId = $locationId
+	transactionType = "adjustment"
+	quantity = 1
+	reason = "Welcome claim anti-abuse regression check"
+	billReference = "AUTH-MANUAL-$stamp"
+	idempotencyKey = "auth-manual-$stamp"
+}
+Assert-True (-not [string]::IsNullOrWhiteSpace([string]$adjustment.data.transactionId)) "Admin manual adjustment should still be possible"
 
 Write-Host "Auth regression smoke passed."

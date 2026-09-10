@@ -3,6 +3,7 @@
 
 BETTER_AUTH_SECRET=
 TURNSTILE_SECRET_KEY=
+WELCOME_CLAIM_HASH_SECRET=
 
 # Reserved for a later phase — not used in the MVP.
 # WHATSAPP_ACCESS_TOKEN=

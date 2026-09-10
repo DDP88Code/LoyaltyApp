@@ -13,11 +13,17 @@ import {
 	appSettings,
 	customerRewards,
 	loyaltyPrograms,
+	profiles,
 	loyaltyTransactions,
 	rewardDefinitions,
 } from "@worker/db/schema";
 import { WELCOME_VOUCHER_MIN_BILL_CENTS } from "@worker/lib/defaults";
 import { ApiError } from "@worker/lib/http";
+import {
+	buildWelcomeClaimMarkers,
+	releaseWelcomeClaimMarkers,
+	reserveWelcomeClaimMarkers,
+} from "@worker/lib/welcomeRewardClaims";
 
 const DAY_MS = 86_400_000;
 
@@ -193,11 +199,12 @@ export async function listCustomerTransactions(
 }
 
 /**
- * Exactly-once via `issuance_key`, not an application-level check-then-insert —
- * two concurrent registrations for the same customer id can never both succeed.
+ * Welcome issuance is gated by pseudonymous claim markers (email/mobile hashes)
+ * and still deduplicated per customer via `issuance_key`.
  */
 export async function issueWelcomeReward(
 	db: Db,
+	hashSecret: string,
 	businessId: string,
 	customerId: string,
 ): Promise<IssueWelcomeRewardResult> {
@@ -236,6 +243,41 @@ export async function issueWelcomeReward(
 	const expiresAt = welcome.validDays
 		? new Date(Date.now() + welcome.validDays * DAY_MS)
 		: null;
+	const profile = await db.query.profiles.findFirst({
+		where: and(
+			eq(profiles.id, customerId),
+			eq(profiles.businessId, businessId),
+		),
+		columns: { email: true, mobileNumber: true },
+	});
+	if (!profile) {
+		return {
+			issued: false,
+			customerRewardId: null,
+			rewardName: null,
+			expiresAt: null,
+		};
+	}
+
+	const markers = await buildWelcomeClaimMarkers(hashSecret, {
+		email: profile.email,
+		mobileNumber: profile.mobileNumber,
+	});
+	const claimedAt = new Date();
+	const markerReservation = await reserveWelcomeClaimMarkers(
+		db,
+		businessId,
+		markers,
+		claimedAt,
+	);
+	if (!markerReservation.reserved) {
+		return {
+			issued: false,
+			customerRewardId: null,
+			rewardName: null,
+			expiresAt: null,
+		};
+	}
 
 	const [inserted] = await db
 		.insert(customerRewards)
@@ -248,6 +290,25 @@ export async function issueWelcomeReward(
 		})
 		.onConflictDoNothing()
 		.returning({ id: customerRewards.id });
+
+	if (!inserted?.id) {
+		const existingWelcome = await db.query.customerRewards.findFirst({
+			where: and(
+				eq(customerRewards.businessId, businessId),
+				eq(customerRewards.customerId, customerId),
+				eq(customerRewards.issuanceKey, `welcome:${customerId}`),
+			),
+			columns: { id: true },
+		});
+
+		if (!existingWelcome) {
+			await releaseWelcomeClaimMarkers(
+				db,
+				businessId,
+				markerReservation.insertedMarkers,
+			);
+		}
+	}
 
 	return {
 		issued: Boolean(inserted?.id),

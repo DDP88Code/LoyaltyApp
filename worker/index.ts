@@ -7,6 +7,10 @@ import { businesses } from "@worker/db/schema";
 import { issueBirthdayRewardsForBusiness } from "@worker/lib/birthdayRewards";
 import { ensureMvpDefaults } from "@worker/lib/defaults";
 import { ApiError, fail } from "@worker/lib/http";
+import {
+	backfillWelcomeClaimMarkersForBusiness,
+	getWelcomeClaimHashSecret,
+} from "@worker/lib/welcomeRewardClaims";
 import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
 import { createNotificationService } from "@worker/lib/notifications/service";
@@ -89,6 +93,14 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 	try {
 		const db = getDb(env);
 		await ensureMvpDefaults(db, env.BUSINESS_SLUG);
+		let welcomeClaimHashSecret: string | null = null;
+		try {
+			welcomeClaimHashSecret = getWelcomeClaimHashSecret(env);
+		} catch (error) {
+			console.error("Welcome claim backfill unavailable", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 		const now = new Date();
 		const cron = _event.cron;
 		const runDailyMaintenance = !cron || cron === DAILY_MAINTENANCE_CRON;
@@ -106,6 +118,21 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 
 		for (const business of activeBusinesses) {
 			if (runDailyMaintenance) {
+				if (welcomeClaimHashSecret) {
+					const backfill = await backfillWelcomeClaimMarkersForBusiness(
+						db,
+						welcomeClaimHashSecret,
+						business.id,
+					);
+					if (backfill.insertedMarkers > 0) {
+						console.log("Welcome claim backfill summary", {
+							businessId: business.id,
+							scannedRewards: backfill.scannedRewards,
+							insertedMarkers: backfill.insertedMarkers,
+						});
+					}
+				}
+
 				const notificationService = createNotificationService(db, env);
 
 				const birthdaySummary = await issueBirthdayRewardsForBusiness(

@@ -56,6 +56,10 @@ import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards"
 import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import { SETTINGS_PROMOTION_CAROUSEL_SPEED_SECONDS_KEY } from "@worker/lib/defaults";
+import {
+	getWelcomeClaimHashSecret,
+	registerKnownMobileWelcomeClaimMarker,
+} from "@worker/lib/welcomeRewardClaims";
 import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
@@ -129,15 +133,30 @@ export const customer = new Hono<AppEnv>()
 		const profile = c.get("profile");
 		const db = getDb(c.env);
 		const notificationService = createNotificationService(db, c.env);
+		const input = c.req.valid("json");
 		// The row is located by the session's profile id, so a customer can only
 		// ever update themselves — there is no id in the request to tamper with.
 		const [updated] = await db
 			.update(profiles)
-			.set(c.req.valid("json"))
+			.set(input)
 			.where(eq(profiles.id, profile.id))
 			.returning();
 
 		const latest = updated ?? profile;
+		if (
+			input.mobileNumber !== undefined &&
+			latest.mobileNumber &&
+			latest.mobileNumber !== profile.mobileNumber
+		) {
+			await registerKnownMobileWelcomeClaimMarker(
+				db,
+				getWelcomeClaimHashSecret(c.env),
+				latest.businessId,
+				latest.id,
+				latest.mobileNumber,
+			);
+		}
+
 		await reconcileBirthdayRewardForCustomer(
 			db,
 			{

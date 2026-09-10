@@ -354,7 +354,8 @@ export function ProfilePage() {
 						<CardTitle>Delete my account</CardTitle>
 						<CardDescription>
 							This permanently deletes your account, rewards, vouchers, and
-							loyalty history.
+							loyalty history. A minimal pseudonymous anti-abuse claim marker may
+							be retained to prevent repeated promotional claims.
 						</CardDescription>
 					</div>
 				</div>
@@ -376,7 +377,7 @@ export function ProfilePage() {
 			<ConfirmDialog
 				open={confirmDeleteOpen}
 				title="Delete account permanently?"
-				description="This cannot be undone. Your profile, rewards, vouchers, and loyalty history will be permanently deleted."
+				description="This cannot be undone. Your profile, rewards, vouchers, and loyalty history will be permanently deleted. A minimal pseudonymous anti-abuse claim marker may be retained to prevent repeated promotional claims."
 				confirmLabel="Yes, delete my account"
 				danger
 				loading={deleteAccount.isPending}

@@ -226,8 +226,9 @@ if ($coffeeProgramsCreatedInSeedOne -gt 0) {
 
 Assert-True (([string]$coffeeProgramRow.rewardName) -eq "Free Coffee") "Coffee program should reference Free Coffee"
 
-$adminSession = Ensure-UserWithRole "admin@example.test" "Admin User" "admin" $password
-$staffEmail = "phase13.staff@example.test"
+$adminEmail = "phase13.admin.$stamp@example.test"
+$adminSession = Ensure-UserWithRole $adminEmail "Admin User" "admin" $password
+$staffEmail = "phase13.staff.$stamp@example.test"
 $staffSession = Ensure-UserWithRole $staffEmail "Phase13 Staff" "staff" $password
 
 $journeyEmail = "phase13.journey.$stamp@example.test"
