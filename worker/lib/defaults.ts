@@ -1,4 +1,4 @@
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { BRAND } from "@shared/branding";
 import { COFFEE_CURRENCY_CODE, DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@shared/domain";
 import type { Db } from "@worker/db/client";
@@ -11,7 +11,8 @@ import {
 } from "@worker/db/schema";
 
 export const MVP_BUSINESS_NAME = BRAND.fullName;
-export const MVP_LOCATION_NAME = "Fives - Pinehurst";
+export const MVP_LOCATION_NAME = "Fives Sports Bar - Pinehurst";
+export const LEGACY_MVP_LOCATION_NAME = "Fives - Pinehurst";
 export const LEGACY_HIDDEN_LOCATION_NAME = "Fives Main Branch";
 export const MVP_LOCATION_ADDRESS = "Placeholder address - update in Admin.";
 
@@ -168,14 +169,42 @@ export async function ensureMvpDefaults(
 		throw new Error("Business row could not be initialized.");
 	}
 
-	let location = await db.query.locations.findFirst({
-		where: and(
-			eq(locations.businessId, business.id),
-			eq(locations.name, MVP_LOCATION_NAME),
-		),
-	});
+	const locationCandidates = await db
+		.select()
+		.from(locations)
+		.where(
+			and(
+				eq(locations.businessId, business.id),
+				inArray(locations.name, [MVP_LOCATION_NAME, LEGACY_MVP_LOCATION_NAME]),
+			),
+		);
+
+	let location =
+		locationCandidates.find((row) => row.name === MVP_LOCATION_NAME) ??
+		locationCandidates.find((row) => row.name === LEGACY_MVP_LOCATION_NAME) ??
+		null;
+
+	if (location?.name === LEGACY_MVP_LOCATION_NAME) {
+		await db
+			.update(locations)
+			.set({ name: MVP_LOCATION_NAME })
+			.where(
+				and(
+					eq(locations.id, location.id),
+					eq(locations.businessId, business.id),
+					eq(locations.name, LEGACY_MVP_LOCATION_NAME),
+				),
+			);
+		location = {
+			...location,
+			name: MVP_LOCATION_NAME,
+		};
+	}
+
 	if (!location) {
-		[location] = await db
+		location =
+			(
+				await db
 			.insert(locations)
 			.values({
 				businessId: business.id,
@@ -183,15 +212,19 @@ export async function ensureMvpDefaults(
 				address: MVP_LOCATION_ADDRESS,
 			})
 			.onConflictDoNothing()
-			.returning();
+			.returning()
+			)[0] ?? null;
 	}
 	if (!location) {
-		location = await db.query.locations.findFirst({
+		location =
+			(
+				await db.query.locations.findFirst({
 			where: and(
 				eq(locations.businessId, business.id),
 				eq(locations.name, MVP_LOCATION_NAME),
 			),
-		});
+			})
+			) ?? null;
 	}
 	if (!location) {
 		throw new Error("Default location could not be initialized.");

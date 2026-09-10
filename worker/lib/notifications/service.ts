@@ -322,7 +322,7 @@ export function createNotificationService(db: Db, env: Env): NotificationService
 				customerId: input.customerId,
 				type: "redemption_receipt",
 				title: "Reward redeemed",
-				message: `${input.rewardName} redeemed at ${input.locationName}.${referenceSegment}`,
+				message: `${input.rewardName} redeemed${referenceSegment}`,
 				actionUrl: "/app/rewards",
 				sourceType: "redemption",
 				sourceId: input.rewardId,
