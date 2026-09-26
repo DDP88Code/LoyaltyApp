@@ -131,27 +131,49 @@ export function MenuPage() {
 			.filter((section): section is HTMLElement => Boolean(section));
 		if (sections.length === 0) return;
 
+		const resolveClosestSectionId = () => {
+			const anchorLine = stickyOffset + 8;
+			let closestId = sections[0]?.id.replace("menu-category-", "") ?? "";
+
+			for (const section of sections) {
+				const sectionId = section.id.replace("menu-category-", "");
+				if (!sectionId) continue;
+				if (section.getBoundingClientRect().top <= anchorLine) {
+					closestId = sectionId;
+					continue;
+				}
+				break;
+			}
+
+			return closestId;
+		};
+
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (Date.now() < observerPauseUntilRef.current) return;
 
 				const intersecting = entries.filter((entry) => entry.isIntersecting);
-				if (intersecting.length === 0) return;
+				let targetId = "";
+				if (intersecting.length > 0) {
+					const anchorLine = stickyOffset + 8;
+					intersecting.sort((left, right) => {
+						const ratioDelta = right.intersectionRatio - left.intersectionRatio;
+						if (Math.abs(ratioDelta) > 0.05) {
+							return ratioDelta;
+						}
+						const leftDelta = Math.abs(left.boundingClientRect.top - anchorLine);
+						const rightDelta = Math.abs(right.boundingClientRect.top - anchorLine);
+						return leftDelta - rightDelta;
+					});
 
-				const anchorLine = stickyOffset + 8;
-				intersecting.sort((left, right) => {
-					const ratioDelta = right.intersectionRatio - left.intersectionRatio;
-					if (Math.abs(ratioDelta) > 0.05) {
-						return ratioDelta;
+					const winner = intersecting[0];
+					if (winner) {
+						targetId = winner.target.id.replace("menu-category-", "");
 					}
-					const leftDelta = Math.abs(left.boundingClientRect.top - anchorLine);
-					const rightDelta = Math.abs(right.boundingClientRect.top - anchorLine);
-					return leftDelta - rightDelta;
-				});
+				} else {
+					targetId = resolveClosestSectionId();
+				}
 
-				const winner = intersecting[0];
-				if (!winner) return;
-				const targetId = winner.target.id.replace("menu-category-", "");
 				if (!targetId || targetId === activeCategoryIdRef.current) return;
 
 				activeCategoryIdRef.current = targetId;
