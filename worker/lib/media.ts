@@ -7,6 +7,8 @@ const MENU_IMAGE_MIME_EXT: Record<string, string> = {
 };
 
 export const MENU_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const MENU_IMAGE_PUBLIC_CACHE_CONTROL =
+	"public, max-age=31536000, immutable";
 
 const MENU_MEDIA_PREFIX = "menu";
 const PROMOTIONS_MEDIA_PREFIX = "promotions";
@@ -53,6 +55,29 @@ export function assertOwnedMenuMediaKey(
 			"forbidden",
 			"That image key is not for menu media.",
 		);
+	}
+}
+
+export function assertPublicMenuMediaKey(imageKey: string): void {
+	const key = imageKey.trim();
+	if (!key) {
+		throw new ApiError("validation_failed", "Image key is required.");
+	}
+	if (key.includes("..") || key.includes("\\")) {
+		throw new ApiError("validation_failed", "Invalid image key.");
+	}
+	const segments = key.split("/");
+	if (
+		segments.length !== 4 ||
+		segments[0] !== "biz" ||
+		!segments[1] ||
+		segments[2] !== MENU_MEDIA_PREFIX
+	) {
+		throw new ApiError("validation_failed", "Invalid menu image key.");
+	}
+	const fileName = segments[3] ?? "";
+	if (!/^[a-z0-9-]+\.(jpg|png|webp)$/i.test(fileName)) {
+		throw new ApiError("validation_failed", "Invalid menu image key.");
 	}
 }
 
@@ -124,7 +149,7 @@ export async function putMenuImage(
 	await bucket.put(imageKey, await file.arrayBuffer(), {
 		httpMetadata: {
 			contentType,
-			cacheControl: "private, max-age=86400",
+			cacheControl: MENU_IMAGE_PUBLIC_CACHE_CONTROL,
 		},
 	});
 	return { imageKey, contentType, sizeBytes: file.size };

@@ -1,7 +1,77 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Image, Upload } from "lucide-react";
+import { Image as ImageIcon, Upload } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+
+const MENU_IMAGE_MAX_DIMENSION_PX = 1400;
+const MENU_IMAGE_WEBP_QUALITY = 0.86;
+
+function replaceFileExtension(name: string, extension: string): string {
+	const trimmed = name.trim();
+	if (!trimmed) return `upload.${extension}`;
+	const lastDot = trimmed.lastIndexOf(".");
+	if (lastDot <= 0) return `${trimmed}.${extension}`;
+	return `${trimmed.slice(0, lastDot)}.${extension}`;
+}
+
+async function decodeImageFile(file: File): Promise<HTMLImageElement> {
+	const objectUrl = URL.createObjectURL(file);
+	try {
+		const image = new Image();
+		image.decoding = "async";
+		image.src = objectUrl;
+		if (typeof image.decode === "function") {
+			await image.decode();
+		} else {
+			await new Promise<void>((resolve, reject) => {
+				image.onload = () => resolve();
+				image.onerror = () => reject(new Error("Image decode failed."));
+			});
+		}
+		return image;
+	} finally {
+		URL.revokeObjectURL(objectUrl);
+	}
+}
+
+async function optimizeMenuImageFile(file: File): Promise<File> {
+	if (!file.type.startsWith("image/")) return file;
+
+	const source = await decodeImageFile(file);
+	const sourceWidth = source.naturalWidth;
+	const sourceHeight = source.naturalHeight;
+	if (!sourceWidth || !sourceHeight) return file;
+
+	const largestSide = Math.max(sourceWidth, sourceHeight);
+	const scale = Math.min(1, MENU_IMAGE_MAX_DIMENSION_PX / largestSide);
+	const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+	const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+	const canvas = document.createElement("canvas");
+	canvas.width = targetWidth;
+	canvas.height = targetHeight;
+	const context = canvas.getContext("2d");
+	if (!context) return file;
+
+	context.drawImage(source, 0, 0, targetWidth, targetHeight);
+
+	const blob = await new Promise<Blob | null>((resolve) => {
+		canvas.toBlob(resolve, "image/webp", MENU_IMAGE_WEBP_QUALITY);
+	});
+	if (!blob) return file;
+
+	const materiallySmaller = blob.size < file.size * 0.9;
+	const resized = scale < 1;
+	const convertedToWebp = file.type !== "image/webp";
+	if (!materiallySmaller && !resized && !convertedToWebp) {
+		return file;
+	}
+
+	return new File([blob], replaceFileExtension(file.name, "webp"), {
+		type: "image/webp",
+		lastModified: Date.now(),
+	});
+}
 
 function readableNameFromImageKey(imageKey: string): string {
 	const tail = imageKey.split("/").pop() ?? imageKey;
@@ -25,6 +95,7 @@ export function AdminImageUpload({
 	formatsLabel = "JPG, PNG or WebP",
 	helpText = "Click to choose an image",
 	saveHint = "Changes apply when you save.",
+	optimizeForMenuCards = false,
 }: {
 	label: string;
 	selectedFile: File | null;
@@ -38,6 +109,7 @@ export function AdminImageUpload({
 	formatsLabel?: string;
 	helpText?: string;
 	saveHint?: string;
+	optimizeForMenuCards?: boolean;
 }) {
 	const generatedId = useId();
 	const inputId = `${generatedId}-image`;
@@ -87,9 +159,28 @@ export function AdminImageUpload({
 		}
 	}
 
-	function onInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+	async function setPreparedFile(file: File | null) {
+		if (!file) {
+			setFile(null);
+			return;
+		}
+
+		if (!optimizeForMenuCards) {
+			setFile(file);
+			return;
+		}
+
+		try {
+			const optimized = await optimizeMenuImageFile(file);
+			setFile(optimized);
+		} catch {
+			setFile(file);
+		}
+	}
+
+	async function onInputChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const next = event.target.files?.[0] ?? null;
-		setFile(next);
+		await setPreparedFile(next);
 		event.target.value = "";
 	}
 
@@ -107,7 +198,7 @@ export function AdminImageUpload({
 			return;
 		}
 
-		setFile(dropped);
+		void setPreparedFile(dropped);
 	}
 
 	function onDragEnter(event: React.DragEvent<HTMLButtonElement>) {
@@ -209,7 +300,7 @@ export function AdminImageUpload({
 					aria-describedby={helpId}
 				>
 					<div className="mb-2 inline-flex rounded-full bg-brand-surface p-2 text-brand-secondary">
-						<Image className="size-5" aria-hidden />
+						<ImageIcon className="size-5" aria-hidden />
 					</div>
 					<p className="text-sm font-semibold text-brand-secondary group-hover:text-brand-text">
 						Upload image

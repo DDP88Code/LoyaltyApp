@@ -42,6 +42,7 @@ export const customerPushConfigQueryKey = [
 	"push",
 	"config",
 ] as const;
+export const customerMenuQueryKey = ["customer", "menu"] as const;
 
 interface CachedMenuRecord {
 	fetchedAt: number;
@@ -65,6 +66,19 @@ async function fetchCustomerMenuWithCache(): Promise<CustomerMenuPayload> {
 		}
 		throw error;
 	}
+}
+
+export function customerMenuQueryOptions() {
+	return {
+		queryKey: customerMenuQueryKey,
+		queryFn: fetchCustomerMenuWithCache,
+		// Menu content changes infrequently; keep it fresh enough while avoiding
+		// redundant refetches on tab-to-tab customer navigation.
+		staleTime: 10 * 60_000,
+		gcTime: 60 * 60_000,
+		refetchOnMount: true,
+		refetchOnReconnect: true,
+	} as const;
 }
 
 export function useCustomerHome() {
@@ -206,12 +220,7 @@ export function useDeleteCustomerPushSubscription() {
 }
 
 export function useCustomerMenu() {
-	return useQuery({
-		queryKey: ["customer", "menu"],
-		queryFn: fetchCustomerMenuWithCache,
-		// The menu rarely changes intra-session; avoid refetching on every tab visit.
-		staleTime: 5 * 60_000,
-	});
+	return useQuery(customerMenuQueryOptions());
 }
 
 export function useUpdateProfile() {

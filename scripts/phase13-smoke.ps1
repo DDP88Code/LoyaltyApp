@@ -208,13 +208,13 @@ $seedTwo = Invoke-Json "Post" "/api/dev/seed" (New-Object Microsoft.PowerShell.C
 Assert-True ($businessId -eq [string]$seedTwo.data.businessId) "Seed business id changed between runs"
 
 $businessCount = Get-D1Count "SELECT COUNT(*) as value FROM businesses WHERE id = '$businessId'"
-$locationCount = Get-D1Count "SELECT COUNT(*) as value FROM locations WHERE business_id = '$businessId' AND name = 'Fives - Pinehurst'"
+$locationCount = Get-D1Count "SELECT COUNT(*) as value FROM locations WHERE business_id = '$businessId' AND name = 'Fives Sports Bar - Pinehurst'"
 $welcomeRewardCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND welcome_reward = 1"
 $freeCoffeeCount = Get-D1Count "SELECT COUNT(*) as value FROM reward_definitions WHERE business_id = '$businessId' AND name = 'Free Coffee'"
 $coffeeProgramCount = Get-D1Count "SELECT COUNT(*) as value FROM loyalty_programs WHERE business_id = '$businessId' AND currency_code = 'COFFEE'"
 
 Assert-True ($businessCount -eq 1) "Expected exactly one business row"
-Assert-True ($locationCount -eq 1) "Expected exactly one default location"
+Assert-True ($locationCount -eq 1) "Expected exactly one canonical default location"
 Assert-True ($welcomeRewardCount -eq 1) "Expected exactly one welcome reward definition"
 Assert-True ($freeCoffeeCount -eq 1) "Expected exactly one Free Coffee reward definition"
 Assert-True ($coffeeProgramCount -eq 1) "Expected exactly one coffee loyalty program"

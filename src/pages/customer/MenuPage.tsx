@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertTriangle,
 	ChevronUp,
@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import { useCustomerMenu } from "@/features/customer/api";
+import { prefetchMenuImages } from "@/features/customer/menuImagePrefetch";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
-import { mediaObjectUrl } from "@/lib/media";
+import { menuMediaObjectUrl } from "@/lib/media";
 import { formatCents } from "@/lib/money";
 
 const VISUAL_FOOD_CATEGORIES = new Set([
@@ -68,6 +69,10 @@ export function MenuPage() {
 		};
 	} | null>(null);
 	const [showBackToTop, setShowBackToTop] = useState(false);
+	const chipContainerRef = useRef<HTMLDivElement | null>(null);
+	const chipButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+	const observerPauseUntilRef = useRef(0);
+	const activeCategoryIdRef = useRef("");
 
 	const categories = useMemo(() => {
 		if (!menu.data) return [];
@@ -96,17 +101,94 @@ export function MenuPage() {
 	}, [categories]);
 
 	useEffect(() => {
+		activeCategoryIdRef.current = activeCategoryId;
+	}, [activeCategoryId]);
+
+	useEffect(() => {
+		if (!menu.data || categories.length === 0) return;
+		prefetchMenuImages(menu.data, {
+			preferredCategoryId: categories[0]?.id,
+			priorityCount: 4,
+		});
+	}, [menu.data, categories]);
+
+	useEffect(() => {
 		const onScroll = () => setShowBackToTop(window.scrollY > 520);
 		onScroll();
 		window.addEventListener("scroll", onScroll, { passive: true });
 		return () => window.removeEventListener("scroll", onScroll);
 	}, []);
 
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		if (categories.length === 0) return;
+
+		const stickyOffset = (chipContainerRef.current?.offsetHeight ?? 44) + 12;
+		const sections = categories
+			.map((category) =>
+				document.getElementById(`menu-category-${category.id}`),
+			)
+			.filter((section): section is HTMLElement => Boolean(section));
+		if (sections.length === 0) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (Date.now() < observerPauseUntilRef.current) return;
+
+				const intersecting = entries.filter((entry) => entry.isIntersecting);
+				if (intersecting.length === 0) return;
+
+				const anchorLine = stickyOffset + 8;
+				intersecting.sort((left, right) => {
+					const ratioDelta = right.intersectionRatio - left.intersectionRatio;
+					if (Math.abs(ratioDelta) > 0.05) {
+						return ratioDelta;
+					}
+					const leftDelta = Math.abs(left.boundingClientRect.top - anchorLine);
+					const rightDelta = Math.abs(right.boundingClientRect.top - anchorLine);
+					return leftDelta - rightDelta;
+				});
+
+				const winner = intersecting[0];
+				if (!winner) return;
+				const targetId = winner.target.id.replace("menu-category-", "");
+				if (!targetId || targetId === activeCategoryIdRef.current) return;
+
+				activeCategoryIdRef.current = targetId;
+				setActiveCategoryId(targetId);
+			},
+			{
+				root: null,
+				rootMargin: `-${stickyOffset}px 0px -55% 0px`,
+				threshold: [0.15, 0.35, 0.55, 0.75],
+			},
+		);
+
+		for (const section of sections) {
+			observer.observe(section);
+		}
+
+		return () => observer.disconnect();
+	}, [categories]);
+
+	useEffect(() => {
+		if (!activeCategoryId) return;
+		chipButtonRefs.current[activeCategoryId]?.scrollIntoView({
+			behavior: "smooth",
+			inline: "nearest",
+			block: "nearest",
+		});
+	}, [activeCategoryId]);
+
 	function jumpToCategory(categoryId: string) {
 		setActiveCategoryId(categoryId);
+		activeCategoryIdRef.current = categoryId;
+		observerPauseUntilRef.current = Date.now() + 1_000;
 		const target = document.getElementById(`menu-category-${categoryId}`);
 		if (target) {
-			target.scrollIntoView({ behavior: "smooth", block: "start" });
+			const stickyOffset = (chipContainerRef.current?.offsetHeight ?? 44) + 12;
+			const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
+			window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 		}
 	}
 
@@ -158,10 +240,16 @@ export function MenuPage() {
 			{menu.data && (
 				<>
 					{categories.length > 0 && (
-						<div className="sticky top-0 z-10 mt-4 border-y border-brand-border bg-brand-background/95 py-2 backdrop-blur">
+						<div
+							ref={chipContainerRef}
+							className="sticky top-0 z-10 mt-4 border-y border-brand-border bg-brand-background/95 py-2 backdrop-blur"
+						>
 							<div className="no-scrollbar flex gap-2 overflow-x-auto px-1">
 								{categories.map((category) => (
 									<button
+										ref={(node) => {
+											chipButtonRefs.current[category.id] = node;
+										}}
 										key={category.id}
 										type="button"
 										onClick={() => jumpToCategory(category.id)}
@@ -178,7 +266,7 @@ export function MenuPage() {
 						{categories.length === 0 ? (
 							<EmptyState title="No menu items found" description="Try a different search term." />
 						) : (
-							categories.map((category) => {
+							categories.map((category, categoryIndex) => {
 								const visual = isVisualCategory(menuGroup, category.name);
 								return (
 									<section id={`menu-category-${category.id}`} key={category.id} className="scroll-mt-28">
@@ -192,7 +280,9 @@ export function MenuPage() {
 
 										{visual ? (
 											<div className="grid gap-4 sm:grid-cols-2">
-												{category.items.map((item) => (
+												{category.items.map((item, itemIndex) => {
+													const shouldPrioritizeImage = categoryIndex === 0 && itemIndex < 3;
+													return (
 													<button
 														type="button"
 														key={item.id}
@@ -201,10 +291,14 @@ export function MenuPage() {
 													>
 														{item.imageKey ? (
 															<img
-																src={mediaObjectUrl(item.imageKey)}
+																src={menuMediaObjectUrl(item.imageKey)}
 																alt={item.name}
 																className="h-44 w-full object-cover"
-																loading="lazy"
+																width={1774}
+																height={887}
+																loading={shouldPrioritizeImage ? "eager" : "lazy"}
+																fetchPriority={shouldPrioritizeImage ? "high" : "low"}
+																decoding="async"
 															/>
 														) : (
 															<div className="flex h-44 items-center justify-center bg-[radial-gradient(circle_at_top_right,rgba(201,123,60,0.28),rgba(31,26,22,0.95)_48%)] text-brand-muted">
@@ -249,21 +343,28 @@ export function MenuPage() {
 															</div>
 														</div>
 													</button>
-												))}
+													);
+												})}
 											</div>
 										) : (
 											<div className="overflow-hidden rounded-card border border-brand-border bg-brand-surface">
-												{category.items.map((item) => (
+												{category.items.map((item, itemIndex) => {
+													const shouldPrioritizeImage = categoryIndex === 0 && itemIndex < 3;
+													return (
 													<div key={item.id} className="border-b border-brand-border px-4 py-3 last:border-b-0">
 														<div className="flex items-start justify-between gap-3">
 															<div className="min-w-0 flex-1">
 																<div className="flex items-start gap-3">
 																	{item.imageKey ? (
 																		<img
-																			src={mediaObjectUrl(item.imageKey)}
+																			src={menuMediaObjectUrl(item.imageKey)}
 																			alt={item.name}
 																			className="h-14 w-14 shrink-0 rounded-lg object-cover"
-																			loading="lazy"
+																			width={56}
+																			height={56}
+																			loading={shouldPrioritizeImage ? "eager" : "lazy"}
+																			fetchPriority={shouldPrioritizeImage ? "high" : "low"}
+																			decoding="async"
 																		/>
 																	) : null}
 																	<div className="min-w-0">
@@ -285,7 +386,8 @@ export function MenuPage() {
 															{!item.available && <Badge tone="danger">Sold out</Badge>}
 														</div>
 													</div>
-												))}
+													);
+												})}
 											</div>
 										)}
 									</section>
@@ -321,10 +423,14 @@ export function MenuPage() {
 						<div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-brand-border" />
 						{detail.item.imageKey ? (
 							<img
-								src={mediaObjectUrl(detail.item.imageKey)}
+								src={menuMediaObjectUrl(detail.item.imageKey)}
 								alt={detail.item.name}
 								className="h-52 w-full rounded-2xl object-cover"
-								loading="lazy"
+								width={1774}
+								height={887}
+								loading="eager"
+								fetchPriority="high"
+								decoding="async"
 							/>
 						) : (
 							<div className="flex h-52 items-center justify-center rounded-2xl bg-[radial-gradient(circle_at_top_right,rgba(201,123,60,0.28),rgba(31,26,22,0.95)_48%)] text-brand-muted">

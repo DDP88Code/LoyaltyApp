@@ -542,6 +542,7 @@ export function AdminMenuPage() {
 
 							<AdminImageUpload
 								label="Category image"
+								optimizeForMenuCards
 								selectedFile={categoryImageFile}
 								onSelectedFileChange={(file) => {
 									setCategoryImageFile(file);
@@ -841,6 +842,7 @@ export function AdminMenuPage() {
 
 								<AdminImageUpload
 									label="Item image"
+									optimizeForMenuCards
 									selectedFile={itemImageFile}
 									onSelectedFileChange={(file) => {
 										setItemImageFile(file);

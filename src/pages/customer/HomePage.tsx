@@ -1,4 +1,5 @@
 import { QrCode, Sparkles, UtensilsCrossed } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { BRAND } from "@shared/branding";
@@ -7,14 +8,60 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import { useSession } from "@/features/auth/useSession";
-import { useCustomerHome } from "@/features/customer/api";
+import {
+	customerMenuQueryOptions,
+	useCustomerHome,
+} from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
+import { prefetchMenuImages } from "@/features/customer/menuImagePrefetch";
 import { RewardCard } from "@/features/customer/RewardCard";
 import { mediaObjectUrl } from "@/lib/media";
 
 export function HomePage() {
 	const { data: user } = useSession();
+	const queryClient = useQueryClient();
 	const home = useCustomerHome();
+
+	useEffect(() => {
+		if (!home.data) return;
+		if (typeof window === "undefined") return;
+
+		let cancelled = false;
+
+		const prefetch = async () => {
+			try {
+				const menuData = await queryClient.ensureQueryData(customerMenuQueryOptions());
+				if (cancelled) return;
+				const firstFoodCategoryId =
+					menuData.categories.find((category) => category.menuGroup === "food")?.id ??
+					menuData.categories[0]?.id;
+				prefetchMenuImages(menuData, {
+					preferredCategoryId: firstFoodCategoryId,
+					priorityCount: 4,
+				});
+			} catch {
+				// Ignore background prefetch failures; the menu screen can still fetch directly.
+			}
+		};
+
+		if (typeof window.requestIdleCallback === "function") {
+			const idleId = window.requestIdleCallback(() => {
+				void prefetch();
+			}, { timeout: 1_200 });
+			return () => {
+				cancelled = true;
+				window.cancelIdleCallback(idleId);
+			};
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			void prefetch();
+		}, 250);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timeoutId);
+		};
+	}, [home.data, queryClient]);
 
 	if (home.isPending) return <LoadingState label="Loading your rewards…" />;
 	if (home.isError) {
