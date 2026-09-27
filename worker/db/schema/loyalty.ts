@@ -25,6 +25,8 @@ export const loyaltyPrograms = sqliteTable(
 		currencyCode: text("currency_code").notNull(),
 		// Stamp threshold. Admin-configurable; never hard-coded in business logic.
 		qualifyingPurchasesRequired: integer("qualifying_purchases_required"),
+		earnRatePoints: integer("earn_rate_points"),
+		earnRateSpendCents: integer("earn_rate_spend_cents"),
 		rewardDefinitionId: text("reward_definition_id").references(
 			() => rewardDefinitions.id,
 			{ onDelete: "set null" },
@@ -76,6 +78,8 @@ export const loyaltyTransactions = sqliteTable(
 		reason: text("reason"),
 		approvedBy: text("approved_by").references(() => profiles.id),
 		idempotencyKey: text("idempotency_key").notNull(),
+		pointsAwardId: text("points_award_id"),
+		relatedTransactionId: text("related_transaction_id"),
 		createdAt: createdAt(),
 	},
 	(t) => [
@@ -86,6 +90,8 @@ export const loyaltyTransactions = sqliteTable(
 		index("loyalty_transactions_staff_idx").on(t.staffId),
 		index("loyalty_transactions_location_idx").on(t.locationId),
 		index("loyalty_transactions_created_at_idx").on(t.createdAt),
+		index("loyalty_transactions_points_award_idx").on(t.pointsAwardId),
+		index("loyalty_transactions_related_idx").on(t.relatedTransactionId),
 		// Serves the progress query: one customer's entries for one program, in order.
 		index("loyalty_transactions_progress_idx").on(
 			t.customerId,

@@ -69,6 +69,7 @@ export function StaffHomePage() {
 			<ResolvedCustomerView
 				customer={customer}
 				locationId={effectiveLocationId}
+				staffRole={context.data.staff.role}
 				onUpdated={setCustomer}
 				onDone={() => {
 					setCustomer(null);

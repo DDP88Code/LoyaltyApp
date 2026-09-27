@@ -5,6 +5,10 @@ import type {
 	ResolveLoyaltyCodeInput,
 	StaffResolvedCustomerPayload,
 } from "@shared/loyaltyCode";
+import type {
+	StaffPointsAwardPayload,
+	StaffPointsQuotePayload,
+} from "@shared/rewardPoints";
 import { apiFetch } from "@/lib/api";
 
 export function useStaffContext(locationId: string | null) {
@@ -57,6 +61,18 @@ export interface RedeemRewardInput {
 	billTotalRand: number | null;
 }
 
+export interface StaffPointsQuoteInput {
+	customerId: string;
+	locationId: string;
+	eligibleSpendRand: string;
+	billReference: string;
+}
+
+export interface StaffPointsAwardInput extends StaffPointsQuoteInput {
+	requestIdempotencyKey: string;
+	duplicateOverrideReason?: string | null;
+}
+
 export function useRedeemReward() {
 	return useMutation({
 		mutationFn: ({ customerId, rewardId, ...body }: RedeemRewardInput) =>
@@ -64,5 +80,25 @@ export function useRedeemReward() {
 				`/api/staff/customers/${customerId}/rewards/${rewardId}/redeem`,
 				{ method: "POST", body: JSON.stringify(body) },
 			),
+	});
+}
+
+export function useQuoteStaffPoints() {
+	return useMutation({
+		mutationFn: ({ customerId, ...body }: StaffPointsQuoteInput) =>
+			apiFetch<StaffPointsQuotePayload>(`/api/staff/points/customers/${customerId}/quote`, {
+				method: "POST",
+				body: JSON.stringify(body),
+			}),
+	});
+}
+
+export function useAwardStaffPoints() {
+	return useMutation({
+		mutationFn: ({ customerId, ...body }: StaffPointsAwardInput) =>
+			apiFetch<StaffPointsAwardPayload>(`/api/staff/points/customers/${customerId}/award`, {
+				method: "POST",
+				body: JSON.stringify(body),
+			}),
 	});
 }

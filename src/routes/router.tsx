@@ -21,6 +21,7 @@ import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
 import { AdminLoyaltyPage } from "@/pages/admin/AdminLoyaltyPage";
 import { AdminMenuPage } from "@/pages/admin/AdminMenuPage";
 import { AdminPromotionsPage } from "@/pages/admin/AdminPromotionsPage";
+import { AdminPointsPage } from "@/pages/admin/AdminPointsPage";
 import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
 import { AdminRewardsPage } from "@/pages/admin/AdminRewardsPage";
 import { AdminSettingsPage } from "@/pages/admin/AdminSettingsPage";
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
 							{ path: "/admin/transactions", element: <AdminTransactionsPage /> },
 							{ path: "/admin/menu", element: <AdminMenuPage /> },
 							{ path: "/admin/promotions", element: <AdminPromotionsPage /> },
+							{ path: "/admin/points", element: <AdminPointsPage /> },
 							{ path: "/admin/staff", element: <AdminStaffPage /> },
 							{ path: "/admin/reports", element: <AdminReportsPage /> },
 							{ path: "/admin/settings", element: <AdminSettingsPage /> },

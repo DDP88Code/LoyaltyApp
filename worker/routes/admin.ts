@@ -120,6 +120,7 @@ import { requireLocationInBusiness } from "@worker/lib/scope";
 import { requireAdminOrOwner, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
 import type { AppEnv } from "@worker/types";
+import { adminPoints } from "@worker/routes/adminPoints";
 
 const STAFF_ROLES = ["staff", "admin", "owner"] as const;
 const STAFF_ASSIGNABLE_ROLES = ["staff", "admin"] as const;
@@ -960,6 +961,7 @@ function rethrowAsConflict(error: unknown, message: string): never {
 
 export const admin = new Hono<AppEnv>()
 	.use("*", requireSession, requireAdminOrOwner)
+	.route("/points", adminPoints)
 
 	.get("/dashboard", validate("query", dashboardQuerySchema), async (c) => {
 		const profile = c.get("profile");

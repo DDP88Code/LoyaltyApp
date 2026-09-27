@@ -1,6 +1,10 @@
 import type { SessionUser } from "./api";
 import type { CustomerRewardStatus, RewardType, TransactionType } from "./domain";
 import type { MenuGroup } from "./menu";
+import type {
+	CustomerPointsPayload,
+	CustomerPointsSummary,
+} from "./rewardPoints";
 
 /** Derived from the ledger on every read — never stored as a running total. */
 export interface CoffeeProgress {
@@ -85,6 +89,7 @@ export interface CustomerHomePayload {
 	activePromotions: PromotionSummary[];
 	promotionCarouselSpeedSeconds: number;
 	pointsEnabled: boolean;
+	points: CustomerPointsSummary | null;
 }
 
 export interface CustomerRewardsPayload {
@@ -93,6 +98,7 @@ export interface CustomerRewardsPayload {
 	redeemed: RewardSummary[];
 	expired: RewardSummary[];
 	pointsEnabled: boolean;
+	points: CustomerPointsPayload | null;
 }
 
 export interface CustomerTransactionsPayload {

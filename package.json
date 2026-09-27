@@ -11,7 +11,7 @@
     "deploy": "npm run build && wrangler deploy",
     "deploy:prod": "npm run build:prod && wrangler deploy --env production",
     "lint": "npm run typecheck",
-    "test": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/phase13-smoke.ps1 && pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1 && node ./scripts/webpush-payload-smoke.mjs && node ./scripts/menu-media-cache-smoke.mjs && node ./scripts/promotion-media-cache-smoke.mjs && node ./scripts/password-reset-link-smoke.mjs",
+    "test": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/phase13-smoke.ps1 && pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1 && node ./scripts/points-smoke.mjs && node ./scripts/webpush-payload-smoke.mjs && node ./scripts/menu-media-cache-smoke.mjs && node ./scripts/promotion-media-cache-smoke.mjs && node ./scripts/password-reset-link-smoke.mjs",
     "test:birthday": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/birthday-reward-smoke.ps1",
     "test:auth": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1",
     "test:webpush": "node ./scripts/webpush-payload-smoke.mjs",

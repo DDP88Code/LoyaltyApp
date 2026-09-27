@@ -5,5 +5,6 @@ export * from "./loyalty";
 export * from "./rewards";
 export * from "./menu";
 export * from "./promotions";
+export * from "./points";
 export * from "./audit";
 export * from "./notifications";

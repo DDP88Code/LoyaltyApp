@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CoffeeProgress, RewardSummary } from "./loyalty";
+import type { StaffPointsPromotionContext } from "./rewardPoints";
 
 export const OTP_LENGTH = 6;
 
@@ -21,6 +22,7 @@ export interface StaffResolvedCustomerPayload {
 	availableFreeCoffees: RewardSummary[];
 	availableVouchers: RewardSummary[];
 	voucherRedemptionEnabled: boolean;
+	points: StaffPointsPromotionContext;
 }
 
 /** Same as above, plus how many rewards this specific action just issued. */

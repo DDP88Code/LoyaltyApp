@@ -48,11 +48,11 @@ import { ok } from "@worker/lib/http";
 import { ApiError } from "@worker/lib/http";
 import {
 	getCoffeeProgress,
-	isPointsProgramActive,
 	issueWelcomeReward,
 	listCustomerRewards,
 	listCustomerTransactions,
 } from "@worker/lib/loyalty";
+import { listCustomerPointsPayload } from "@worker/lib/points/service";
 import { reconcileBirthdayRewardForCustomer } from "@worker/lib/birthdayRewards";
 import { issueLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { createNotificationService } from "@worker/lib/notifications/service";
@@ -65,6 +65,7 @@ import { toSessionUser } from "@worker/lib/session";
 import { requireCustomer, requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
 import type { AppEnv } from "@worker/types";
+import { customerPoints } from "@worker/routes/customerPoints";
 
 const transactionsQuerySchema = z.object({
 	limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -125,6 +126,7 @@ function toPromotionSummary(
 
 export const customer = new Hono<AppEnv>()
 	.use("*", requireSession, requireCustomer)
+	.route("/points", customerPoints)
 
 	.get("/profile", (c) =>
 		ok<SessionPayload>(c, { user: toSessionUser(c.get("profile")) }),
@@ -503,11 +505,15 @@ export const customer = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const now = new Date();
 
-		const [coffee, rewards, pointsEnabled, activePromotionRows, carouselSpeedSetting] =
+		const [coffee, rewards, pointsPayload, activePromotionRows, carouselSpeedSetting] =
 			await Promise.all([
 				getCoffeeProgress(db, profile.businessId, profile.id),
 				listCustomerRewards(db, profile.businessId, profile.id),
-				isPointsProgramActive(db, profile.businessId),
+				listCustomerPointsPayload({
+					db,
+					businessId: profile.businessId,
+					customerId: profile.id,
+				}),
 				db.query.promotions.findMany({
 					where: and(
 						eq(promotions.businessId, profile.businessId),
@@ -540,7 +546,8 @@ export const customer = new Hono<AppEnv>()
 			promotionCarouselSpeedSeconds: parsePromotionCarouselSpeedSeconds(
 				carouselSpeedSetting?.valueJson,
 			),
-			pointsEnabled,
+			pointsEnabled: Boolean(pointsPayload),
+			points: pointsPayload?.summary ?? null,
 		});
 	})
 
@@ -548,10 +555,14 @@ export const customer = new Hono<AppEnv>()
 		const profile = c.get("profile");
 		const db = getDb(c.env);
 
-		const [coffee, rewards, pointsEnabled] = await Promise.all([
+		const [coffee, rewards, pointsPayload] = await Promise.all([
 			getCoffeeProgress(db, profile.businessId, profile.id),
 			listCustomerRewards(db, profile.businessId, profile.id),
-			isPointsProgramActive(db, profile.businessId),
+			listCustomerPointsPayload({
+				db,
+				businessId: profile.businessId,
+				customerId: profile.id,
+			}),
 		]);
 
 		return ok<CustomerRewardsPayload>(c, {
@@ -561,7 +572,8 @@ export const customer = new Hono<AppEnv>()
 			expired: rewards.filter(
 				(reward) => reward.status === "expired" || reward.status === "cancelled",
 			),
-			pointsEnabled,
+			pointsEnabled: Boolean(pointsPayload),
+			points: pointsPayload,
 		});
 	})
 

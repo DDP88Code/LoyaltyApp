@@ -1,36 +1,57 @@
 import { useEffect, useState } from "react";
 import type { RewardSummary } from "@shared/loyalty";
+import type { CustomerPointsPayload } from "@shared/rewardPoints";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
-import { useCustomerRewards, useCustomerTransactions } from "@/features/customer/api";
+import {
+	useRedeemCustomerPoints,
+	useCustomerRewards,
+	useCustomerTransactions,
+} from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { RewardCard } from "@/features/customer/RewardCard";
 import { cn } from "@/lib/cn";
+import { formatCents } from "@/lib/money";
 
-const TABS = ["coffee", "available", "redeemed", "expired", "history"] as const;
+const TABS = ["coffee", "points", "available", "redeemed", "expired", "history"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABEL: Record<Tab, string> = {
 	coffee: "Coffee Rewards",
+	points: "Points",
 	available: "Available",
 	redeemed: "Redeemed",
 	expired: "Expired",
 	history: "History",
 };
 
+function newIdempotencyKey() {
+	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+		return crypto.randomUUID();
+	}
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export function RewardsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const requestedTab = searchParams.get("tab");
-	const tab: Tab = isTab(requestedTab) ? requestedTab : "coffee";
 	const rewards = useCustomerRewards();
+	const redeemPoints = useRedeemCustomerPoints();
+
+	const visibleTabs: Tab[] = rewards.data?.pointsEnabled
+		? [...TABS]
+		: TABS.filter((value) => value !== "points");
+	const fallbackTab = visibleTabs[0] ?? "coffee";
+	const tab: Tab = isVisibleTab(requestedTab, visibleTabs) ? requestedTab : fallbackTab;
 
 	useEffect(() => {
-		if (isTab(requestedTab)) return;
+		if (isVisibleTab(requestedTab, visibleTabs)) return;
 		const next = new URLSearchParams(searchParams);
-		next.set("tab", "coffee");
+		next.set("tab", fallbackTab);
 		setSearchParams(next, { replace: true });
-	}, [requestedTab, searchParams, setSearchParams]);
+	}, [fallbackTab, requestedTab, searchParams, setSearchParams, visibleTabs]);
 
 	const setTab = (nextTab: Tab) => {
 		const next = new URLSearchParams(searchParams);
@@ -43,7 +64,7 @@ export function RewardsPage() {
 			<PageHeader title="Rewards" />
 
 			<div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist">
-				{TABS.map((value) => (
+				{visibleTabs.map((value) => (
 					<button
 						key={value}
 						type="button"
@@ -86,7 +107,21 @@ export function RewardsPage() {
 				</div>
 			)}
 
-			{rewards.data && tab !== "coffee" && tab !== "history" && (
+			{rewards.data && tab === "points" && rewards.data.points && (
+				<PointsPanel
+					points={rewards.data.points}
+					loading={redeemPoints.isPending}
+					error={redeemPoints.error?.message ?? null}
+					onRedeem={(catalogueItemId) =>
+						redeemPoints.mutate({
+							catalogueItemId,
+							requestIdempotencyKey: newIdempotencyKey(),
+						})
+					}
+				/>
+			)}
+
+			{rewards.data && tab !== "coffee" && tab !== "points" && tab !== "history" && (
 				<RewardList rewards={rewards.data[tab]} />
 			)}
 
@@ -95,8 +130,8 @@ export function RewardsPage() {
 	);
 }
 
-function isTab(value: string | null): value is Tab {
-	return value !== null && (TABS as readonly string[]).includes(value);
+function isVisibleTab(value: string | null, visibleTabs: readonly Tab[]): value is Tab {
+	return value !== null && (visibleTabs as readonly string[]).includes(value);
 }
 
 function RewardList({ rewards }: { rewards: RewardSummary[] }) {
@@ -114,6 +149,112 @@ function RewardList({ rewards }: { rewards: RewardSummary[] }) {
 }
 
 const PAGE_SIZE = 20;
+
+function PointsPanel({
+	points,
+	loading,
+	error,
+	onRedeem,
+}: {
+	points: CustomerPointsPayload;
+	loading: boolean;
+	error: string | null;
+	onRedeem: (catalogueItemId: string) => void;
+}) {
+	const summary = points.summary;
+
+	return (
+		<div className="flex flex-col gap-3">
+			<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
+				<p className="text-xs tracking-[0.2em] text-brand-secondary uppercase">
+					{summary.programName}
+				</p>
+				<p className="mt-1 text-lg font-semibold">
+					{summary.availableBalance.toLocaleString("en-ZA")} points available
+				</p>
+				{summary.inRecovery && (
+					<p className="mt-2 text-sm text-brand-warning">
+						{summary.recoveryPoints.toLocaleString("en-ZA")} points need to be recovered before you can redeem rewards.
+						 Points you earn from here will go towards this first.
+					</p>
+				)}
+			</div>
+
+			<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
+				<p className="text-sm font-semibold">Catalogue</p>
+				{points.catalogue.length === 0 ? (
+					<p className="mt-2 text-sm text-brand-muted">No points rewards available yet.</p>
+				) : (
+					<div className="mt-3 flex flex-col gap-2">
+						{points.catalogue.map((item) => {
+							const disabled =
+								loading ||
+								summary.inRecovery ||
+								summary.availableBalance < item.pointsCost;
+							const reason = summary.inRecovery
+								? "Unavailable during recovery"
+								: summary.availableBalance < item.pointsCost
+									? "Not enough points"
+									: null;
+
+							return (
+								<div
+									key={item.id}
+									className="flex items-center justify-between gap-3 rounded-lg border border-brand-border px-3 py-3"
+								>
+									<div className="min-w-0">
+										<p className="truncate font-medium">{item.name}</p>
+										<p className="text-xs text-brand-muted">
+											{item.pointsCost.toLocaleString("en-ZA")} points
+											{item.valueCents != null ? ` • ${formatCents(item.valueCents)}` : ""}
+										</p>
+										{reason && <p className="text-xs text-brand-warning">{reason}</p>}
+									</div>
+									<Button
+										size="sm"
+										disabled={disabled}
+										onClick={() => onRedeem(item.id)}
+									>
+										Redeem
+									</Button>
+								</div>
+							);
+						})}
+					</div>
+				)}
+				{error && <p className="mt-2 text-sm text-brand-danger">{error}</p>}
+			</div>
+
+			<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
+				<p className="text-sm font-semibold">Points History</p>
+				{points.history.length === 0 ? (
+					<p className="mt-2 text-sm text-brand-muted">No points activity yet.</p>
+				) : (
+					<ul className="mt-3 flex flex-col gap-2">
+						{points.history.map((entry) => (
+							<li
+								key={entry.id}
+								className="flex items-center justify-between gap-2 rounded-lg border border-brand-border px-3 py-2"
+							>
+								<div>
+									<p className="text-sm font-medium">{entry.label}</p>
+									<p className="text-xs text-brand-muted">
+										{new Date(entry.createdAt).toLocaleString("en-ZA")}
+										{entry.detail ? ` • ${entry.detail}` : ""}
+									</p>
+								</div>
+								<p className={cn("font-semibold", entry.quantity < 0 && "text-brand-danger")}>
+									{entry.quantity > 0 ? "+" : ""}
+									{entry.quantity}
+								</p>
+							</li>
+						))}
+					</ul>
+				)}
+			</div>
+		</div>
+	);
+}
 
 function TransactionHistory() {
 	const [offset, setOffset] = useState(0);

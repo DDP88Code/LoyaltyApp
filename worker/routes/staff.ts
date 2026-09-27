@@ -22,6 +22,7 @@ import {
 	recordCoffeeEarn,
 	redeemCustomerReward,
 } from "@worker/lib/loyalty";
+import { getStaffPointsContext } from "@worker/lib/points/service";
 import { resolveLoyaltyCode } from "@worker/lib/loyaltyCode";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import { requireLocationInBusiness } from "@worker/lib/scope";
@@ -29,6 +30,7 @@ import { toSessionUser } from "@worker/lib/session";
 import { requireSession, requireStaff } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
 import type { AppEnv } from "@worker/types";
+import { staffPoints } from "@worker/routes/staffPoints";
 
 const contextQuerySchema = z.object({
 	locationId: z.string().min(1).max(64).optional(),
@@ -87,9 +89,10 @@ async function resolveCustomerView(
 		);
 	}
 
-	const [coffee, rewards] = await Promise.all([
+	const [coffee, rewards, points] = await Promise.all([
 		getCoffeeProgress(db, businessId, customer.id),
 		listCustomerRewards(db, businessId, customer.id),
+		getStaffPointsContext(db, businessId, customer.id),
 	]);
 	const available = rewards.filter((reward) => reward.status === "available");
 
@@ -104,11 +107,13 @@ async function resolveCustomerView(
 			(reward) => reward.rewardType === "voucher",
 		),
 		voucherRedemptionEnabled,
+		points,
 	};
 }
 
 export const staff = new Hono<AppEnv>()
 	.use("*", requireSession, requireStaff)
+	.route("/points", staffPoints)
 
 	.get("/context", validate("query", contextQuerySchema), async (c) => {
 		const profile = c.get("profile");

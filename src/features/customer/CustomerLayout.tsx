@@ -1,10 +1,10 @@
-import { Bell, Coffee, Gift, QrCode, User, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Bell, Coffee, Gift, QrCode, User, UtensilsCrossed } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { BRAND } from "@shared/branding";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/features/auth/useSession";
-import { useCustomerUnreadNotifications } from "@/features/customer/api";
+import { useCustomerHome, useCustomerUnreadNotifications } from "@/features/customer/api";
 import { MarketingOptInModal } from "@/features/customer/MarketingOptInModal";
 
 const TABS = [
@@ -22,7 +22,15 @@ const TABS = [
 export function CustomerLayout() {
 	const { data: user } = useSession();
 	const unread = useCustomerUnreadNotifications();
+	const home = useCustomerHome();
 	const unreadCount = unread.data?.unread ?? 0;
+	const points = home.data?.pointsEnabled ? home.data.points : null;
+	const pointsValue = points?.availableBalance ?? 0;
+	const pointsAria = points
+		? points.inRecovery
+			? `${points.programName}: ${points.availableBalance.toLocaleString("en-ZA")} available, ${points.recoveryPoints.toLocaleString("en-ZA")} points to recover`
+			: `${points.programName}: ${points.availableBalance.toLocaleString("en-ZA")} available`
+		: null;
 	const [compactHeader, setCompactHeader] = useState(false);
 	const headerRef = useRef<HTMLElement | null>(null);
 
@@ -97,23 +105,44 @@ export function CustomerLayout() {
 					)}
 				</div>
 
-					<NavLink
-						to="/app/notifications"
-						className={({ isActive }) =>
-							cn(
-								"relative inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-brand-border bg-brand-surface-raised text-brand-muted transition-colors hover:text-brand-text",
-								isActive && "text-brand-primary",
-							)
-						}
-						aria-label="Notifications"
-					>
-						<Bell className="size-5" aria-hidden />
-						{unreadCount > 0 && (
-							<span className="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-brand-danger px-1.5 text-[10px] font-semibold text-white">
-								{unreadCount > 99 ? "99+" : unreadCount}
-							</span>
+					<div className="flex shrink-0 items-center gap-2">
+						{points && (
+							<NavLink
+								to="/app/rewards?tab=points"
+								className={({ isActive }) =>
+									cn(
+										"relative inline-flex min-w-0 max-w-[11rem] items-center gap-1.5 rounded-full border border-brand-border bg-brand-surface-raised px-2.5 py-1.5 text-xs font-semibold text-brand-muted transition-colors hover:text-brand-text",
+										isActive && "text-brand-primary",
+									)
+								}
+								aria-label={pointsAria ?? "Reward points"}
+							>
+								{points.inRecovery && (
+									<AlertTriangle className="size-3.5 shrink-0 text-brand-warning" aria-hidden />
+								)}
+								<span className="truncate">{pointsValue.toLocaleString("en-ZA")}</span>
+								<span className="inline max-[380px]:hidden">pts</span>
+							</NavLink>
 						)}
-					</NavLink>
+
+						<NavLink
+							to="/app/notifications"
+							className={({ isActive }) =>
+								cn(
+									"relative inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-brand-border bg-brand-surface-raised text-brand-muted transition-colors hover:text-brand-text",
+									isActive && "text-brand-primary",
+								)
+							}
+							aria-label="Notifications"
+						>
+							<Bell className="size-5" aria-hidden />
+							{unreadCount > 0 && (
+								<span className="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-brand-danger px-1.5 text-[10px] font-semibold text-white">
+									{unreadCount > 99 ? "99+" : unreadCount}
+								</span>
+							)}
+						</NavLink>
+					</div>
 				</div>
 			</header>
 

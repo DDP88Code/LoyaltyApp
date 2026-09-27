@@ -6,6 +6,10 @@ import type {
 	CustomerRewardsPayload,
 	CustomerTransactionsPayload,
 } from "@shared/loyalty";
+import type {
+	CustomerPointsPayload,
+	CustomerPointsRedeemResultPayload,
+} from "@shared/rewardPoints";
 import type { LoyaltyCodePayload } from "@shared/loyaltyCode";
 import type {
 	CustomerMarkAllNotificationsReadPayload,
@@ -43,6 +47,7 @@ export const customerPushConfigQueryKey = [
 	"config",
 ] as const;
 export const customerMenuQueryKey = ["customer", "menu"] as const;
+export const customerPointsQueryKey = ["customer", "points"] as const;
 
 interface CachedMenuRecord {
 	fetchedAt: number;
@@ -225,6 +230,38 @@ export function useDeleteCustomerPushSubscription() {
 
 export function useCustomerMenu() {
 	return useQuery(customerMenuQueryOptions());
+}
+
+export function useCustomerPoints() {
+	return useQuery({
+		queryKey: customerPointsQueryKey,
+		queryFn: () => apiFetch<CustomerPointsPayload | null>("/api/customer/points"),
+	});
+}
+
+export function useRedeemCustomerPoints() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			catalogueItemId,
+			requestIdempotencyKey,
+		}: {
+			catalogueItemId: string;
+			requestIdempotencyKey: string;
+		}) =>
+			apiFetch<CustomerPointsRedeemResultPayload>(
+				`/api/customer/points/redeem/${catalogueItemId}`,
+				{
+					method: "POST",
+					body: JSON.stringify({ requestIdempotencyKey }),
+				},
+			),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["customer", "home"] });
+			void queryClient.invalidateQueries({ queryKey: ["customer", "rewards"] });
+			void queryClient.invalidateQueries({ queryKey: customerPointsQueryKey });
+		},
+	});
 }
 
 export function useUpdateProfile() {

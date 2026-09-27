@@ -9,6 +9,7 @@ import {
 	loyaltyPrograms,
 	rewardDefinitions,
 } from "@worker/db/schema";
+import { ensurePointsProgram } from "@worker/lib/points/config";
 
 export const MVP_BUSINESS_NAME = BRAND.fullName;
 export const MVP_LOCATION_NAME = "Fives Sports Bar - Pinehurst";
@@ -62,6 +63,7 @@ export interface MvpDefaultsResult {
 	freeCoffeeRewardId: string;
 	birthdayRewardId: string;
 	coffeeProgramId: string;
+	pointsProgramId: string;
 }
 
 export async function ensureBirthdayRewardDefinition(db: Db, businessId: string) {
@@ -343,6 +345,7 @@ export async function ensureMvpDefaults(
 	}
 
 	const birthdayReward = await ensureBirthdayRewardDefinition(db, business.id);
+	const pointsProgramId = await ensurePointsProgram(db, business.id);
 
 	await Promise.all([
 		ensureSettingIfMissing(
@@ -378,5 +381,6 @@ export async function ensureMvpDefaults(
 		freeCoffeeRewardId: freeCoffeeReward.id,
 		birthdayRewardId: birthdayReward.id,
 		coffeeProgramId: coffeeProgram.id,
+		pointsProgramId,
 	};
 }
