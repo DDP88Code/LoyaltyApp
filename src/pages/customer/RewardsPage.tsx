@@ -39,19 +39,21 @@ export function RewardsPage() {
 	const requestedTab = searchParams.get("tab");
 	const rewards = useCustomerRewards();
 	const redeemPoints = useRedeemCustomerPoints();
+	const pointsTabKnownDisabled = rewards.data?.pointsEnabled === false;
 
-	const visibleTabs: Tab[] = rewards.data?.pointsEnabled
-		? [...TABS]
-		: TABS.filter((value) => value !== "points");
+	const visibleTabs: Tab[] = pointsTabKnownDisabled
+		? TABS.filter((value) => value !== "points")
+		: [...TABS];
 	const fallbackTab = visibleTabs[0] ?? "coffee";
 	const tab: Tab = isVisibleTab(requestedTab, visibleTabs) ? requestedTab : fallbackTab;
 
 	useEffect(() => {
+		if (requestedTab === "points" && !pointsTabKnownDisabled) return;
 		if (isVisibleTab(requestedTab, visibleTabs)) return;
 		const next = new URLSearchParams(searchParams);
 		next.set("tab", fallbackTab);
 		setSearchParams(next, { replace: true });
-	}, [fallbackTab, requestedTab, searchParams, setSearchParams, visibleTabs]);
+	}, [fallbackTab, pointsTabKnownDisabled, requestedTab, searchParams, setSearchParams, visibleTabs]);
 
 	const setTab = (nextTab: Tab) => {
 		const next = new URLSearchParams(searchParams);

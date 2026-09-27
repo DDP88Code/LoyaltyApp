@@ -77,6 +77,14 @@ export function AdminPointsPage() {
 	const [adjustQuantity, setAdjustQuantity] = useState("50");
 	const [adjustReason, setAdjustReason] = useState("");
 
+	const rewardOptions = useMemo(
+		() =>
+			(rewards.data?.rewards ?? []).filter(
+				(reward) => reward.rewardType === "free_item" || reward.rewardType === "voucher",
+			),
+		[rewards.data?.rewards],
+	);
+
 	if (
 		program.isPending ||
 		promotions.isPending ||
@@ -132,14 +140,6 @@ export function AdminPointsPage() {
 	const examplePerRand =
 		(Number(earnRatePoints || programData.earnRatePoints) * 100) /
 		Number(earnRateSpendCents || programData.earnRateSpendCents);
-
-	const rewardOptions = useMemo(
-		() =>
-			rewards.data.rewards.filter(
-				(reward) => reward.rewardType === "free_item" || reward.rewardType === "voucher",
-			),
-		[rewards.data.rewards],
-	);
 
 	async function saveProgram() {
 		await updateProgram.mutateAsync({
@@ -272,7 +272,7 @@ export function AdminPointsPage() {
 								id="pointsPromoType"
 								value={promoType}
 								onChange={(event) => setPromoType(event.target.value as "multiplier" | "fixed_bonus")}
-								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
 							>
 								<option value="multiplier">multiplier</option>
 								<option value="fixed_bonus">fixed_bonus</option>
@@ -370,7 +370,7 @@ export function AdminPointsPage() {
 								id="pointsRewardDefinition"
 								value={catalogueRewardId}
 								onChange={(event) => setCatalogueRewardId(event.target.value)}
-								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
 							>
 								<option value="">Select reward definition</option>
 								{rewardOptions.map((reward) => (
@@ -493,7 +493,7 @@ export function AdminPointsPage() {
 								id="adjustCustomer"
 								value={adjustCustomerId}
 								onChange={(event) => setAdjustCustomerId(event.target.value)}
-								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
 							>
 								<option value="">Select customer</option>
 								{lookups.data.customers.map((customer) => (
@@ -507,7 +507,7 @@ export function AdminPointsPage() {
 								id="adjustLocation"
 								value={adjustLocationId}
 								onChange={(event) => setAdjustLocationId(event.target.value)}
-								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
 							>
 								<option value="">Select location</option>
 								{lookups.data.locations.map((location) => (
