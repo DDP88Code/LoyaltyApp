@@ -73,6 +73,7 @@ export function MenuPage() {
 	const chipButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 	const observerPauseUntilRef = useRef(0);
 	const activeCategoryIdRef = useRef("");
+	const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
 
 	const categories = useMemo(() => {
 		if (!menu.data) return [];
@@ -121,9 +122,30 @@ export function MenuPage() {
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
+		const header = document.querySelector<HTMLElement>("[data-customer-global-header]");
+		if (!header) return;
+
+		const updateHeaderHeight = () => {
+			setStickyHeaderHeight(header.getBoundingClientRect().height);
+		};
+
+		updateHeaderHeight();
+
+		if (typeof ResizeObserver === "undefined") {
+			window.addEventListener("resize", updateHeaderHeight);
+			return () => window.removeEventListener("resize", updateHeaderHeight);
+		}
+
+		const observer = new ResizeObserver(updateHeaderHeight);
+		observer.observe(header);
+		return () => observer.disconnect();
+	}, []);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
 		if (categories.length === 0) return;
 
-		const stickyOffset = (chipContainerRef.current?.offsetHeight ?? 44) + 12;
+		const stickyOffset = stickyHeaderHeight + (chipContainerRef.current?.offsetHeight ?? 44) + 12;
 		const sections = categories
 			.map((category) =>
 				document.getElementById(`menu-category-${category.id}`),
@@ -191,7 +213,7 @@ export function MenuPage() {
 		}
 
 		return () => observer.disconnect();
-	}, [categories]);
+	}, [categories, stickyHeaderHeight]);
 
 	useEffect(() => {
 		if (!activeCategoryId) return;
@@ -208,7 +230,7 @@ export function MenuPage() {
 		observerPauseUntilRef.current = Date.now() + 1_000;
 		const target = document.getElementById(`menu-category-${categoryId}`);
 		if (target) {
-			const stickyOffset = (chipContainerRef.current?.offsetHeight ?? 44) + 12;
+			const stickyOffset = stickyHeaderHeight + (chipContainerRef.current?.offsetHeight ?? 44) + 12;
 			const top = target.getBoundingClientRect().top + window.scrollY - stickyOffset;
 			window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 		}
@@ -264,7 +286,8 @@ export function MenuPage() {
 					{categories.length > 0 && (
 						<div
 							ref={chipContainerRef}
-							className="sticky top-0 z-10 mt-4 border-y border-brand-border bg-brand-background/95 py-2 backdrop-blur"
+							className="sticky z-20 mt-4 border-y border-brand-border bg-brand-background/95 py-2 backdrop-blur"
+							style={{ top: `${stickyHeaderHeight}px` }}
 						>
 							<div className="no-scrollbar flex gap-2 overflow-x-auto px-1">
 								{categories.map((category) => (
@@ -291,7 +314,11 @@ export function MenuPage() {
 							categories.map((category, categoryIndex) => {
 								const visual = isVisualCategory(menuGroup, category.name);
 								return (
-									<section id={`menu-category-${category.id}`} key={category.id} className="scroll-mt-28">
+									<section
+										id={`menu-category-${category.id}`}
+										key={category.id}
+										style={{ scrollMarginTop: `${stickyHeaderHeight + 90}px` }}
+									>
 										<div className="mb-3 flex items-baseline justify-between gap-2">
 											<h2 className="text-xl">{category.name}</h2>
 											<p className="text-xs tracking-[0.3em] text-brand-secondary uppercase">{category.menuGroup}</p>
