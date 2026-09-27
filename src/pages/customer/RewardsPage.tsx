@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RewardSummary } from "@shared/loyalty";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import { useCustomerRewards, useCustomerTransactions } from "@/features/customer/api";
@@ -19,8 +20,23 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 
 export function RewardsPage() {
-	const [tab, setTab] = useState<Tab>("coffee");
+	const [searchParams, setSearchParams] = useSearchParams();
+	const requestedTab = searchParams.get("tab");
+	const tab: Tab = isTab(requestedTab) ? requestedTab : "coffee";
 	const rewards = useCustomerRewards();
+
+	useEffect(() => {
+		if (isTab(requestedTab)) return;
+		const next = new URLSearchParams(searchParams);
+		next.set("tab", "coffee");
+		setSearchParams(next, { replace: true });
+	}, [requestedTab, searchParams, setSearchParams]);
+
+	const setTab = (nextTab: Tab) => {
+		const next = new URLSearchParams(searchParams);
+		next.set("tab", nextTab);
+		setSearchParams(next);
+	};
 
 	return (
 		<div className="p-5">
@@ -77,6 +93,10 @@ export function RewardsPage() {
 			{rewards.data && tab === "history" && <TransactionHistory />}
 		</div>
 	);
+}
+
+function isTab(value: string | null): value is Tab {
+	return value !== null && (TABS as readonly string[]).includes(value);
 }
 
 function RewardList({ rewards }: { rewards: RewardSummary[] }) {

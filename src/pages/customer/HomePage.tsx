@@ -1,24 +1,20 @@
-import { QrCode, Sparkles, UtensilsCrossed } from "lucide-react";
+import { ChevronRight, Gift, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { BRAND } from "@shared/branding";
 import type { CustomerHomePayload, PromotionSummary } from "@shared/loyalty";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
-import { useSession } from "@/features/auth/useSession";
+import { ErrorState, LoadingState } from "@/components/ui/States";
 import {
 	customerMenuQueryOptions,
 	useCustomerHome,
 } from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { prefetchMenuImages } from "@/features/customer/menuImagePrefetch";
-import { RewardCard } from "@/features/customer/RewardCard";
 import { mediaObjectUrl } from "@/lib/media";
 
 export function HomePage() {
-	const { data: user } = useSession();
 	const queryClient = useQueryClient();
 	const home = useCustomerHome();
 
@@ -73,79 +69,75 @@ export function HomePage() {
 		);
 	}
 
-	const { coffee, availableRewards, pointsEnabled } = home.data;
+	const { coffee, availableRewards } = home.data;
 	const promotions = resolvePromotions(home.data);
 	const promotionCarouselSpeedSeconds = resolvePromotionCarouselSpeedSeconds(
 		home.data,
 	);
-	const remaining = coffee && coffee.threshold ? coffee.threshold - coffee.current : null;
+	const availableRewardCount = availableRewards.length;
+	const threshold = coffee?.threshold ?? null;
+	const remaining =
+		coffee && threshold !== null ? Math.max(threshold - coffee.current, 0) : null;
 	const rewardReady = remaining === 0;
+	const rewardLabel =
+		availableRewardCount === 1
+			? "1 reward available"
+			: `${availableRewardCount} rewards available`;
 
 	return (
-		<div className="flex flex-col gap-4 p-5">
-			<div>
-				<h1 className="text-2xl">Hi, {user?.fullName?.split(" ")[0]}</h1>
-				<p className="text-sm text-brand-muted">
-					{rewardReady
-						? "Your reward is ready to redeem."
-						: "Keep collecting stamps towards your next reward."}
-				</p>
-			</div>
+		<div className="flex flex-col gap-3 p-5">
 
 			{coffee && (
-				<Card>
-					<CardTitle>{coffee.programName}</CardTitle>
-					<CardDescription>
-						{rewardReady
-							? `Show your ${BRAND.memberCodeName} to staff to redeem your free coffee.`
-							: `${remaining} more to your next free coffee.`}
-					</CardDescription>
-					<div className="mt-4">
-						<CoffeeStampGrid coffee={coffee} />
+				<Card className="p-4">
+					<p className="text-xs tracking-[0.2em] text-brand-secondary uppercase">
+						Your coffee reward
+					</p>
+					<div className="mt-2 flex items-end justify-between gap-2">
+						<p className="text-base font-semibold">
+							{coffee.current}
+							{threshold !== null ? ` / ${threshold}` : ""} coffees
+						</p>
+						{remaining !== null && (
+							<p className="text-xs font-medium text-brand-secondary">
+								{rewardReady ? "Reward ready" : `${remaining} to go`}
+							</p>
+						)}
 					</div>
+					<div className="mt-3">
+						<CoffeeStampGrid coffee={coffee} compact />
+					</div>
+					<CardDescription className="mt-3">
+						{threshold !== null
+							? `Buy ${threshold} coffees to unlock your next reward.`
+							: "Keep collecting coffees to unlock your next reward."}
+					</CardDescription>
 				</Card>
 			)}
 
-			<Link
-				to="/app/fives-code"
-				className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-primary font-semibold text-brand-on-primary"
-			>
-				<QrCode className="size-4" aria-hidden />
-				Show My {BRAND.memberCodeName}
-			</Link>
-
-			<Card>
-				<CardTitle>Available rewards</CardTitle>
-				{availableRewards.length === 0 ? (
-					<EmptyState
-						title="No rewards yet"
-						description="Rewards you earn or redeem will show up here."
-					/>
-				) : (
-					<div className="mt-3 flex flex-col gap-2">
-						{availableRewards.map((reward) => (
-							<RewardCard key={reward.id} reward={reward} />
-						))}
-					</div>
-				)}
+			{availableRewardCount > 0 && (
 				<Link
-					to="/app/rewards"
-					className="mt-3 inline-block text-sm text-brand-secondary underline"
+					to="/app/rewards?tab=available"
+					className="block rounded-card border border-brand-border bg-brand-surface p-4 shadow-lg shadow-black/30 transition-colors hover:bg-brand-surface-raised"
+					aria-label="View available rewards"
 				>
-					View all rewards
+					<div className="flex items-center gap-3">
+						<div className="rounded-full bg-brand-primary/15 p-2 text-brand-primary">
+							<Gift className="size-5" aria-hidden />
+						</div>
+						<div className="min-w-0 flex-1">
+							<p className="font-semibold">{rewardLabel}</p>
+							<p className="text-sm text-brand-muted">Your Fives rewards are ready to use.</p>
+						</div>
+						<ChevronRight className="size-5 text-brand-muted" aria-hidden />
+					</div>
 				</Link>
-			</Card>
-
-			{pointsEnabled && (
-				<Card>
-					<CardTitle>Points</CardTitle>
-					<CardDescription>Coming soon.</CardDescription>
-				</Card>
 			)}
 
 			{promotions.length > 0 && (
 				<section className="flex flex-col gap-2">
-					<h2 className="text-lg">Promotions</h2>
+					<h2 className="text-xs tracking-[0.28em] text-brand-secondary uppercase">
+						What&apos;s on at Fives Sports Bar
+					</h2>
 					{promotions.length === 1 ? (
 						<PromotionCard promotion={promotions[0]!} />
 					) : (
@@ -156,14 +148,6 @@ export function HomePage() {
 					)}
 				</section>
 			)}
-
-			<Link
-				to="/app/menu"
-				className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-border font-semibold transition-colors hover:bg-brand-surface-raised"
-			>
-				<UtensilsCrossed className="size-4" aria-hidden />
-				Browse the menu
-			</Link>
 		</div>
 	);
 }
