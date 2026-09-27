@@ -257,6 +257,78 @@ async function main() {
 		promotionOnHome?.imageKey === secondImageKey,
 		"Customer home did not return replacement promotion image key",
 	);
+	assert(
+		promotionOnHome?.title === `Promotion Cache Smoke ${STAMP}`,
+		"Customer home promotion title mismatch after image replacement",
+	);
+	assert(
+		promotionOnHome?.ctaUrl === "/app/menu",
+		"Customer home promotion CTA mismatch after image replacement",
+	);
+
+	const hideByActiveFlag = await admin.request(
+		"PATCH",
+		`/api/admin/promotions/${promotionId}`,
+		{ active: false },
+	);
+	assert(
+		hideByActiveFlag.ok,
+		`Failed to deactivate promotion: ${JSON.stringify(hideByActiveFlag.json)}`,
+	);
+	const homeWhenInactive = await customer.request("GET", "/api/customer/home");
+	assert(homeWhenInactive.ok, "Failed to fetch home after deactivating promotion");
+	assert(
+		!(homeWhenInactive.json?.data?.activePromotions ?? []).some(
+			(entry) => entry.id === promotionId,
+		),
+		"Inactive promotion still appeared on customer home",
+	);
+
+	const futureStart = isoNowPlusMinutes(60);
+	const futureEnd = isoNowPlusMinutes(120);
+	const hideByWindow = await admin.request(
+		"PATCH",
+		`/api/admin/promotions/${promotionId}`,
+		{
+			active: true,
+			startAt: futureStart,
+			endAt: futureEnd,
+		},
+	);
+	assert(
+		hideByWindow.ok,
+		`Failed to move promotion window to future: ${JSON.stringify(hideByWindow.json)}`,
+	);
+	const homeBeforeWindow = await customer.request("GET", "/api/customer/home");
+	assert(homeBeforeWindow.ok, "Failed to fetch home for future-window assertion");
+	assert(
+		!(homeBeforeWindow.json?.data?.activePromotions ?? []).some(
+			(entry) => entry.id === promotionId,
+		),
+		"Future-window promotion still appeared on customer home",
+	);
+
+	const restoreVisibleWindow = await admin.request(
+		"PATCH",
+		`/api/admin/promotions/${promotionId}`,
+		{
+			active: true,
+			startAt: isoNowPlusMinutes(-1),
+			endAt: isoNowPlusMinutes(60 * 24),
+		},
+	);
+	assert(
+		restoreVisibleWindow.ok,
+		`Failed to restore promotion window: ${JSON.stringify(restoreVisibleWindow.json)}`,
+	);
+	const homeAfterRestore = await customer.request("GET", "/api/customer/home");
+	assert(homeAfterRestore.ok, "Failed to fetch home after restoring promotion window");
+	assert(
+		(homeAfterRestore.json?.data?.activePromotions ?? []).some(
+			(entry) => entry.id === promotionId,
+		),
+		"Restored live promotion did not reappear on customer home",
+	);
 
 	const removeImage = await admin.request(
 		"PATCH",
