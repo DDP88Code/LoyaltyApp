@@ -111,7 +111,7 @@ export function CustomerLayout() {
 								to="/app/rewards?tab=points"
 								className={({ isActive }) =>
 									cn(
-										"relative inline-flex min-w-0 max-w-[11rem] items-center gap-1.5 rounded-full border border-brand-border bg-brand-surface-raised px-2.5 py-1.5 text-xs font-semibold text-brand-muted transition-colors hover:text-brand-text",
+										"relative inline-flex min-w-0 max-w-44 items-center gap-1.5 rounded-full border border-brand-border bg-brand-surface-raised px-2.5 py-1.5 text-xs font-semibold text-brand-muted transition-colors hover:text-brand-text",
 										isActive && "text-brand-primary",
 									)
 								}

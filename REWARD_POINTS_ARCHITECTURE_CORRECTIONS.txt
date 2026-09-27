@@ -1,0 +1,946 @@
+================================================================================
+REWARD POINTS — CORRECTED ARCHITECTURE SECTIONS (C1–C10) + FINAL HANDOFF
+Fives Sports Bar Rewards  |  repo: C:\dev\fives-rewards  |  2026-09-27
+================================================================================
+
+Verification completed against the actual repository. Three findings materially
+change the spec. All ten review points are corrected below.
+
+These sections SUPERSEDE the corresponding sections of the earlier
+specification. Everything not listed here stands unchanged.
+
+
+================================================================================
+C1. DUPLICATE BILL CONTROL — CONFLICT RESOLVED
+================================================================================
+
+The earlier partial unique index on (business_id, bill_reference_key,
+business_day) was wrong: a DB unique index cannot be selectively bypassed by an
+Admin override, and it ignored location. Replaced with a NULLABLE DEDUPE GUARD
+KEY, relying on SQLite treating NULLs as distinct — the same mechanism the
+repository already depends on for customer_rewards.issuance_key.
+
+--------------------------------------------------------------------------------
+Guard key construction
+--------------------------------------------------------------------------------
+
+  dedupe_guard_key = "bill:" + business_id + ":" + location_id + ":"
+                            + business_day + ":" + bill_reference_key
+
+  bill_reference_key = billReference.trim().toUpperCase()
+                                    .replace(/[\s\-_/.]/g, "")
+
+  business_day       = YYYY-MM-DD in businesses.timezone
+                       (fallback DEFAULT_TIMEZONE = Africa/Johannesburg)
+
+Location is part of the identity, so two Fives locations issuing receipt "1042"
+on the same day never collide.
+
+--------------------------------------------------------------------------------
+The exact index
+--------------------------------------------------------------------------------
+
+  CREATE UNIQUE INDEX points_awards_dedupe_guard_unq
+    ON points_awards (dedupe_guard_key);
+
+No WHERE clause. This deliberately avoids the repository's known SQLite
+partial-index limitation entirely.
+
+--------------------------------------------------------------------------------
+Three behaviours from one index
+--------------------------------------------------------------------------------
+
+  CASE                | dedupe_guard_key                  | RESULT
+  --------------------|-----------------------------------|--------------------
+  Normal award        | full guard string                 | Second attempt hits
+                      |                                   | unique index -> 409
+  Admin/Owner         | NULL                              | Never collides;
+  override            |                                   | duplicate_override=1
+                      |                                   | reason + actor req'd
+  After full reversal | set to NULL, original copied to    | Slot freed; same
+                      | released_guard_key                | receipt may be
+                      |                                   | legitimately
+                      |                                   | re-awarded
+
+Override requires role admin or owner, a duplicate_override_reason of at least
+5 characters, and writes audit_logs action
+"admin.points_award_duplicate_override" with the attempted guard key, the
+colliding award id, and the reason.
+
+released_guard_key preserves the original identity permanently for audit even
+though the live key is NULL.
+
+POS readiness is unaffected: a POS adapter supplies its own transaction
+reference as billReference with source = "pos", and the identical guard applies.
+
+
+================================================================================
+C2. AWARD IDEMPOTENCY — EXACT MODEL
+================================================================================
+
+One award writes TWO ledger rows, so the client key cannot be the ledger key.
+
+  KEY                                   | STORED ON            | UNIQUENESS
+  --------------------------------------|----------------------|-------------------
+  request_idempotency_key (client-gen)  | points_awards        | UNIQUE (business_id,
+                                        |                      | request_idempotency_key)
+  points-earn:<awardId>                 | loyalty_transactions | existing global
+                                        | .idempotency_key     | unique index
+  points-bonus:<awardId>                | loyalty_transactions | existing global
+                                        | .idempotency_key     | unique index
+
+Child keys are DERIVED FROM THE SERVER-GENERATED awardId, so they are unique by
+construction and need no coordination with the client.
+
+--------------------------------------------------------------------------------
+Write sequence
+--------------------------------------------------------------------------------
+
+  1  quote = calculate(eligibleSpendCents, rate, promotions)  // pure, no writes
+  2  awardId = newId(); earnTxId = newId(); bonusTxId = newId()
+  3  db.batch([
+       INSERT points_awards { id: awardId, request_idempotency_key,
+                              dedupe_guard_key, ...snapshot },
+
+       INSERT loyalty_transactions { id: earnTxId,  type:'earn',  quantity:+base,
+                                     idempotency_key:'points-earn:'+awardId,
+                                     points_award_id: awardId,
+                                     spend_amount_cents: eligibleSpendCents },
+
+       // only when bonus > 0
+       INSERT loyalty_transactions { id: bonusTxId, type:'bonus', quantity:+bonus,
+                                     idempotency_key:'points-bonus:'+awardId,
+                                     points_award_id: awardId,
+                                     related_transaction_id: earnTxId }
+     ])
+
+db.batch() is a single implicit D1 transaction and rolls back entirely on any
+error, so a partial award is impossible.
+
+--------------------------------------------------------------------------------
+Deterministic error disambiguation — NO error-string parsing
+--------------------------------------------------------------------------------
+
+  on batch error:
+    a = SELECT * FROM points_awards
+         WHERE business_id=? AND request_idempotency_key=?
+    if a  -> idempotent replay: reconstruct and return the ORIGINAL result,
+             write nothing
+
+    b = SELECT * FROM points_awards WHERE dedupe_guard_key=?
+    if b  -> 409 duplicate bill; surface b.total_points / b.created_at /
+             b.staff_id
+    else  -> 500 unexpected
+
+A network retry therefore returns the original totals and creates ZERO
+additional ledger rows. An optional fast-path lookup by
+request_idempotency_key before the batch avoids the exception in the common
+retry case.
+
+
+================================================================================
+C3. ATOMIC CUSTOMER POINT REDEMPTION — COMPLETE ALGORITHM
+================================================================================
+
+The earlier "issue then compensate" approach is WITHDRAWN. Correctness now comes
+from a CONDITIONAL INSERT whose WHERE clause re-evaluates the ledger balance
+inside the same statement and the same transaction, so the reward row can only
+exist if the deduction legitimately applied.
+
+--------------------------------------------------------------------------------
+Preconditions resolved before the batch
+--------------------------------------------------------------------------------
+
+  P1  program = points program; 409 if missing or active = 0
+  P2  item    = points_catalogue_items (active=1, archived_at IS NULL);
+                404 otherwise
+  P3  reward  = reward_definitions (active=1); 409 otherwise
+  P4  cost    = item.points_cost              // re-read now, snapshotted below
+  P5  fast-path: SELECT points_redemptions
+                 BY (business_id, customer_id, request_key)
+                 -> if found, return the ORIGINAL result immediately
+  P6  balance = SUM(quantity); if balance < cost -> 422
+                (advisory only; the DB is the authority)
+  P7  per-customer limit window check          (best-effort advisory)
+  P8  locationId = resolvePointsRedemptionLocationId(businessId)
+  P9  txId, rewardId, redemptionId = newId() x3
+      expiresAt = reward.validDays ? now + validDays*DAY_MS : null
+
+P8 exists because loyalty_transactions.location_id is NOT NULL and a customer
+self-redemption has no till. Resolve the business's single active location,
+excluding LEGACY_HIDDEN_LOCATION_NAME, ordered by created_at for determinism; if
+none exists, fail with a configuration error. DO NOT attempt to make the column
+nullable — SQLite cannot alter it without a table rebuild.
+
+--------------------------------------------------------------------------------
+The atomic batch — three conditional statements
+--------------------------------------------------------------------------------
+
+-- A. Deduct. The balance is re-evaluated AT WRITE TIME, inside this transaction.
+INSERT INTO loyalty_transactions
+  (id, business_id, location_id, customer_id, staff_id, program_id,
+   transaction_type, quantity, spend_amount_cents, bill_reference, notes, reason,
+   approved_by, idempotency_key, points_award_id, related_transaction_id, created_at)
+SELECT
+  :txId, :businessId, :locationId, :customerId, NULL, :programId,
+  'redeem', -:cost, NULL, NULL, :notes, NULL,
+  NULL, :ledgerKey, NULL, NULL, :now
+WHERE (
+  SELECT COALESCE(SUM(quantity), 0)
+    FROM loyalty_transactions
+   WHERE customer_id = :customerId AND program_id = :programId
+) >= :cost;
+
+-- B. Issue the wallet reward ONLY if A applied.
+INSERT INTO customer_rewards
+  (id, business_id, customer_id, reward_definition_id, status, issued_at,
+   expires_at, redeemed_at, redeemed_by, location_id, redemption_transaction_id,
+   issuance_key, created_at)
+SELECT
+  :rewardId, :businessId, :customerId, :rewardDefinitionId, 'available', :now,
+  :expiresAt, NULL, NULL, NULL, NULL,
+  :issuanceKey, :now
+WHERE EXISTS (SELECT 1 FROM loyalty_transactions WHERE id = :txId);
+
+-- C. Record the redemption ONLY if A applied.
+INSERT INTO points_redemptions
+  (id, business_id, program_id, customer_id, catalogue_item_id, reward_definition_id,
+   catalogue_item_name, points_cost, ledger_transaction_id, customer_reward_id,
+   request_idempotency_key, created_at)
+SELECT
+  :redemptionId, :businessId, :programId, :customerId, :catalogueItemId, :rewardDefinitionId,
+  :itemName, :cost, :txId, :rewardId, :requestKey, :now
+WHERE EXISTS (SELECT 1 FROM loyalty_transactions WHERE id = :txId);
+
+  :ledgerKey   = "points-redeem:" + customerId + ":" + requestKey
+  :issuanceKey = "points-redeem:" + txId
+
+CRITICAL CORRECTION: customer_rewards.redemption_transaction_id is set to NULL
+at issuance. In the existing engine that column means "the transaction that
+CONSUMED this reward" and is written by redeemCustomerReward at the till
+(worker/lib/loyalty.ts:574). Writing the points-spend id there would be
+overwritten later and would corrupt its meaning. The points-spend -> issued-
+reward link lives on points_redemptions.customer_reward_id.
+
+These three statements are issued as a single db.batch([...]). Drizzle's
+conditional INSERT ... SELECT ... WHERE is awkward to express fluently — use
+db.run(sql`...`) for A, B and C and keep them raw and explicit.
+
+--------------------------------------------------------------------------------
+Determining the outcome
+--------------------------------------------------------------------------------
+
+The PRESENCE OF THE points_redemptions ROW IS THE SINGLE SUCCESS SIGNAL.
+
+  after batch (no exception):
+    r = SELECT points_redemptions
+         WHERE business_id=? AND customer_id=? AND request_idempotency_key=?
+    if r  -> success: newBalance = SUM(quantity); return { balance, reward }
+    else  -> 409 "You do not have enough points for this reward."
+             // nothing was written
+
+--------------------------------------------------------------------------------
+On exception (retry with the same key)
+--------------------------------------------------------------------------------
+
+Statement A violates the unique idempotency_key, the batch rolls back entirely,
+then:
+
+  catch:
+    r = SELECT points_redemptions
+         WHERE (business_id, customer_id, request_idempotency_key)
+    if r  -> return the ORIGINAL result (one reward, unchanged balance)
+    else  -> rethrow
+
+--------------------------------------------------------------------------------
+Two concurrent requests, DIFFERENT keys — the required invariant
+--------------------------------------------------------------------------------
+
+Balance 1,000, cost 1,000. D1 serialises writes to a single SQLite instance:
+
+  REQUEST   | A SUBQUERY        | A            | B                  | C    | OUTCOME
+  ----------|-------------------|--------------|--------------------|------|---------
+  Request 1 | 1000 >= 1000 true | inserts -1000| EXISTS(tx1) true   | row  | SUCCEEDS
+            |                   |              | -> reward issued   |written|
+  Request 2 | 0 >= 1000 false   | 0 rows       | EXISTS(tx2) false  | 0 rows| 409
+            |                   |              | -> 0 rows          |      |
+
+ONE reward exists. Final balance is exactly 0. The losing request never issues a
+reward, so NO COMPENSATION PATH IS USED IN THE NORMAL FLOW. Both batches commit
+cleanly; the loser simply wrote nothing.
+
+--------------------------------------------------------------------------------
+Failure cleanup
+--------------------------------------------------------------------------------
+
+There is none to perform. The batch is atomic, so every outcome is either "all
+three rows" or "no rows". No pending state machine, no sweeper job, and no
+cached-balance drift.
+
+Add one non-compensating post-write assertion for observability only: if
+SUM(quantity) < 0 after a successful redemption, log an error — it would
+indicate a D1 isolation regression, not a recoverable condition.
+
+
+================================================================================
+C4. COMPLETE SCHEMA
+================================================================================
+
+Revised scope: FOUR NEW TABLES, TWO loyalty_transactions COLUMNS,
+TWO loyalty_programs COLUMNS.
+
+New file worker/db/schema/points.ts, exported from worker/db/schema/index.ts.
+Use RELATIVE IMPORTS ONLY inside worker/db/schema/**.
+
+--------------------------------------------------------------------------------
+shared/points.ts enums
+--------------------------------------------------------------------------------
+
+export const POINTS_AWARD_SOURCES = ["staff_manual", "pos"] as const;
+export const POINTS_PROMOTION_TYPES = ["multiplier", "fixed_bonus"] as const;
+export const POINTS_CURRENCY_CODE = "REWARD_POINTS";
+export const POINTS_MULTIPLIER_BASE_BP = 10_000;      // 10000 = 1x
+export const DEFAULT_POINTS_PROGRAM_NAME = "Reward Points";
+export const POINTS_CATALOGUE_REWARD_TYPES = ["free_item", "voucher"] as const;
+
+--------------------------------------------------------------------------------
+TABLE: points_promotions
+--------------------------------------------------------------------------------
+
+  COLUMN                    | TYPE       | NULL | DEFAULT | NOTES
+  --------------------------|------------|------|---------|-----------------------
+  id                        | TEXT PK    | no   | newId() | pk()
+  business_id               | TEXT       | no   | —       | FK businesses.id CASCADE
+  name                      | TEXT       | no   | —       | customer/staff visible
+  description               | TEXT       | yes  | —       |
+  promotion_type            | TEXT       | no   | —       | enum multiplier|fixed_bonus
+  multiplier_bp             | INTEGER    | yes  | —       | 20000 = 2x
+  fixed_bonus_points        | INTEGER    | yes  | —       |
+  min_eligible_spend_cents  | INTEGER    | yes  | —       | NULL = no minimum
+  start_at                  | INTEGER    | no   | —       | timestampMs, inclusive
+  end_at                    | INTEGER    | no   | —       | timestampMs, inclusive
+  enabled                   | INTEGER    | no   | 1       | flag()
+  archived_at               | INTEGER    | yes  | —       | archived => never evaluated
+  created_at / updated_at   | INTEGER    | no   | now     |
+
+  UNIQUE  — none
+  INDEX   points_promotions_window_idx      (business_id, enabled, start_at, end_at)
+  INDEX   points_promotions_archived_idx    (business_id, archived_at)
+  CHECK   points_promotions_window_chk      end_at > start_at
+  CHECK   points_promotions_multiplier_chk  promotion_type <> 'multiplier'
+                                            OR (multiplier_bp IS NOT NULL
+                                                AND multiplier_bp > 10000)
+  CHECK   points_promotions_bonus_chk       promotion_type <> 'fixed_bonus'
+                                            OR (fixed_bonus_points IS NOT NULL
+                                                AND fixed_bonus_points > 0)
+  CHECK   points_promotions_min_spend_chk   min_eligible_spend_cents IS NULL
+                                            OR min_eligible_spend_cents >= 0
+
+--------------------------------------------------------------------------------
+TABLE: points_awards
+--------------------------------------------------------------------------------
+
+  COLUMN                      | TYPE    | NULL | DEFAULT        | NOTES
+  ----------------------------|---------|------|----------------|--------------------
+  id                          | TEXT PK | no   | newId()        |
+  business_id                 | TEXT    | no   | —              | FK businesses.id CASCADE
+  program_id                  | TEXT    | no   | —              | FK loyalty_programs.id RESTRICT
+  customer_id                 | TEXT    | no   | —              | FK profiles.id RESTRICT
+  location_id                 | TEXT    | no   | —              | FK locations.id RESTRICT
+  staff_id                    | TEXT    | yes  | —              | FK profiles.id RESTRICT; NULL for POS
+  source                      | TEXT    | no   | 'staff_manual' | enum
+  eligible_spend_cents        | INTEGER | no   | —              |
+  rate_points                 | INTEGER | no   | —              | rate snapshot
+  rate_spend_cents            | INTEGER | no   | —              | rate snapshot
+  base_points                 | INTEGER | no   | —              |
+  bonus_points                | INTEGER | no   | 0              |
+  total_points                | INTEGER | no   | —              |
+  multiplier_promotion_id     | TEXT    | yes  | —              | FK points_promotions.id RESTRICT
+  multiplier_promotion_name   | TEXT    | yes  | —              | NAME SNAPSHOT
+  applied_multiplier_bp       | INTEGER | yes  | —              | value snapshot
+  bonus_promotion_id          | TEXT    | yes  | —              | FK points_promotions.id RESTRICT
+  bonus_promotion_name        | TEXT    | yes  | —              | NAME SNAPSHOT
+  applied_fixed_bonus_points  | INTEGER | yes  | —              | value snapshot
+  bill_reference              | TEXT    | no   | —              | as typed
+  bill_reference_key          | TEXT    | no   | —              | normalised
+  business_day                | TEXT    | no   | —              | YYYY-MM-DD
+  dedupe_guard_key            | TEXT    | YES  | —              | NULL => override or released
+  released_guard_key          | TEXT    | yes  | —              | audit of a released key
+  duplicate_override          | INTEGER | no   | 0              | flag()
+  duplicate_override_reason   | TEXT    | yes  | —              |
+  duplicate_override_by       | TEXT    | yes  | —              | FK profiles.id RESTRICT
+  request_idempotency_key     | TEXT    | no   | —              | client-generated
+  reversed_at                 | INTEGER | yes  | —              | timestampMs
+  reversed_by                 | TEXT    | yes  | —              | FK profiles.id RESTRICT
+  reversal_reason             | TEXT    | yes  | —              |
+  calculation_json            | TEXT    | yes  | —              | json() full quote trace
+  created_at                  | INTEGER | no   | now            |
+
+  UNIQUE  points_awards_dedupe_guard_unq     (dedupe_guard_key)   -- NULLs distinct
+  UNIQUE  points_awards_request_idem_unq     (business_id, request_idempotency_key)
+  INDEX   points_awards_customer_idx         (customer_id, created_at)
+  INDEX   points_awards_business_created_idx (business_id, created_at)
+  INDEX   points_awards_staff_idx            (staff_id)
+  INDEX   points_awards_location_day_idx     (location_id, business_day)
+  INDEX   points_awards_mult_promo_idx       (multiplier_promotion_id)
+  INDEX   points_awards_bonus_promo_idx      (bonus_promotion_id)
+  CHECK   points_awards_total_chk            total_points = base_points + bonus_points
+  CHECK   points_awards_positive_chk         eligible_spend_cents > 0
+                                             AND rate_points > 0
+                                             AND rate_spend_cents > 0
+                                             AND base_points >= 0
+                                             AND bonus_points >= 0
+                                             AND total_points > 0
+  CHECK   points_awards_override_chk         duplicate_override = 0
+                                             OR (duplicate_override_reason IS NOT NULL
+                                                 AND duplicate_override_by IS NOT NULL)
+
+--------------------------------------------------------------------------------
+TABLE: points_catalogue_items
+--------------------------------------------------------------------------------
+
+  COLUMN                       | TYPE    | NULL | DEFAULT | NOTES
+  -----------------------------|---------|------|---------|------------------------
+  id                           | TEXT PK | no   | newId() |
+  business_id                  | TEXT    | no   | —       | FK businesses.id CASCADE
+  reward_definition_id         | TEXT    | no   | —       | FK reward_definitions.id RESTRICT
+  points_cost                  | INTEGER | no   | —       | current price only
+  active                       | INTEGER | no   | 1       | flag()
+  archived_at                  | INTEGER | yes  | —       | archived => never listed
+  sort_order                   | INTEGER | no   | 0       |
+  image_key                    | TEXT    | yes  | —       | R2 key
+  max_per_customer_per_period  | INTEGER | yes  | —       | NULL = unlimited
+  limit_period_days            | INTEGER | yes  | —       |
+  created_at / updated_at      | INTEGER | no   | now     |
+
+  UNIQUE  points_catalogue_reward_unq   (business_id, reward_definition_id)
+  INDEX   points_catalogue_listing_idx  (business_id, active, sort_order)
+  CHECK   points_catalogue_cost_chk     points_cost > 0
+  CHECK   points_catalogue_limit_chk    (max_per_customer_per_period IS NULL
+                                         OR max_per_customer_per_period > 0)
+                                        AND (limit_period_days IS NULL
+                                             OR limit_period_days > 0)
+
+--------------------------------------------------------------------------------
+TABLE: points_redemptions
+--------------------------------------------------------------------------------
+
+Only ever inserted inside the successful atomic batch, so every FK is NOT NULL
+and no status column is required.
+
+  COLUMN                   | TYPE    | NULL | NOTES
+  -------------------------|---------|------|-----------------------------------
+  id                       | TEXT PK | no   |
+  business_id              | TEXT    | no   | FK businesses.id CASCADE
+  program_id               | TEXT    | no   | FK loyalty_programs.id RESTRICT
+  customer_id              | TEXT    | no   | FK profiles.id RESTRICT
+  catalogue_item_id        | TEXT    | no   | FK points_catalogue_items.id RESTRICT
+  reward_definition_id     | TEXT    | no   | FK reward_definitions.id RESTRICT
+  catalogue_item_name      | TEXT    | no   | NAME SNAPSHOT
+  points_cost              | INTEGER | no   | COST SNAPSHOT — history-preserving
+  ledger_transaction_id    | TEXT    | no   | FK loyalty_transactions.id RESTRICT
+  customer_reward_id       | TEXT    | no   | FK customer_rewards.id RESTRICT
+  request_idempotency_key  | TEXT    | no   | client-generated
+  created_at               | INTEGER | no   |
+
+  UNIQUE  points_redemptions_request_unq  (business_id, customer_id,
+                                           request_idempotency_key)
+  UNIQUE  points_redemptions_ledger_unq   (ledger_transaction_id)
+  UNIQUE  points_redemptions_reward_unq   (customer_reward_id)
+  INDEX   points_redemptions_customer_idx (customer_id, created_at)
+  INDEX   points_redemptions_item_idx     (catalogue_item_id)
+  CHECK   points_redemptions_cost_chk     points_cost > 0
+
+--------------------------------------------------------------------------------
+The exact loyalty_transactions additions
+--------------------------------------------------------------------------------
+
+// worker/db/schema/loyalty.ts — inside the existing loyaltyTransactions definition
+pointsAwardId: text("points_award_id"),                // nullable, no FK
+relatedTransactionId: text("related_transaction_id"),  // nullable, no FK
+
+// added to the existing index array
+index("loyalty_transactions_points_award_idx").on(t.pointsAwardId),
+index("loyalty_transactions_related_idx").on(t.relatedTransactionId),
+
+SQL:
+  ALTER TABLE loyalty_transactions ADD COLUMN points_award_id TEXT;
+  ALTER TABLE loyalty_transactions ADD COLUMN related_transaction_id TEXT;
+  CREATE INDEX loyalty_transactions_points_award_idx
+    ON loyalty_transactions (points_award_id);
+  CREATE INDEX loyalty_transactions_related_idx
+    ON loyalty_transactions (related_transaction_id);
+
+Both are deliberately FK-FREE: points_award_id would create a circular schema
+import (points.ts already imports loyalty.ts), and related_transaction_id is a
+self-reference. This mirrors the existing precedent of audit_logs.actor_user_id
+being an FK-free column by design.
+
+--------------------------------------------------------------------------------
+The exact loyalty_programs additions
+--------------------------------------------------------------------------------
+
+SQL:
+  ALTER TABLE loyalty_programs ADD COLUMN earn_rate_points INTEGER;
+  ALTER TABLE loyalty_programs ADD COLUMN earn_rate_spend_cents INTEGER;
+
+Drizzle:
+  earnRatePoints: integer("earn_rate_points"),        // nullable; points programs only
+  earnRateSpendCents: integer("earn_rate_spend_cents"),
+
+NO CHECK CONSTRAINT on these two. SQLite cannot add a table-level CHECK via
+ALTER TABLE without a full table rebuild, which is unacceptable on a live table.
+Rate validity (both NULL or both > 0) is enforced in the zod schema and in
+readPointsConfig() instead.
+
+
+================================================================================
+C5. PROMOTION AND CATALOGUE DELETION — HISTORICAL INTEGRITY
+================================================================================
+
+SNAPSHOTS ARE MANDATORY, NOT OPTIONAL. Ids alone are insufficient because a name
+may legitimately be edited. Every historical row carries id AND name AND applied
+value:
+
+  TABLE               | SNAPSHOTTED
+  --------------------|--------------------------------------------------------
+  points_awards       | multiplier_promotion_name, applied_multiplier_bp,
+                      | bonus_promotion_name, applied_fixed_bonus_points,
+                      | rate_points, rate_spend_cents, base_points, bonus_points
+  points_redemptions  | catalogue_item_name, points_cost
+
+History therefore renders correctly with zero joins to live configuration, and
+editing a promotion name or a catalogue price can never rewrite a past
+transaction.
+
+--------------------------------------------------------------------------------
+Lifecycle
+--------------------------------------------------------------------------------
+
+Both tables use a three-state lifecycle rather than deletion:
+
+  STATE     | COLUMNS                                | BEHAVIOUR
+  ----------|----------------------------------------|-------------------------
+  Live      | enabled/active = 1, archived_at = NULL | evaluated / listed
+  Disabled  | enabled/active = 0, archived_at = NULL | not evaluated / not
+            |                                        | listed; freely re-enabled
+  Archived  | archived_at set                        | never evaluated, never
+            |                                        | listed, hidden from the
+            |                                        | default admin list
+
+--------------------------------------------------------------------------------
+Deletion policy
+--------------------------------------------------------------------------------
+
+DELETE is permitted ONLY for never-used records, checked before deletion in the
+same style as the existing isImageKeyStillInUse guard:
+
+  canDeletePromotion(id)     = NOT EXISTS (SELECT 1 FROM points_awards
+                                            WHERE multiplier_promotion_id = id
+                                               OR bonus_promotion_id = id)
+
+  canDeleteCatalogueItem(id) = NOT EXISTS (SELECT 1 FROM points_redemptions
+                                            WHERE catalogue_item_id = id)
+
+If used -> 409 with "This has been used by real transactions. Archive it
+instead." and the archive action offered inline. ON DELETE RESTRICT on every
+referencing FK is the database-level backstop should the application check ever
+be bypassed.
+
+Archiving a catalogue item does NOT touch already-issued customer_rewards; those
+vouchers remain valid until they are redeemed or expire.
+
+
+================================================================================
+C6. EXISTING REWARD REDEMPTION ENGINE — VERIFIED
+================================================================================
+
+Verified directly against worker/lib/loyalty.ts and worker/routes/staff.ts.
+
+--------------------------------------------------------------------------------
+FINDING 1 — program resolution is optional. NO CHANGE REQUIRED.
+--------------------------------------------------------------------------------
+
+  // worker/lib/loyalty.ts:561-562
+  const program = await db.query.loyaltyPrograms.findFirst({
+    where: eq(loyaltyPrograms.rewardDefinitionId, existing.rewardDefinitionId),
+  });
+  // worker/lib/loyalty.ts:574
+  programId: program?.id ?? null,
+
+A points-issued reward whose definition is referenced by NO
+loyalty_programs.reward_definition_id resolves to program_id = null with
+quantity = 0. It is therefore NEVER ATTRIBUTED TO COFFEE, and getCoffeeProgress
+(which filters on currency_code = 'COFFEE') cannot be affected. The original
+recommendation holds and needs no code change — provided the conditions below
+are enforced.
+
+--------------------------------------------------------------------------------
+FINDING 2 — reward type is a HARD CONSTRAINT, previously unstated.
+--------------------------------------------------------------------------------
+
+  // worker/routes/staff.ts:100-104
+  availableFreeCoffees: available.filter((r) => r.rewardType === "free_item"),
+  availableVouchers:    available.filter((r) => r.rewardType === "voucher"),
+
+Staff see ONLY free_item and voucher. A reward of type discount or points_reward
+would be issued into the wallet and then be COMPLETELY INVISIBLE TO STAFF AT THE
+TILL — an unredeemable reward.
+
+=> MANDATORY VALIDATION: points_catalogue_items.reward_definition_id must
+   reference a definition whose reward_type is free_item or voucher. Reject
+   anything else in the admin create/update handler with an explicit message.
+   POINTS_CATALOGUE_REWARD_TYPES exists for exactly this check.
+
+--------------------------------------------------------------------------------
+FINDING 3 — voucher redemption is gated by an existing setting.
+--------------------------------------------------------------------------------
+
+  // worker/lib/loyalty.ts:538
+  if (existing.rewardType === "voucher" && !params.allowVoucherRedemption) {
+    throw new ApiError("forbidden",
+      "Voucher redemption is currently disabled for staff.");
+  }
+  // worker/routes/staff.ts:162 (and 203, 257)
+  const voucherRedemptionEnabled = staffProfile.role !== "staff" || voucherSetting;
+
+If a catalogue item is a voucher, ordinary "staff" cannot redeem it unless
+staff_voucher_redemption_enabled is true. Admin and owner always can.
+
+=> NO ENGINE CHANGE. The admin catalogue editor must display an inline warning
+   when a voucher-type item is saved while that setting is off:
+   "Staff cannot redeem voucher rewards until 'Staff voucher redemption enabled'
+   is switched on in Settings."
+
+--------------------------------------------------------------------------------
+FINDING 4 — the welcome-reward flag must stay false.
+--------------------------------------------------------------------------------
+
+worker/lib/loyalty.ts:545 enforces a R500 minimum bill when
+rewardType === "voucher" && welcomeReward. Points catalogue reward definitions
+must have welcome_reward = false (the column default); the existing partial
+unique index already permits only one welcome reward per business.
+
+--------------------------------------------------------------------------------
+SUMMARY FOR THE IMPLEMENTATION AGENT
+--------------------------------------------------------------------------------
+
+Use the existing redeemCustomerReward UNCHANGED. Create dedicated reward
+definitions for catalogue items (e.g. "Free Coffee (Points)"), never reuse the
+Coffee programme's definition, keep the points programme's
+reward_definition_id = NULL, restrict catalogue reward types to
+free_item/voucher, and keep welcome_reward = false.
+
+
+================================================================================
+C7. PROGRAMME ENABLED — SINGLE SOURCE OF TRUTH
+================================================================================
+
+The dual reward_points_enabled setting is REMOVED ENTIRELY. All points
+configuration collapses onto the single loyalty_programs row, which is
+authoritative.
+
+  CONCERN             | AUTHORITATIVE FIELD                      | CONSUMER
+  --------------------|------------------------------------------|-----------------
+  Enabled / disabled  | loyalty_programs.active                  | isPointsProgramActive()
+                      |                                          | unchanged; already
+                      |                                          | feeds pointsEnabled
+  Display name        | loyalty_programs.name                    | header pill,
+                      |                                          | rewards tab,
+                      |                                          | staff dialog
+  Earn rate           | earn_rate_points / earn_rate_spend_cents  | calculate.ts
+
+Consequences:
+
+* NO app_settings KEYS ARE ADDED FOR POINTS. reward_points_enabled,
+  reward_points_program_name and reward_points_earn_rate are all WITHDRAWN from
+  the spec.
+
+* The admin endpoint becomes GET|PATCH /api/admin/points/program, reading and
+  writing that single row, audited as "admin.points_program_updated" with
+  old/new JSON.
+
+* Every server entry point calls one helper,
+  requirePointsProgram(db, businessId), which returns the row or throws
+  409 "Reward Points is not available." when missing or active = 0. Customer,
+  staff and admin write paths all go through it, so a divergent ON/OFF state is
+  structurally impossible.
+
+* ensurePointsProgram() creates the row idempotently with active = false,
+  name = "Reward Points", currency_code = "REWARD_POINTS",
+  program_type = "points", earn_rate_points = 1, earn_rate_spend_cents = 100,
+  reward_definition_id = NULL, and must never overwrite live operator values.
+
+* Disabling hides all customer points UI and blocks awards and redemptions,
+  while every ledger row, award and redemption is preserved untouched.
+
+
+================================================================================
+C8. NEGATIVE BALANCE — CUSTOMER PRESENTATION
+================================================================================
+
+Accounting behaviour is UNCHANGED. Only the presentation changes.
+
+--------------------------------------------------------------------------------
+Payload
+--------------------------------------------------------------------------------
+
+interface CustomerPointsSummary {
+  enabled: boolean;
+  programName: string;        // loyalty_programs.name
+  availableBalance: number;   // Math.max(0, rawBalance)
+  recoveryPoints: number;     // Math.max(0, -rawBalance)
+  inRecovery: boolean;        // recoveryPoints > 0
+}
+
+rawBalance is NOT sent to the customer client; it is exposed only on admin
+endpoints.
+
+--------------------------------------------------------------------------------
+Customer UI
+--------------------------------------------------------------------------------
+
+When inRecovery is false — unchanged:
+
+  Reward Points
+  1,760 points available
+
+When rawBalance = -350:
+
+  Reward Points
+  0 points available
+
+  [!] Your balance is being corrected.
+      350 points need to be recovered before you can redeem rewards.
+      Points you earn from here will go towards this first.
+
+Rules:
+  * Never render a negative headline number.
+  * Never render a bare 0 without the recovery explanation — the earlier design
+    was misleading and is corrected.
+  * All catalogue [ Redeem ] buttons are disabled while inRecovery, with the
+    same message as the disabled reason (not colour alone).
+  * The header pill shows "0 pts" with a small warning dot and the accessible
+    label "Reward Points: 0 available, 350 points to recover".
+  * Copy is driven by programName, never hard-coded to "Reward Points".
+
+--------------------------------------------------------------------------------
+Admin UI
+--------------------------------------------------------------------------------
+
+Admin always sees the true signed rawBalance, and the points report includes a
+"Customers in recovery" list showing every customer with rawBalance < 0, their
+deficit, and the reversal or adjustment that caused it.
+
+
+================================================================================
+C9. REPORTING TERMINOLOGY
+================================================================================
+
+"liability" is removed from all identifiers, labels and copy. The system tracks a
+point count, not a valuation.
+
+  OLD                                  | NEW
+  -------------------------------------|----------------------------------
+  "Outstanding point liability"        | Outstanding Points Balance
+  Admin panel "Activity & liability"   | Activity & Outstanding Points
+  outstandingLiability field           | outstandingPoints
+
+Phase 1 report fields: pointsIssued, pointsIssuedFromPromotions, pointsRedeemed,
+pointsReversed, pointsAdjusted, outstandingPoints, customersInRecovery.
+
+A monetary valuation may be introduced later only if a deliberate per-point
+valuation model is configured; until then no currency figure is displayed
+against outstanding points.
+
+
+================================================================================
+C10. ROLE MIDDLEWARE — VERIFIED
+================================================================================
+
+Verified in worker/middleware/auth.ts:
+
+  worker/middleware/auth.ts:74  export const requireCustomer     = requireRole("customer");
+  worker/middleware/auth.ts:76  export const requireStaff        = requireRole("staff", "admin", "owner");
+  worker/middleware/auth.ts:77  export const requireAdmin        = requireRole("admin");
+  worker/middleware/auth.ts:78  export const requireOwner        = requireRole("owner");
+  worker/middleware/auth.ts:79  export const requireAdminOrOwner = requireRole("admin", "owner");
+
+requireStaff DOES include admin and owner. The staff points endpoints mounted on
+the existing worker/routes/staff.ts router (already guarded by
+requireSession, requireStaff) correctly allow staff, admin and owner with no
+additional middleware.
+
+NOTE: requireAdmin is ADMIN ONLY and EXCLUDES OWNER. Every admin points endpoint
+must use requireAdminOrOwner, never requireAdmin.
+
+The duplicate-bill override is an in-handler role check
+(profile.role === "admin" || profile.role === "owner") because the route itself
+is a staff route — it cannot be expressed as route middleware.
+
+
+================================================================================
+KNOCK-ON CHANGES TO EARLIER SECTIONS
+================================================================================
+
+1. Sec 17 endpoints: GET|PATCH /api/admin/points/settings
+   -> GET|PATCH /api/admin/points/program
+
+2. Sec 18 modules: worker/lib/points/config.ts now reads and writes the
+   loyalty_programs row; add requirePointsProgram() and
+   resolvePointsRedemptionLocationId().
+
+3. Sec 21 admin UI: the Settings panel edits the programme row; the fourth panel
+   is renamed "Activity & Outstanding Points".
+
+4. Sec 26 migration: no app_settings seeding for points; the migration also adds
+   the two loyalty_programs columns.
+
+5. Sec 27 tests: add —
+   * override releases and re-awards after reversal
+   * location-scoped duplicates are independent
+   * two concurrent redemptions with different keys yield exactly one reward and
+     a zero balance
+   * a retried redemption returns the original reward
+   * deletion of a used promotion or catalogue item is rejected
+   * a discount-type catalogue item is rejected at validation
+
+
+================================================================================
+================================================================================
+FINAL CODEX IMPLEMENTATION HANDOFF
+================================================================================
+================================================================================
+
+Supersedes the earlier handoff wherever they conflict.
+Paste the block below together with the original specification and sections
+C1–C10 above.
+
+--------------------------------------------------------------------------------
+
+You are implementing the Reward Points feature in the Fives Sports Bar Rewards
+repository at C:\dev\fives-rewards. Use the original specification together with
+the corrected sections C1–C10 above. WHERE THEY CONFLICT, C1–C10 WIN.
+
+SCOPE GUARDRAILS.
+Work only in this repository. Before any Cloudflare action, confirm
+wrangler.jsonc shows worker `fives-rewards`, BUSINESS_SLUG
+`fives-pub-and-grill`, D1 `fives-rewards-db`, R2 `fives-rewards-media`. Never
+touch buildmynew.app or any Build My New App resource. Do not create
+documentation markdown files.
+
+NON-NEGOTIABLE RULES.
+
+1.  One ledger only. Every points event is a row in loyalty_transactions scoped
+    by program_id. Balance is always SUM(quantity); never store a balance as
+    truth.
+
+2.  Never edit or delete a ledger row. Corrections are compensating `reversal`
+    or `adjustment` rows.
+
+3.  Integer cents for money, integer points, Math.floor on every division. No
+    floating-point arithmetic anywhere in a calculation path.
+
+4.  The server always recomputes the award total. A client-supplied total is
+    never trusted or persisted.
+
+5.  SINGLE SOURCE OF TRUTH (C7): the loyalty_programs row for REWARD_POINTS owns
+    enabled (`active`), display name (`name`), and rate (`earn_rate_points` /
+    `earn_rate_spend_cents`). Add NO app_settings keys for points. Every entry
+    point calls requirePointsProgram().
+
+6.  DUPLICATE CONTROL (C1): nullable dedupe_guard_key with a plain
+    UNIQUE (dedupe_guard_key) index. Key includes location_id. Admin/Owner
+    override writes NULL plus reason and actor. Full reversal moves the key to
+    released_guard_key and sets it NULL. Never use a partial index.
+
+7.  AWARD IDEMPOTENCY (C2): client key on
+    points_awards.request_idempotency_key, unique per business. Ledger children
+    use `points-earn:<awardId>` and `points-bonus:<awardId>`. All rows written
+    in one db.batch(). Disambiguate errors by re-reading first by request key
+    then by guard key — never by parsing error strings.
+
+8.  REDEMPTION (C3): implement the three conditional
+    INSERT ... SELECT ... WHERE statements verbatim in one db.batch() using
+    db.run(sql`...`). Statement A re-evaluates the balance at write time; B and
+    C are guarded by EXISTS(tx). The presence of the points_redemptions row is
+    the only success signal. NEVER issue a reward and compensate afterwards.
+
+9.  Set customer_rewards.redemption_transaction_id = NULL at issuance. That
+    column means "consumed by" and is owned by redeemCustomerReward. The points
+    link lives on points_redemptions.customer_reward_id.
+
+10. loyalty_transactions.location_id is NOT NULL. Customer self-redemption must
+    resolve the business default active location via
+    resolvePointsRedemptionLocationId(), excluding LEGACY_HIDDEN_LOCATION_NAME.
+    Do not attempt to make the column nullable.
+
+11. REWARD ENGINE (C6): use redeemCustomerReward unchanged. Catalogue reward
+    definitions must be dedicated (never the Coffee programme's Free Coffee),
+    reward_type restricted to free_item or voucher (reject others — other types
+    are invisible to staff), welcome_reward = false, and the points programme
+    keeps reward_definition_id = NULL. Warn in the admin UI when a voucher item
+    is saved while staff_voucher_redemption_enabled is off.
+
+12. DELETION (C5): snapshot promotion and catalogue NAMES AND VALUES onto
+    points_awards / points_redemptions. Use enabled/active plus archived_at.
+    Hard delete only when provably unused; ON DELETE RESTRICT on all
+    referencing FKs.
+
+13. NEGATIVE BALANCE (C8): send availableBalance, recoveryPoints, inRecovery to
+    the customer; never send rawBalance to a customer client. Show
+    "0 points available" PLUS the recovery message. Admin sees the raw signed
+    balance.
+
+14. TERMINOLOGY (C9): never use "liability". Use "Outstanding Points Balance" /
+    outstandingPoints.
+
+15. PERMISSIONS (C10, verified): staff points routes use the existing
+    requireStaff (staff + admin + owner). Admin points routes use
+    requireAdminOrOwner — never requireAdmin, which excludes owner. The
+    duplicate override is an in-handler role check.
+
+16. Promotions never compound: highest multiplier wins, at most one fixed bonus
+    may coexist, fixed bonus applies to the base only, and both winning ids and
+    names are persisted.
+
+17. Inside worker/db/schema/** use relative imports only. Do NOT add a
+    table-level CHECK to loyalty_programs or loyalty_transactions — SQLite
+    cannot do so via ALTER TABLE; enforce those rules in zod. CHECK constraints
+    on the four new tables are required as specified in C4.
+
+18. Ship with the programme active = false. Seed no catalogue items and no
+    promotions.
+
+EXECUTION ORDER.
+Implement phases P1–P9 in order. Run `npm run typecheck` after each phase and do
+not start a phase until the previous gate passes.
+
+VALIDATION BEFORE REPORTING DONE.
+Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build:prod`. Add
+scripts/points-smoke.mjs to the `test` chain covering every case in Sec 27 plus
+the five added in "Knock-on changes". The concurrency case is MANDATORY and must
+assert: balance 1,000, cost 1,000, two concurrent requests with different
+idempotency keys -> exactly one points_redemptions row, exactly one
+customer_rewards row, final balance exactly 0. Verify mobile widths
+320/375/390/393/414/430 px on Home, Rewards->Points and the staff award dialog
+with no horizontal overflow. Confirm coffee progress, existing rewards, QR
+resolution, staff workflow, admin screens, menu, promotions and the
+menu/promotion media smoke tests are all unchanged.
+
+DATABASE AND DEPLOYMENT.
+Generate the migration with `npm run db:generate`; never hand-edit generated SQL
+and never include BEGIN/COMMIT/SAVEPOINT. Apply locally with
+`npm run db:migrate:local`. When deployment is explicitly authorised, run
+`npm run db:migrate:remote` BEFORE `npm run deploy:prod`. Do not deploy, do not
+run remote migrations, and do not commit unless explicitly asked.
+
+REPORTING.
+Report files created and changed, the exact migration SQL, the implemented
+rounding and overlap rules, the redemption batch SQL as written, command results
+for typecheck/lint/test/build, smoke output including the concurrency assertion,
+and the mobile overflow results.
+
+--------------------------------------------------------------------------------
+
+NO Build My New App resources were modified.
