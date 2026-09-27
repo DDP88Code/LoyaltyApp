@@ -22,6 +22,55 @@
       "when": 1788418314437,
       "tag": "0002_coffee_earn_redeem",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790544956352,
+      "tag": "0003_menu_catalog_upgrade",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790544959843,
+      "tag": "0004_notifications_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790544962670,
+      "tag": "0005_promotion_notify_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790544965795,
+      "tag": "0006_welcome_reward_claim_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790544968452,
+      "tag": "0007_marketing_prompt_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790544970843,
+      "tag": "0008_location_display_name_and_redemption_copy",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790544973317,
+      "tag": "0009_reward_points_system",
+      "breakpoints": true
     }
   ]
 }
