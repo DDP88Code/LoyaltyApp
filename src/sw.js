@@ -39,6 +39,24 @@ registerRoute(
 	}),
 );
 
+registerRoute(
+	({ url, request }) =>
+		url.origin === self.location.origin &&
+		url.pathname === "/api/media/public/promotions" &&
+		request.method === "GET",
+	new CacheFirst({
+		cacheName: "fives-promotion-images",
+		plugins: [
+			new CacheableResponsePlugin({ statuses: [0, 200] }),
+			new ExpirationPlugin({
+				maxEntries: 120,
+				maxAgeSeconds: 60 * 60 * 24 * 180,
+				purgeOnQuotaError: true,
+			}),
+		],
+	}),
+);
+
 const DEFAULT_CLICK_URL = "/app/notifications";
 const DEFAULT_TITLE = BRAND.notifications.defaultTitle;
 const DEFAULT_BODY = "You have a new account update.";

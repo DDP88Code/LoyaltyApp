@@ -12,7 +12,8 @@ import {
 } from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { prefetchMenuImages } from "@/features/customer/menuImagePrefetch";
-import { mediaObjectUrl } from "@/lib/media";
+import { prefetchPromotionImages } from "@/features/customer/promotionImagePrefetch";
+import { promotionMediaObjectUrl } from "@/lib/media";
 
 export function HomePage() {
 	const queryClient = useQueryClient();
@@ -21,6 +22,8 @@ export function HomePage() {
 	useEffect(() => {
 		if (!home.data) return;
 		if (typeof window === "undefined") return;
+		const activePromotions = resolvePromotions(home.data);
+		prefetchPromotionImages(activePromotions, { priorityCount: 1 });
 
 		let cancelled = false;
 
@@ -139,7 +142,7 @@ export function HomePage() {
 						What&apos;s on at Fives Sports Bar
 					</h2>
 					{promotions.length === 1 ? (
-						<PromotionCard promotion={promotions[0]!} />
+						<PromotionCard promotion={promotions[0]!} prioritizeImage />
 					) : (
 						<PromotionCarousel
 							promotions={promotions}
@@ -281,9 +284,9 @@ function PromotionCarousel({
 					prefersReducedMotion ? "scroll-auto" : "scroll-smooth"
 				}`}
 			>
-				{promotions.map((promotion) => (
+				{promotions.map((promotion, index) => (
 					<div key={promotion.id} className="w-full min-w-full snap-start">
-						<PromotionCard promotion={promotion} />
+						<PromotionCard promotion={promotion} prioritizeImage={index === 0} />
 					</div>
 				))}
 			</div>
@@ -309,15 +312,25 @@ function PromotionCarousel({
 	);
 }
 
-function PromotionCard({ promotion }: { promotion: PromotionSummary }) {
+function PromotionCard({
+	promotion,
+	prioritizeImage = false,
+}: {
+	promotion: PromotionSummary;
+	prioritizeImage?: boolean;
+}) {
 	return (
 		<Card>
 			{promotion.imageKey && (
 				<img
-					src={mediaObjectUrl(promotion.imageKey)}
+					src={promotionMediaObjectUrl(promotion.imageKey)}
 					alt={promotion.title}
-					className="mb-3 h-40 w-full rounded-xl object-cover"
-					loading="lazy"
+					className="mb-3 aspect-video w-full rounded-xl object-cover"
+					width={1600}
+					height={900}
+					loading={prioritizeImage ? "eager" : "lazy"}
+					fetchPriority={prioritizeImage ? "high" : "low"}
+					decoding="async"
 				/>
 			)}
 			<div className="flex items-start gap-3">

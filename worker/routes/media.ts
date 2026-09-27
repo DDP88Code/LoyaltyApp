@@ -5,6 +5,8 @@ import {
 	assertOwnedBusinessMediaKey,
 	assertPublicMenuMediaKey,
 	MENU_IMAGE_PUBLIC_CACHE_CONTROL,
+	assertPublicPromotionsMediaKey,
+	PROMOTION_IMAGE_PUBLIC_CACHE_CONTROL,
 } from "@worker/lib/media";
 import { requireSession } from "@worker/middleware/auth";
 import { validate } from "@worker/middleware/validate";
@@ -28,6 +30,21 @@ export const media = new Hono<AppEnv>()
 		object.writeHttpMetadata(headers);
 		headers.set("etag", object.httpEtag);
 		headers.set("cache-control", MENU_IMAGE_PUBLIC_CACHE_CONTROL);
+		return new Response(object.body, { headers });
+	})
+	.get("/public/promotions", validate("query", objectQuerySchema), async (c) => {
+		const { key } = c.req.valid("query");
+		assertPublicPromotionsMediaKey(key);
+
+		const object = await c.env.MEDIA.get(key);
+		if (!object) {
+			throw new ApiError("not_found", "That media object was not found.");
+		}
+
+		const headers = new Headers();
+		object.writeHttpMetadata(headers);
+		headers.set("etag", object.httpEtag);
+		headers.set("cache-control", PROMOTION_IMAGE_PUBLIC_CACHE_CONTROL);
 		return new Response(object.body, { headers });
 	})
 	.use("/object", requireSession)

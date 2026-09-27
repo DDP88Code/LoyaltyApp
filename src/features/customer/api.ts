@@ -85,6 +85,10 @@ export function useCustomerHome() {
 	return useQuery({
 		queryKey: ["customer", "home"],
 		queryFn: () => apiFetch<CustomerHomePayload>("/api/customer/home"),
+		staleTime: 2 * 60_000,
+		gcTime: 30 * 60_000,
+		refetchOnMount: true,
+		refetchOnReconnect: true,
 	});
 }
 

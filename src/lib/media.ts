@@ -7,3 +7,7 @@ export function mediaObjectUrl(imageKey: string): string {
 export function menuMediaObjectUrl(imageKey: string): string {
 	return `${BASE_URL}/api/media/public/menu?key=${encodeURIComponent(imageKey)}`;
 }
+
+export function promotionMediaObjectUrl(imageKey: string): string {
+	return `${BASE_URL}/api/media/public/promotions?key=${encodeURIComponent(imageKey)}`;
+}

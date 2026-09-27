@@ -335,6 +335,7 @@ export function AdminPromotionsPage() {
 
 							<AdminImageUpload
 								label="Promotion image"
+									optimizeForMenuCards
 								selectedFile={imageFile}
 								onSelectedFileChange={(file) => {
 									setImageFile(file);
