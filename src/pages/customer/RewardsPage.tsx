@@ -223,9 +223,6 @@ export function RewardsPage() {
 							description="Ask a member of staff to find out how to start collecting."
 						/>
 					)}
-					{rewards.data.pointsEnabled && (
-						<p className="text-sm text-brand-muted">Points are coming soon.</p>
-					)}
 				</div>
 			)}
 
