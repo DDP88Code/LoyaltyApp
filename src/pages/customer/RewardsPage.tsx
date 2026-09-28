@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RewardSummary } from "@shared/loyalty";
 import type { CustomerPointsPayload } from "@shared/rewardPoints";
 import { useSearchParams } from "react-router";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
@@ -12,6 +13,7 @@ import {
 } from "@/features/customer/api";
 import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { RewardCard } from "@/features/customer/RewardCard";
+import { ApiClientError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatCents } from "@/lib/money";
 
@@ -34,11 +36,55 @@ function newIdempotencyKey() {
 	return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
+interface ClaimIntent {
+	catalogueItemId: string;
+	rewardName: string;
+	pointsCost: number;
+	availableBalance: number;
+	programName: string;
+}
+
+interface ClaimTarget extends ClaimIntent {
+	requestIdempotencyKey: string;
+}
+
+interface ClaimSuccessMessage {
+	title: string;
+	description: string;
+	note: string | null;
+}
+
+function formatClaimError(cause: unknown, target: ClaimTarget | null): string {
+	if (cause instanceof ApiClientError) {
+		if (
+			cause.code === "validation_failed" &&
+			/you do not have enough points/i.test(cause.message)
+		) {
+			if (target && target.availableBalance >= target.pointsCost) {
+				return `This reward cost or your balance changed. You no longer have enough ${target.programName} to claim it.`;
+			}
+			return cause.message;
+		}
+		return cause.message;
+	}
+
+	if (cause instanceof Error) {
+		return cause.message;
+	}
+
+	return "Could not claim reward right now. Please try again.";
+}
+
 export function RewardsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const requestedTab = searchParams.get("tab");
 	const rewards = useCustomerRewards();
 	const redeemPoints = useRedeemCustomerPoints();
+	const [claimTarget, setClaimTarget] = useState<ClaimTarget | null>(null);
+	const [claimError, setClaimError] = useState<string | null>(null);
+	const [claimSuccessMessage, setClaimSuccessMessage] =
+		useState<ClaimSuccessMessage | null>(null);
+	const claimInFlightRef = useRef(false);
 	const pointsTabKnownDisabled = rewards.data?.pointsEnabled === false;
 
 	const visibleTabs: Tab[] = pointsTabKnownDisabled
@@ -60,6 +106,53 @@ export function RewardsPage() {
 		next.set("tab", nextTab);
 		setSearchParams(next);
 	};
+
+	useEffect(() => {
+		if (!claimSuccessMessage) return;
+		const timeout = window.setTimeout(() => {
+			setClaimSuccessMessage(null);
+		}, 8000);
+		return () => window.clearTimeout(timeout);
+	}, [claimSuccessMessage]);
+
+	function startClaim(intent: ClaimIntent) {
+		redeemPoints.reset();
+		setClaimError(null);
+		setClaimTarget({
+			...intent,
+			requestIdempotencyKey: newIdempotencyKey(),
+		});
+	}
+
+	async function confirmClaim() {
+		if (!claimTarget || claimInFlightRef.current) return;
+		claimInFlightRef.current = true;
+		setClaimError(null);
+
+		try {
+			const result = await redeemPoints.mutateAsync({
+				catalogueItemId: claimTarget.catalogueItemId,
+				requestIdempotencyKey: claimTarget.requestIdempotencyKey,
+			});
+
+			const costChanged = result.pointsCost !== claimTarget.pointsCost;
+			setClaimSuccessMessage({
+				title: "Reward added",
+				description: `${result.catalogueItemName} is ready to use. Show your Fives QR to a staff member when you want to use it.`,
+				note: costChanged
+					? `Points cost updated to ${result.pointsCost.toLocaleString("en-ZA")} ${result.summary.programName}. Your balance now reflects the latest cost.`
+					: null,
+			});
+
+			setClaimTarget(null);
+			setTab("available");
+		} catch (cause) {
+			setClaimError(formatClaimError(cause, claimTarget));
+			setClaimTarget(null);
+		} finally {
+			claimInFlightRef.current = false;
+		}
+	}
 
 	return (
 		<div className="p-5">
@@ -84,6 +177,33 @@ export function RewardsPage() {
 					</button>
 				))}
 			</div>
+
+			{claimSuccessMessage && (
+				<div
+					role="status"
+					aria-live="polite"
+					className="mb-4 rounded-xl border border-brand-success/40 bg-brand-success/10 px-4 py-3"
+				>
+					<div className="flex items-start justify-between gap-3">
+						<div className="space-y-1">
+							<p className="text-sm font-semibold text-brand-success">
+								{claimSuccessMessage.title}
+							</p>
+							<p className="text-sm text-brand-text">{claimSuccessMessage.description}</p>
+							{claimSuccessMessage.note && (
+								<p className="text-xs text-brand-muted">{claimSuccessMessage.note}</p>
+							)}
+						</div>
+						<button
+							type="button"
+							onClick={() => setClaimSuccessMessage(null)}
+							className="text-xs font-medium text-brand-muted underline"
+						>
+							Dismiss
+						</button>
+					</div>
+				</div>
+			)}
 
 			{rewards.isPending && <LoadingState label="Loading your rewards…" />}
 			{rewards.isError && (
@@ -113,13 +233,8 @@ export function RewardsPage() {
 				<PointsPanel
 					points={rewards.data.points}
 					loading={redeemPoints.isPending}
-					error={redeemPoints.error?.message ?? null}
-					onRedeem={(catalogueItemId) =>
-						redeemPoints.mutate({
-							catalogueItemId,
-							requestIdempotencyKey: newIdempotencyKey(),
-						})
-					}
+					error={claimError ?? redeemPoints.error?.message ?? null}
+					onClaim={startClaim}
 				/>
 			)}
 
@@ -128,6 +243,37 @@ export function RewardsPage() {
 			)}
 
 			{rewards.data && tab === "history" && <TransactionHistory />}
+
+			<ConfirmDialog
+				open={Boolean(claimTarget)}
+				title={
+					claimTarget ? `Claim ${claimTarget.rewardName}?` : "Claim reward?"
+				}
+				confirmLabel="Claim reward"
+				cancelLabel="Cancel"
+				loading={redeemPoints.isPending}
+				onConfirm={() => void confirmClaim()}
+				onCancel={() => {
+					if (redeemPoints.isPending) return;
+					setClaimTarget(null);
+				}}
+			>
+				{claimTarget && (
+					<div className="space-y-3 text-sm">
+						<p className="text-brand-muted">
+							This will use {claimTarget.pointsCost.toLocaleString("en-ZA")} {claimTarget.programName} and add the reward to your Available Rewards.
+						</p>
+						<div className="rounded-lg border border-brand-border bg-brand-surface-raised px-3 py-2 text-xs text-brand-muted">
+							<p>
+								Current balance: {claimTarget.availableBalance.toLocaleString("en-ZA")}
+							</p>
+							<p>
+								Balance after: {Math.max(0, claimTarget.availableBalance - claimTarget.pointsCost).toLocaleString("en-ZA")}
+							</p>
+						</div>
+					</div>
+				)}
+			</ConfirmDialog>
 		</div>
 	);
 }
@@ -156,12 +302,12 @@ function PointsPanel({
 	points,
 	loading,
 	error,
-	onRedeem,
+	onClaim,
 }: {
 	points: CustomerPointsPayload;
 	loading: boolean;
 	error: string | null;
-	onRedeem: (catalogueItemId: string) => void;
+	onClaim: (intent: ClaimIntent) => void;
 }) {
 	const summary = points.summary;
 
@@ -176,7 +322,7 @@ function PointsPanel({
 				</p>
 				{summary.inRecovery && (
 					<p className="mt-2 text-sm text-brand-warning">
-						{summary.recoveryPoints.toLocaleString("en-ZA")} points need to be recovered before you can redeem rewards.
+						{summary.recoveryPoints.toLocaleString("en-ZA")} points need to be recovered before you can claim rewards.
 						 Points you earn from here will go towards this first.
 					</p>
 				)}
@@ -189,14 +335,18 @@ function PointsPanel({
 				) : (
 					<div className="mt-3 flex flex-col gap-2">
 						{points.catalogue.map((item) => {
+							const missingPoints = Math.max(
+								0,
+								item.pointsCost - summary.availableBalance,
+							);
 							const disabled =
 								loading ||
 								summary.inRecovery ||
 								summary.availableBalance < item.pointsCost;
 							const reason = summary.inRecovery
 								? "Unavailable during recovery"
-								: summary.availableBalance < item.pointsCost
-									? "Not enough points"
+								: missingPoints > 0
+									? `${missingPoints.toLocaleString("en-ZA")} more points needed`
 									: null;
 
 							return (
@@ -215,9 +365,17 @@ function PointsPanel({
 									<Button
 										size="sm"
 										disabled={disabled}
-										onClick={() => onRedeem(item.id)}
+										onClick={() =>
+											onClaim({
+												catalogueItemId: item.id,
+												rewardName: item.name,
+												pointsCost: item.pointsCost,
+												availableBalance: summary.availableBalance,
+												programName: summary.programName,
+											})
+										}
 									>
-										Redeem
+										Claim
 									</Button>
 								</div>
 							);
@@ -233,24 +391,39 @@ function PointsPanel({
 					<p className="mt-2 text-sm text-brand-muted">No points activity yet.</p>
 				) : (
 					<ul className="mt-3 flex flex-col gap-2">
-						{points.history.map((entry) => (
-							<li
-								key={entry.id}
-								className="flex items-center justify-between gap-2 rounded-lg border border-brand-border px-3 py-2"
-							>
-								<div>
-									<p className="text-sm font-medium">{entry.label}</p>
-									<p className="text-xs text-brand-muted">
-										{new Date(entry.createdAt).toLocaleString("en-ZA")}
-										{entry.detail ? ` • ${entry.detail}` : ""}
+						{points.history.map((entry) => {
+							const claimedLabel =
+								entry.label.toLowerCase() === "redeemed"
+									? "Claimed reward"
+									: `Claimed ${entry.label}`;
+
+							return (
+								<li
+									key={entry.id}
+									className="flex items-center justify-between gap-2 rounded-lg border border-brand-border px-3 py-2"
+								>
+									<div>
+										<p className="text-sm font-medium">
+											{entry.transactionType === "redeem"
+												? claimedLabel
+												: entry.label}
+										</p>
+										<p className="text-xs text-brand-muted">
+											{new Date(entry.createdAt).toLocaleString("en-ZA")}
+											{entry.transactionType === "redeem"
+												? ` • ${Math.abs(entry.quantity).toLocaleString("en-ZA")} points used`
+												: entry.detail
+													? ` • ${entry.detail}`
+													: ""}
+										</p>
+									</div>
+									<p className={cn("font-semibold", entry.quantity < 0 && "text-brand-danger")}>
+										{entry.quantity > 0 ? "+" : ""}
+										{entry.quantity}
 									</p>
-								</div>
-								<p className={cn("font-semibold", entry.quantity < 0 && "text-brand-danger")}>
-									{entry.quantity > 0 ? "+" : ""}
-									{entry.quantity}
-								</p>
-							</li>
-						))}
+								</li>
+							);
+						})}
 					</ul>
 				)}
 			</div>
