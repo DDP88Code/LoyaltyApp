@@ -106,8 +106,16 @@ export interface AdminPointsCatalogueItemPayload extends CustomerPointsCatalogue
 	updatedAt: string;
 }
 
+export interface AdminPointsEligibleRewardPayload {
+	id: string;
+	name: string;
+	rewardType: "free_item" | "voucher";
+	valueCents: number | null;
+}
+
 export interface AdminPointsCataloguePayload {
 	items: AdminPointsCatalogueItemPayload[];
+	eligibleRewards: AdminPointsEligibleRewardPayload[];
 	staffVoucherRedemptionEnabled: boolean;
 }
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -11,6 +12,22 @@ import {
 	type RewardDefinitionInput,
 } from "@/features/admin/core/api";
 import { AdminPanel } from "@/features/admin/core/widgets";
+
+const SUPPORTED_REWARD_TYPES = ["free_item", "voucher"] as const;
+
+function isSupportedRewardType(
+	value: RewardDefinitionInput["rewardType"],
+): value is (typeof SUPPORTED_REWARD_TYPES)[number] {
+	return value === "free_item" || value === "voucher";
+}
+
+function rewardTypeLabel(value: RewardDefinitionInput["rewardType"]): string {
+	if (value === "free_item") return "Free item";
+	if (value === "voucher") return "Voucher";
+	if (value === "discount") return "Discount (legacy)";
+	if (value === "points_reward") return "Points reward (legacy)";
+	return value;
+}
 
 const EMPTY_FORM: RewardDefinitionInput = {
 	name: "",
@@ -26,6 +43,10 @@ const EMPTY_FORM: RewardDefinitionInput = {
 };
 
 export function AdminRewardsPage() {
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const source = searchParams.get("source");
+	const launchedFromPoints = source === "points";
 	const rewardsQuery = useAdminRewards();
 	const createReward = useCreateRewardDefinition();
 	const updateReward = useUpdateRewardDefinition();
@@ -33,6 +54,7 @@ export function AdminRewardsPage() {
 	const [selectedRewardId, setSelectedRewardId] = useState("");
 	const [form, setForm] = useState<RewardDefinitionInput>(EMPTY_FORM);
 	const [valueRand, setValueRand] = useState("");
+	const [createdRewardId, setCreatedRewardId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 
@@ -55,10 +77,13 @@ export function AdminRewardsPage() {
 	}
 
 	const rewards = rewardsQuery.data.rewards;
+	const createMode = selectedReward === null;
+	const selectedTypeIsLegacy = selectedReward !== null && !isSupportedRewardType(form.rewardType);
 
 	function selectReward(rewardId: string) {
 		setError(null);
 		setSuccess(null);
+		setCreatedRewardId(null);
 		setSelectedRewardId(rewardId);
 		const reward = rewards.find((row) => row.id === rewardId);
 		if (!reward) return;
@@ -82,6 +107,7 @@ export function AdminRewardsPage() {
 	async function save() {
 		setError(null);
 		setSuccess(null);
+		setCreatedRewardId(null);
 		try {
 			const hasRandValue = valueRand.trim().length > 0;
 			const parsedRand = hasRandValue ? Number(valueRand.trim()) : null;
@@ -91,6 +117,10 @@ export function AdminRewardsPage() {
 			const nextValueCents =
 				parsedRand == null ? null : Math.round(parsedRand * 100);
 
+			if (createMode && !isSupportedRewardType(form.rewardType)) {
+				throw new Error("New rewards can only be created as Free item or Voucher.");
+			}
+
 			if (selectedRewardId) {
 				await updateReward.mutateAsync({
 					id: selectedRewardId,
@@ -99,11 +129,17 @@ export function AdminRewardsPage() {
 				});
 				setSuccess("Reward updated.");
 			} else {
-				await createReward.mutateAsync({
+				const created = await createReward.mutateAsync({
 					...form,
+					pointsCost: null,
 					valueCents: nextValueCents,
 				});
-				setSuccess("Reward created.");
+				setCreatedRewardId(created.id);
+				setSuccess(
+					launchedFromPoints
+						? "Reward created. Add it to the points catalogue from Admin Points."
+						: "Reward created.",
+				);
 			}
 			await rewardsQuery.refetch();
 		} catch (cause) {
@@ -115,6 +151,7 @@ export function AdminRewardsPage() {
 		if (!selectedRewardId) return;
 		setError(null);
 		setSuccess(null);
+		setCreatedRewardId(null);
 		try {
 			await deleteReward.mutateAsync(selectedRewardId);
 			setSelectedRewardId("");
@@ -133,21 +170,27 @@ export function AdminRewardsPage() {
 		<main className="mx-auto w-full max-w-7xl p-6">
 			<PageHeader
 				title="Rewards"
-				subtitle="Create and maintain reward definitions, welcome reward flags, values, and validity rules."
+				subtitle="Create customer-facing rewards and keep welcome and validity settings up to date."
 			/>
+			{launchedFromPoints && (
+				<p className="mb-4 rounded-lg border border-brand-primary/30 bg-brand-primary/10 px-3 py-2 text-sm text-brand-text">
+					Create a Free item or Voucher reward, then add it to the Points Reward Catalogue.
+				</p>
+			)}
 			<div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-				<AdminPanel title="Reward definitions">
+				<AdminPanel title="Reward definitions" description="Select an existing reward or create a new one.">
 					<Button
 						variant="outline"
 						onClick={() => {
 							setError(null);
 							setSuccess(null);
+							setCreatedRewardId(null);
 							setSelectedRewardId("");
 							setForm(EMPTY_FORM);
 							setValueRand("");
 						}}
 					>
-						New reward
+						Create new reward
 					</Button>
 					{rewards.length === 0 ? (
 						<EmptyState title="No rewards" />
@@ -162,7 +205,7 @@ export function AdminRewardsPage() {
 									>
 										<p className="font-medium">{reward.name}</p>
 										<p className="text-xs text-brand-muted">
-											{reward.rewardType} | {reward.active ? "Active" : "Inactive"}
+											{rewardTypeLabel(reward.rewardType)} | {reward.active ? "Active" : "Inactive"}
 										</p>
 									</button>
 								</li>
@@ -176,7 +219,7 @@ export function AdminRewardsPage() {
 					description={
 						selectedReward
 							? `Editing ${selectedReward.name}`
-							: "Create mode: enter details and save to add a new reward."
+							: "Create mode only supports Free item and Voucher rewards."
 					}
 				>
 					<div className="grid gap-3 md:grid-cols-2">
@@ -197,6 +240,7 @@ export function AdminRewardsPage() {
 							<select
 								id="rewardType"
 								value={form.rewardType}
+								disabled={selectedTypeIsLegacy}
 								onChange={(event) =>
 									setForm((v) => ({
 										...v,
@@ -205,11 +249,20 @@ export function AdminRewardsPage() {
 								}
 								className="min-h-12 rounded-xl border border-brand-border bg-brand-surface px-3"
 							>
-								<option value="free_item">free_item</option>
-								<option value="voucher">voucher</option>
-								<option value="discount">discount</option>
-								<option value="points_reward">points_reward</option>
+								{selectedTypeIsLegacy ? (
+									<option value={form.rewardType}>{rewardTypeLabel(form.rewardType)} (locked)</option>
+								) : (
+									<>
+										<option value="free_item">Free item</option>
+										<option value="voucher">Voucher</option>
+									</>
+								)}
 							</select>
+							{selectedTypeIsLegacy && (
+								<p className="text-xs text-brand-warning">
+									This legacy reward type is preserved for compatibility and cannot be changed here.
+								</p>
+							)}
 						</div>
 						<Input
 							label="Value (Rand)"
@@ -221,17 +274,6 @@ export function AdminRewardsPage() {
 								setValueRand(event.target.value)
 							}
 							hint="Example: 50.00 will be stored as 5000 cents."
-						/>
-						<Input
-							label="Points cost"
-							type="number"
-							value={form.pointsCost?.toString() ?? ""}
-							onChange={(event) =>
-								setForm((v) => ({
-									...v,
-									pointsCost: event.target.value ? Number(event.target.value) : null,
-								}))
-							}
 						/>
 						<Input
 							label="Item reference"
@@ -288,6 +330,16 @@ export function AdminRewardsPage() {
 						<Button loading={pending} onClick={() => void save()}>
 							{selectedReward ? "Save reward" : "Create reward"}
 						</Button>
+						{launchedFromPoints && createdRewardId && (
+							<Button
+								variant="secondary"
+								onClick={() =>
+									navigate(`/admin/points?catalogueRewardId=${encodeURIComponent(createdRewardId)}`)
+								}
+							>
+								Add to points catalogue
+							</Button>
+						)}
 						{selectedReward && (
 							<Button
 								variant="danger"

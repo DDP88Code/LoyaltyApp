@@ -1,9 +1,10 @@
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type {
 	AdminPointsActivityPayload,
 	AdminPointsCatalogueItemPayload,
+	AdminPointsEligibleRewardPayload,
 	AdminPointsProgramPayload,
 	AdminPointsPromotionPayload,
 	AdminPointsReportPayload,
@@ -20,7 +21,11 @@ import {
 	pointsRedemptions,
 	rewardDefinitions,
 } from "@worker/db/schema";
-import { SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED } from "@worker/lib/defaults";
+import {
+	MVP_BIRTHDAY_REWARD_ITEM_REFERENCE,
+	MVP_BIRTHDAY_REWARD_NAME,
+	SETTINGS_STAFF_VOUCHER_REDEMPTION_ENABLED,
+} from "@worker/lib/defaults";
 import { ApiError, ok } from "@worker/lib/http";
 import {
 	createPointsAdjustment,
@@ -150,6 +155,92 @@ const adjustmentSchema = z.object({
 
 function isPointsCatalogueRewardType(value: string): value is "free_item" | "voucher" {
 	return (POINTS_CATALOGUE_REWARD_TYPES as readonly string[]).includes(value);
+}
+
+function isReservedBirthdayReward(row: {
+	name: string;
+	rewardType: string;
+	itemReference: string | null;
+}): boolean {
+	return (
+		row.name === MVP_BIRTHDAY_REWARD_NAME &&
+		row.rewardType === "free_item" &&
+		row.itemReference === MVP_BIRTHDAY_REWARD_ITEM_REFERENCE
+	);
+}
+
+async function assertRewardDefinitionEligibleForPointsCatalogue(input: {
+	db: ReturnType<typeof getDb>;
+	businessId: string;
+	rewardDefinitionId: string;
+	currentItemId?: string;
+}) {
+	const reward = await input.db.query.rewardDefinitions.findFirst({
+		where: and(
+			eq(rewardDefinitions.id, input.rewardDefinitionId),
+			eq(rewardDefinitions.businessId, input.businessId),
+		),
+	});
+	if (!reward) {
+		throw new ApiError("not_found", "Reward definition not found.");
+	}
+	if (!reward.active) {
+		throw new ApiError(
+			"validation_failed",
+			"Only active reward definitions can be used in points catalogue.",
+		);
+	}
+	if (!isPointsCatalogueRewardType(reward.rewardType)) {
+		throw new ApiError(
+			"validation_failed",
+			"Only free_item and voucher reward types are allowed in points catalogue.",
+		);
+	}
+	if (reward.welcomeReward) {
+		throw new ApiError(
+			"validation_failed",
+			"Welcome reward definitions cannot be used in points catalogue.",
+		);
+	}
+	if (isReservedBirthdayReward(reward)) {
+		throw new ApiError(
+			"validation_failed",
+			"Birthday reward definitions are reserved for birthday automation.",
+		);
+	}
+
+	const linkedProgram = await input.db.query.loyaltyPrograms.findFirst({
+		where: and(
+			eq(loyaltyPrograms.businessId, input.businessId),
+			eq(loyaltyPrograms.rewardDefinitionId, reward.id),
+		),
+		columns: { id: true },
+	});
+	if (linkedProgram) {
+		throw new ApiError(
+			"validation_failed",
+			"This reward definition is linked to another loyalty program and cannot be used here.",
+		);
+	}
+
+	const activeCatalogueMapping = await input.db.query.pointsCatalogueItems.findFirst({
+		where: and(
+			eq(pointsCatalogueItems.businessId, input.businessId),
+			eq(pointsCatalogueItems.rewardDefinitionId, reward.id),
+			eq(pointsCatalogueItems.active, true),
+			isNull(pointsCatalogueItems.archivedAt),
+			input.currentItemId ? ne(pointsCatalogueItems.id, input.currentItemId) : undefined,
+		),
+		columns: { id: true },
+	});
+	if (activeCatalogueMapping) {
+		throw new ApiError(
+			"conflict",
+			"This reward definition is already active in the points catalogue.",
+		);
+	}
+
+	return reward;
 }
 
 async function toProgramPayload(db: ReturnType<typeof getDb>, businessId: string): Promise<AdminPointsProgramPayload> {
@@ -394,7 +485,8 @@ export const adminPoints = new Hono<AppEnv>()
 	.get("/catalogue", async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
-		const [rows, voucherSetting] = await Promise.all([
+		const [rows, voucherSetting, rewardRows, linkedProgramRows, activeCatalogueRows] =
+			await Promise.all([
 			db
 				.select({
 					id: pointsCatalogueItems.id,
@@ -428,10 +520,64 @@ export const adminPoints = new Hono<AppEnv>()
 				),
 				columns: { valueJson: true },
 			}),
+			db
+				.select({
+					id: rewardDefinitions.id,
+					name: rewardDefinitions.name,
+					rewardType: rewardDefinitions.rewardType,
+					valueCents: rewardDefinitions.valueCents,
+					itemReference: rewardDefinitions.itemReference,
+					active: rewardDefinitions.active,
+					welcomeReward: rewardDefinitions.welcomeReward,
+				})
+				.from(rewardDefinitions)
+				.where(eq(rewardDefinitions.businessId, profile.businessId))
+				.orderBy(asc(rewardDefinitions.name)),
+			db
+				.select({ rewardDefinitionId: loyaltyPrograms.rewardDefinitionId })
+				.from(loyaltyPrograms)
+				.where(
+					and(
+						eq(loyaltyPrograms.businessId, profile.businessId),
+						isNotNull(loyaltyPrograms.rewardDefinitionId),
+					),
+				),
+			db
+				.select({ rewardDefinitionId: pointsCatalogueItems.rewardDefinitionId })
+				.from(pointsCatalogueItems)
+				.where(
+					and(
+						eq(pointsCatalogueItems.businessId, profile.businessId),
+						eq(pointsCatalogueItems.active, true),
+						isNull(pointsCatalogueItems.archivedAt),
+					),
+				),
 		]);
 
 		const staffVoucherEnabled =
 			typeof voucherSetting?.valueJson === "boolean" ? voucherSetting.valueJson : false;
+		const linkedProgramRewardIds = new Set(
+			linkedProgramRows
+				.map((row) => row.rewardDefinitionId)
+				.filter((value): value is string => typeof value === "string"),
+		);
+		const activeCatalogueRewardIds = new Set(
+			activeCatalogueRows.map((row) => row.rewardDefinitionId),
+		);
+
+		const eligibleRewards = rewardRows
+			.filter((row) => row.active)
+			.filter((row) => isPointsCatalogueRewardType(row.rewardType))
+			.filter((row) => !row.welcomeReward)
+			.filter((row) => !isReservedBirthdayReward(row))
+			.filter((row) => !linkedProgramRewardIds.has(row.id))
+			.filter((row) => !activeCatalogueRewardIds.has(row.id))
+			.map((row) => ({
+				id: row.id,
+				name: row.name,
+				rewardType: row.rewardType as "free_item" | "voucher",
+				valueCents: row.valueCents,
+			})) satisfies AdminPointsEligibleRewardPayload[];
 
 		return ok(c, {
 			items: rows.map((row) => ({
@@ -452,6 +598,7 @@ export const adminPoints = new Hono<AppEnv>()
 				createdAt: row.createdAt.toISOString(),
 				updatedAt: row.updatedAt.toISOString(),
 			})) satisfies AdminPointsCatalogueItemPayload[],
+			eligibleRewards,
 			staffVoucherRedemptionEnabled: staffVoucherEnabled,
 		});
 	})
@@ -460,27 +607,11 @@ export const adminPoints = new Hono<AppEnv>()
 		const db = getDb(c.env);
 		const input = c.req.valid("json");
 
-		const reward = await db.query.rewardDefinitions.findFirst({
-			where: and(
-				eq(rewardDefinitions.id, input.rewardDefinitionId),
-				eq(rewardDefinitions.businessId, profile.businessId),
-			),
+		await assertRewardDefinitionEligibleForPointsCatalogue({
+			db,
+			businessId: profile.businessId,
+			rewardDefinitionId: input.rewardDefinitionId,
 		});
-		if (!reward) {
-			throw new ApiError("not_found", "Reward definition not found.");
-		}
-		if (!isPointsCatalogueRewardType(reward.rewardType)) {
-			throw new ApiError(
-				"validation_failed",
-				"Only free_item and voucher reward types are allowed in points catalogue.",
-			);
-		}
-		if (reward.welcomeReward) {
-			throw new ApiError(
-				"validation_failed",
-				"Welcome reward definitions cannot be used in points catalogue.",
-			);
-		}
 
 		const [created] = await db
 			.insert(pointsCatalogueItems)
@@ -513,27 +644,12 @@ export const adminPoints = new Hono<AppEnv>()
 		}
 
 		if (input.rewardDefinitionId) {
-			const reward = await db.query.rewardDefinitions.findFirst({
-				where: and(
-					eq(rewardDefinitions.id, input.rewardDefinitionId),
-					eq(rewardDefinitions.businessId, profile.businessId),
-				),
+			await assertRewardDefinitionEligibleForPointsCatalogue({
+				db,
+				businessId: profile.businessId,
+				rewardDefinitionId: input.rewardDefinitionId,
+				currentItemId: existing.id,
 			});
-			if (!reward) {
-				throw new ApiError("not_found", "Reward definition not found.");
-			}
-			if (!isPointsCatalogueRewardType(reward.rewardType)) {
-				throw new ApiError(
-					"validation_failed",
-					"Only free_item and voucher reward types are allowed in points catalogue.",
-				);
-			}
-			if (reward.welcomeReward) {
-				throw new ApiError(
-					"validation_failed",
-					"Welcome reward definitions cannot be used in points catalogue.",
-				);
-			}
 		}
 
 		const [updated] = await db

@@ -387,12 +387,33 @@ async function main() {
 
 	const rewardsList = await admin.request("GET", "/api/admin/rewards");
 	assert(rewardsList.ok, `Failed loading reward definitions: ${JSON.stringify(rewardsList.json)}`);
-	const rewards = rewardsList.json?.data?.rewards ?? [];
-	const redeemableReward = rewards.find(
-		(reward) =>
-			(reward.rewardType === "free_item" || reward.rewardType === "voucher") && !reward.welcomeReward,
+
+	const pointsEligibleRewardCreate = await admin.request("POST", "/api/admin/rewards", {
+		name: `Points Eligible ${STAMP}`,
+		description: "Voucher reserved for points smoke test",
+		rewardType: "voucher",
+		valueCents: 2500,
+		validDays: 30,
+		active: true,
+		welcomeReward: false,
+		terms: "Points smoke test reward",
+	});
+	assert(
+		pointsEligibleRewardCreate.ok,
+		`Failed creating eligible points reward: ${JSON.stringify(pointsEligibleRewardCreate.json)}`,
 	);
-	assert(redeemableReward, "No free_item or voucher reward definition available for catalogue");
+	const pointsEligibleRewardId = pointsEligibleRewardCreate.json?.data?.id;
+	assert(typeof pointsEligibleRewardId === "string", "Eligible points reward id missing");
+
+	const catalogueEligibility = await admin.request("GET", "/api/admin/points/catalogue");
+	assert(
+		catalogueEligibility.ok,
+		`Failed loading points catalogue eligibility: ${JSON.stringify(catalogueEligibility.json)}`,
+	);
+	const redeemableReward = (catalogueEligibility.json?.data?.eligibleRewards ?? []).find(
+		(reward) => reward.id === pointsEligibleRewardId,
+	);
+	assert(redeemableReward, "No eligible reward definition available for points catalogue");
 
 	const discountRewardCreate = await admin.request("POST", "/api/admin/rewards", {
 		name: `Discount Not Allowed ${STAMP}`,
@@ -466,8 +487,11 @@ async function main() {
 		"Deleting used catalogue item should be rejected",
 	);
 
-	const usedPromotionId = mult3.json?.data?.id;
-	assert(typeof usedPromotionId === "string", "Used promotion id missing");
+	const usedPromotionRow = d1First(
+		`SELECT multiplier_promotion_id as multiplierId, bonus_promotion_id as bonusId FROM points_awards WHERE id='${award1Id}' LIMIT 1`,
+	);
+	const usedPromotionId = usedPromotionRow.multiplierId ?? usedPromotionRow.bonusId;
+	assert(typeof usedPromotionId === "string" && usedPromotionId.length > 0, "Used promotion id missing");
 	await expectStatus(
 		admin.request("DELETE", `/api/admin/points/promotions/${usedPromotionId}`),
 		409,
