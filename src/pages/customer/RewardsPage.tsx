@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { RewardSummary } from "@shared/loyalty";
 import type { CustomerPointsPayload } from "@shared/rewardPoints";
 import { useSearchParams } from "react-router";
@@ -54,6 +55,32 @@ interface ClaimSuccessMessage {
 	note: string | null;
 }
 
+interface RewardDetailsTarget extends ClaimIntent {
+	description: string | null;
+	rewardType: string;
+	valueCents: number | null;
+	terms: string | null;
+	validDays: number | null;
+	inRecovery: boolean;
+	recoveryPoints: number;
+	missingPoints: number;
+	canClaim: boolean;
+	disabledReason: string | null;
+}
+
+function rewardTypeLabel(rewardType: string): string {
+	if (rewardType === "free_item") return "Free item";
+	if (rewardType === "voucher") return "Voucher";
+	return "Reward";
+}
+
+function validityCopy(validDays: number | null): string {
+	if (typeof validDays === "number" && validDays > 0) {
+		return `Valid for ${validDays.toLocaleString("en-ZA")} day${validDays === 1 ? "" : "s"} after claiming.`;
+	}
+	return "No expiry specified.";
+}
+
 function formatClaimError(cause: unknown, target: ClaimTarget | null): string {
 	if (cause instanceof ApiClientError) {
 		if (
@@ -84,6 +111,7 @@ export function RewardsPage() {
 	const [claimError, setClaimError] = useState<string | null>(null);
 	const [claimSuccessMessage, setClaimSuccessMessage] =
 		useState<ClaimSuccessMessage | null>(null);
+	const [detailsTarget, setDetailsTarget] = useState<RewardDetailsTarget | null>(null);
 	const claimInFlightRef = useRef(false);
 	const pointsTabKnownDisabled = rewards.data?.pointsEnabled === false;
 
@@ -121,6 +149,18 @@ export function RewardsPage() {
 		setClaimTarget({
 			...intent,
 			requestIdempotencyKey: newIdempotencyKey(),
+		});
+	}
+
+	function claimFromDetails() {
+		if (!detailsTarget || !detailsTarget.canClaim || redeemPoints.isPending) return;
+		setDetailsTarget(null);
+		startClaim({
+			catalogueItemId: detailsTarget.catalogueItemId,
+			rewardName: detailsTarget.rewardName,
+			pointsCost: detailsTarget.pointsCost,
+			availableBalance: detailsTarget.availableBalance,
+			programName: detailsTarget.programName,
 		});
 	}
 
@@ -231,6 +271,7 @@ export function RewardsPage() {
 					points={rewards.data.points}
 					loading={redeemPoints.isPending}
 					error={claimError ?? redeemPoints.error?.message ?? null}
+					onViewDetails={setDetailsTarget}
 					onClaim={startClaim}
 				/>
 			)}
@@ -240,6 +281,83 @@ export function RewardsPage() {
 			)}
 
 			{rewards.data && tab === "history" && <TransactionHistory />}
+
+			<ConfirmDialog
+				open={Boolean(detailsTarget)}
+				title={detailsTarget ? detailsTarget.rewardName : "Reward details"}
+				description={detailsTarget ? rewardTypeLabel(detailsTarget.rewardType) : undefined}
+				confirmLabel="Claim reward"
+				cancelLabel="Close"
+				confirmDisabled={!detailsTarget?.canClaim || redeemPoints.isPending}
+				onConfirm={claimFromDetails}
+				onCancel={() => {
+					if (redeemPoints.isPending) return;
+					setDetailsTarget(null);
+				}}
+			>
+				{detailsTarget && (
+					<div className="max-h-[62vh] space-y-4 overflow-y-auto pr-1 text-sm">
+						<p className="text-base font-semibold text-brand-text">
+							{detailsTarget.pointsCost.toLocaleString("en-ZA")} {detailsTarget.programName}
+						</p>
+
+						{detailsTarget.rewardType === "voucher" && detailsTarget.valueCents != null && (
+							<p className="rounded-lg border border-brand-border bg-brand-surface-raised px-3 py-2 text-sm font-medium">
+								Value {formatCents(detailsTarget.valueCents)}
+							</p>
+						)}
+
+						{detailsTarget.description && (
+							<div>
+								<p className="text-xs font-semibold tracking-widest text-brand-muted uppercase">
+									What you get
+								</p>
+								<p className="mt-1 text-brand-text">{detailsTarget.description}</p>
+							</div>
+						)}
+
+						{detailsTarget.terms && (
+							<div>
+								<p className="text-xs font-semibold tracking-widest text-brand-muted uppercase">
+									Terms
+								</p>
+								<p className="mt-1 text-brand-text">{detailsTarget.terms}</p>
+							</div>
+						)}
+
+						<div>
+							<p className="text-xs font-semibold tracking-widest text-brand-muted uppercase">
+								Validity
+							</p>
+							<p className="mt-1 text-brand-text">{validityCopy(detailsTarget.validDays)}</p>
+						</div>
+
+						<div className="rounded-lg border border-brand-border bg-brand-surface-raised px-3 py-2 text-brand-text">
+							<p>
+								Customer balance: {detailsTarget.availableBalance.toLocaleString("en-ZA")}
+							</p>
+							{detailsTarget.inRecovery ? (
+								<p className="mt-1 text-xs text-brand-warning">
+									{detailsTarget.recoveryPoints.toLocaleString("en-ZA")} points need to be recovered before you can claim rewards.
+									 Points you earn from here will go towards this first.
+								</p>
+							) : detailsTarget.missingPoints > 0 ? (
+								<p className="mt-1 text-xs text-brand-warning">
+									{detailsTarget.missingPoints.toLocaleString("en-ZA")} more points needed
+								</p>
+							) : (
+								<p className="mt-1 text-xs text-brand-muted">
+									Balance after claim: {Math.max(0, detailsTarget.availableBalance - detailsTarget.pointsCost).toLocaleString("en-ZA")}
+								</p>
+							)}
+						</div>
+
+						{detailsTarget.disabledReason && (
+							<p className="text-xs text-brand-warning">{detailsTarget.disabledReason}</p>
+						)}
+					</div>
+				)}
+			</ConfirmDialog>
 
 			<ConfirmDialog
 				open={Boolean(claimTarget)}
@@ -299,11 +417,13 @@ function PointsPanel({
 	points,
 	loading,
 	error,
+	onViewDetails,
 	onClaim,
 }: {
 	points: CustomerPointsPayload;
 	loading: boolean;
 	error: string | null;
+	onViewDetails: (target: RewardDetailsTarget) => void;
 	onClaim: (intent: ClaimIntent) => void;
 }) {
 	const summary = points.summary;
@@ -336,6 +456,7 @@ function PointsPanel({
 								0,
 								item.pointsCost - summary.availableBalance,
 							);
+							const canClaim = !summary.inRecovery && missingPoints === 0;
 							const disabled =
 								loading ||
 								summary.inRecovery ||
@@ -349,19 +470,49 @@ function PointsPanel({
 							return (
 								<div
 									key={item.id}
-									className="flex items-center justify-between gap-3 rounded-lg border border-brand-border px-3 py-3"
+									className="flex items-start justify-between gap-3 rounded-lg border border-brand-border px-3 py-3"
 								>
-									<div className="min-w-0">
-										<p className="truncate font-medium">{item.name}</p>
+									<button
+										type="button"
+										onClick={() =>
+											onViewDetails({
+												catalogueItemId: item.id,
+												rewardName: item.name,
+												pointsCost: item.pointsCost,
+												availableBalance: summary.availableBalance,
+												programName: summary.programName,
+												description: item.description,
+												rewardType: item.rewardType,
+												valueCents: item.valueCents,
+												terms: item.terms,
+												validDays: item.validDays,
+												inRecovery: summary.inRecovery,
+												recoveryPoints: summary.recoveryPoints,
+												missingPoints,
+												canClaim,
+												disabledReason: reason,
+											})
+										}
+										className="min-w-0 flex-1 text-left"
+										aria-label={`View details for ${item.name}`}
+									>
+										<div className="flex items-start justify-between gap-2">
+											<p className="truncate font-medium">{item.name}</p>
+											<span className="inline-flex shrink-0 items-center gap-1 text-xs text-brand-secondary">
+												View details
+												<ChevronRight className="size-3" aria-hidden />
+											</span>
+										</div>
 										<p className="text-xs text-brand-muted">
 											{item.pointsCost.toLocaleString("en-ZA")} points
 											{item.valueCents != null ? ` • ${formatCents(item.valueCents)}` : ""}
 										</p>
 										{reason && <p className="text-xs text-brand-warning">{reason}</p>}
-									</div>
+									</button>
 									<Button
 										size="sm"
 										disabled={disabled}
+										aria-label={`Claim ${item.name}`}
 										onClick={() =>
 											onClaim({
 												catalogueItemId: item.id,

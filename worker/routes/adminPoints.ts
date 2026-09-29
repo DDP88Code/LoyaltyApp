@@ -505,6 +505,7 @@ export const adminPoints = new Hono<AppEnv>()
 					rewardType: rewardDefinitions.rewardType,
 					valueCents: rewardDefinitions.valueCents,
 					terms: rewardDefinitions.terms,
+					validDays: rewardDefinitions.validDays,
 				})
 				.from(pointsCatalogueItems)
 				.innerJoin(
@@ -589,6 +590,7 @@ export const adminPoints = new Hono<AppEnv>()
 				valueCents: row.valueCents,
 				pointsCost: row.pointsCost,
 				terms: row.terms,
+				validDays: row.validDays,
 				imageKey: row.imageKey,
 				active: row.active,
 				sortOrder: row.sortOrder,

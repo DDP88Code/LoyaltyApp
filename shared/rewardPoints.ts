@@ -17,6 +17,7 @@ export interface CustomerPointsCatalogueItem {
 	valueCents: number | null;
 	pointsCost: number;
 	terms: string | null;
+	validDays: number | null;
 	imageKey: string | null;
 	active: boolean;
 	sortOrder: number;
