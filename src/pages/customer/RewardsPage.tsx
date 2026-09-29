@@ -352,9 +352,6 @@ export function RewardsPage() {
 							)}
 						</div>
 
-						{detailsTarget.disabledReason && (
-							<p className="text-xs text-brand-warning">{detailsTarget.disabledReason}</p>
-						)}
 					</div>
 				)}
 			</ConfirmDialog>
