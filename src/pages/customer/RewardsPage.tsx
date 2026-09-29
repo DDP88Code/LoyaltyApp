@@ -68,12 +68,6 @@ interface RewardDetailsTarget extends ClaimIntent {
 	disabledReason: string | null;
 }
 
-function rewardTypeLabel(rewardType: string): string {
-	if (rewardType === "free_item") return "Free item";
-	if (rewardType === "voucher") return "Voucher";
-	return "Reward";
-}
-
 function validityCopy(validDays: number | null): string {
 	if (typeof validDays === "number" && validDays > 0) {
 		return `Valid for ${validDays.toLocaleString("en-ZA")} day${validDays === 1 ? "" : "s"} after claiming.`;
@@ -285,7 +279,6 @@ export function RewardsPage() {
 			<ConfirmDialog
 				open={Boolean(detailsTarget)}
 				title={detailsTarget ? detailsTarget.rewardName : "Reward details"}
-				description={detailsTarget ? rewardTypeLabel(detailsTarget.rewardType) : undefined}
 				confirmLabel="Claim reward"
 				cancelLabel="Close"
 				confirmDisabled={!detailsTarget?.canClaim || redeemPoints.isPending}
@@ -297,9 +290,14 @@ export function RewardsPage() {
 			>
 				{detailsTarget && (
 					<div className="max-h-[62vh] space-y-4 overflow-y-auto pr-1 text-sm">
-						<p className="text-base font-semibold text-brand-text">
-							{detailsTarget.pointsCost.toLocaleString("en-ZA")} {detailsTarget.programName}
-						</p>
+						<div>
+							<p className="text-xs font-semibold tracking-widest text-brand-muted uppercase">
+								Points cost
+							</p>
+							<p className="mt-1 text-brand-text">
+								{detailsTarget.pointsCost.toLocaleString("en-ZA")} {detailsTarget.programName}
+							</p>
+						</div>
 
 						{detailsTarget.rewardType === "voucher" && detailsTarget.valueCents != null && (
 							<p className="rounded-lg border border-brand-border bg-brand-surface-raised px-3 py-2 text-sm font-medium">
