@@ -496,23 +496,22 @@ function PointsPanel({
 										className="min-w-0 flex-1 text-left"
 										aria-label={`View details for ${item.name}`}
 									>
-										<div className="flex items-start justify-between gap-2">
-											<p className="truncate font-medium">{item.name}</p>
-											<span className="inline-flex shrink-0 items-center gap-1 text-xs text-brand-secondary">
-												View details
-												<ChevronRight className="size-3" aria-hidden />
-											</span>
-										</div>
+										<p className="line-clamp-2 font-medium leading-snug">{item.name}</p>
 										<p className="text-xs text-brand-muted">
 											{item.pointsCost.toLocaleString("en-ZA")} points
 											{item.valueCents != null ? ` • ${formatCents(item.valueCents)}` : ""}
 										</p>
 										{reason && <p className="text-xs text-brand-warning">{reason}</p>}
+										<span className="mt-1 inline-flex items-center gap-1 text-xs text-brand-secondary">
+											View details
+											<ChevronRight className="size-3" aria-hidden />
+										</span>
 									</button>
 									<Button
 										size="sm"
 										disabled={disabled}
 										aria-label={`Claim ${item.name}`}
+										className="shrink-0 self-start"
 										onClick={() =>
 											onClaim({
 												catalogueItemId: item.id,
