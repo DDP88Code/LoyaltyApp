@@ -531,24 +531,71 @@ function PointsPanel({
 				<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
 					<p className="text-sm font-semibold">Item Campaigns</p>
 					<div className="mt-3 flex flex-col gap-2">
-						{points.campaigns.map((campaign) => (
-							<div
-								key={campaign.campaignId}
-								className="rounded-lg border border-brand-border px-3 py-2"
-							>
-								<p className="font-medium">{campaign.name}</p>
-								<p className="text-xs text-brand-muted">
-									{campaign.progressInActiveCycle}/{campaign.targetQuantity} this cycle
-									 {campaign.inCatchUp
-										? `• Catch-up needed: ${campaign.catchUpQuantity}`
-										: `• ${campaign.remainingToNextReward} to next ${campaign.rewardName}`}
-								</p>
-								<p className="text-xs text-brand-muted">
-									Net purchased: {campaign.netQuantity}
-									 {campaign.earnsRewardPoints ? "• Counts for points" : "• Excluded from points"}
-								</p>
-							</div>
-						))}
+						{points.campaigns.map((campaign) => {
+							const safeTarget = Math.max(1, campaign.targetQuantity);
+							const progressPercent = Math.max(
+								0,
+								Math.min(100, (campaign.progressInActiveCycle / safeTarget) * 100),
+							);
+							const recentlyUnlocked =
+								!campaign.inCatchUp &&
+								campaign.progressInActiveCycle === 0 &&
+								campaign.netQuantity > 0;
+
+							return (
+								<div
+									key={campaign.campaignId}
+									className="rounded-lg border border-brand-border px-3 py-3"
+								>
+									<p className="text-base font-semibold leading-tight text-brand-text">
+										{campaign.name}
+									</p>
+
+									{campaign.inCatchUp ? (
+										<div className="mt-3 rounded-lg border border-brand-border bg-brand-surface-raised px-3 py-2">
+											<p className="text-[11px] font-semibold tracking-[0.2em] text-brand-muted uppercase">
+												Catch-up
+											</p>
+											<p className="mt-1 text-sm text-brand-text">
+												Catch-up needed: {campaign.catchUpQuantity.toLocaleString("en-ZA")}
+											</p>
+										</div>
+									) : (
+										<>
+											<p className="mt-3 text-2xl font-semibold leading-none text-brand-text">
+												{campaign.progressInActiveCycle.toLocaleString("en-ZA")} / {campaign.targetQuantity.toLocaleString("en-ZA")}
+											</p>
+											<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-brand-border/80">
+												<div
+													className="h-full rounded-full bg-brand-primary transition-[width] duration-300"
+													style={{ width: `${progressPercent}%` }}
+												/>
+											</div>
+											<p className="mt-2 text-sm text-brand-muted">
+												{recentlyUnlocked
+													? "Reward unlocked • New cycle started"
+													: `${campaign.progressInActiveCycle.toLocaleString("en-ZA")} purchased • ${campaign.remainingToNextReward.toLocaleString("en-ZA")} to go`}
+											</p>
+										</>
+									)}
+
+									<div className="mt-4">
+										<p className="text-[11px] font-semibold tracking-[0.2em] text-brand-muted uppercase">
+											Reward
+										</p>
+										<p className="mt-1 text-sm font-medium text-brand-text break-words">
+											{campaign.rewardName}
+										</p>
+									</div>
+
+									{!campaign.earnsRewardPoints && (
+										<p className="mt-3 text-xs text-brand-muted">
+											Does not earn Reward Points
+										</p>
+									)}
+								</div>
+							);
+						})}
 					</div>
 				</div>
 			)}
