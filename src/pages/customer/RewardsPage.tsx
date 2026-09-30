@@ -583,7 +583,7 @@ function PointsPanel({
 										<p className="text-[11px] font-semibold tracking-[0.2em] text-brand-muted uppercase">
 											Reward
 										</p>
-										<p className="mt-1 text-sm font-medium text-brand-text break-words">
+										<p className="mt-1 text-sm font-medium text-brand-text wrap-break-words">
 											{campaign.rewardName}
 										</p>
 									</div>
