@@ -32,13 +32,18 @@ import { getDb } from "@worker/db/client";
 import {
 	appSettings,
 	auditLogs,
+	billEvents,
 	customerRewards,
+	itemCampaignRewardIssuances,
+	itemCampaignTransactions,
 	loyaltyCodes,
 	loyaltyTransactions,
 	menuCategories,
 	menuItems,
 	menuItemVariants,
 	notifications,
+	pointsAwards,
+	pointsRedemptions,
 	profiles,
 	promotions,
 	pushSubscriptions,
@@ -442,51 +447,150 @@ export const customer = new Hono<AppEnv>()
 	.delete("/account", async (c) => {
 		const profile = c.get("profile");
 		const db = getDb(c.env);
+		let failedStep = "account_delete_start";
 
-		// D1 in this environment rejects explicit SQL BEGIN statements, so the
-		// delete flow is executed in a strict order without db.transaction().
-		await db
-			.delete(customerRewards)
-			.where(eq(customerRewards.customerId, profile.id));
+		try {
+			// D1 in this environment rejects explicit SQL BEGIN statements, so the
+			// delete flow is executed in a strict, FK-safe order without db.transaction().
 
-		await db.delete(loyaltyCodes).where(eq(loyaltyCodes.customerId, profile.id));
+			// Preserve other customers' history if this profile was ever referenced as
+			// an actor by nulling nullable actor columns before deleting the profile.
+			failedStep = "null_loyalty_transaction_actor_refs";
+			await db
+				.update(loyaltyTransactions)
+				.set({
+					staffId: null,
+					approvedBy: null,
+				})
+				.where(
+					or(
+						eq(loyaltyTransactions.staffId, profile.id),
+						eq(loyaltyTransactions.approvedBy, profile.id),
+					),
+				);
 
-		await db
-			.delete(notifications)
-			.where(eq(notifications.customerId, profile.id));
+			failedStep = "null_points_award_actor_refs";
+			await db
+				.update(pointsAwards)
+				.set({
+					staffId: null,
+					duplicateOverrideBy: null,
+					reversedBy: null,
+				})
+				.where(
+					or(
+						eq(pointsAwards.staffId, profile.id),
+						eq(pointsAwards.duplicateOverrideBy, profile.id),
+						eq(pointsAwards.reversedBy, profile.id),
+					),
+				);
 
-		await db
-			.delete(pushSubscriptions)
-			.where(eq(pushSubscriptions.customerId, profile.id));
+			failedStep = "null_bill_event_actor_refs";
+			await db
+				.update(billEvents)
+				.set({
+					staffId: null,
+					duplicateOverrideBy: null,
+					reversedBy: null,
+				})
+				.where(
+					or(
+						eq(billEvents.staffId, profile.id),
+						eq(billEvents.duplicateOverrideBy, profile.id),
+						eq(billEvents.reversedBy, profile.id),
+					),
+				);
 
-		await db
-			.delete(loyaltyTransactions)
-			.where(
-				or(
-					eq(loyaltyTransactions.customerId, profile.id),
-					eq(loyaltyTransactions.staffId, profile.id),
-					eq(loyaltyTransactions.approvedBy, profile.id),
-				),
-			);
+			failedStep = "null_item_campaign_transaction_actor_refs";
+			await db
+				.update(itemCampaignTransactions)
+				.set({
+					staffId: null,
+					approvedBy: null,
+				})
+				.where(
+					or(
+						eq(itemCampaignTransactions.staffId, profile.id),
+						eq(itemCampaignTransactions.approvedBy, profile.id),
+					),
+				);
 
-		await db.delete(profiles).where(eq(profiles.id, profile.id));
-		await db.delete(authUsers).where(eq(authUsers.id, profile.authUserId));
+			failedStep = "delete_points_redemptions";
+			await db
+				.delete(pointsRedemptions)
+				.where(eq(pointsRedemptions.customerId, profile.id));
 
-		await db.insert(auditLogs).values({
-			businessId: profile.businessId,
-			actorUserId: profile.authUserId,
-			actorRole: profile.role,
-			action: "customer.account.deleted",
-			entityType: "profile",
-			entityId: profile.id,
-			oldValueJson: {
+			failedStep = "delete_item_campaign_reward_issuances";
+			await db
+				.delete(itemCampaignRewardIssuances)
+				.where(eq(itemCampaignRewardIssuances.customerId, profile.id));
+
+			failedStep = "delete_item_campaign_transactions";
+			await db
+				.delete(itemCampaignTransactions)
+				.where(eq(itemCampaignTransactions.customerId, profile.id));
+
+			failedStep = "delete_points_awards";
+			await db.delete(pointsAwards).where(eq(pointsAwards.customerId, profile.id));
+
+			failedStep = "delete_bill_events";
+			await db.delete(billEvents).where(eq(billEvents.customerId, profile.id));
+
+			failedStep = "delete_customer_rewards";
+			await db
+				.delete(customerRewards)
+				.where(eq(customerRewards.customerId, profile.id));
+
+			failedStep = "delete_loyalty_codes";
+			await db.delete(loyaltyCodes).where(eq(loyaltyCodes.customerId, profile.id));
+
+			failedStep = "delete_notifications";
+			await db
+				.delete(notifications)
+				.where(eq(notifications.customerId, profile.id));
+
+			failedStep = "delete_push_subscriptions";
+			await db
+				.delete(pushSubscriptions)
+				.where(eq(pushSubscriptions.customerId, profile.id));
+
+			failedStep = "delete_loyalty_transactions";
+			await db
+				.delete(loyaltyTransactions)
+				.where(eq(loyaltyTransactions.customerId, profile.id));
+
+			failedStep = "delete_profile";
+			await db.delete(profiles).where(eq(profiles.id, profile.id));
+
+			failedStep = "delete_auth_user";
+			await db.delete(authUsers).where(eq(authUsers.id, profile.authUserId));
+
+			failedStep = "insert_audit_log";
+			await db.insert(auditLogs).values({
+				businessId: profile.businessId,
+				actorUserId: profile.authUserId,
+				actorRole: profile.role,
+				action: "customer.account.deleted",
+				entityType: "profile",
+				entityId: profile.id,
+				oldValueJson: {
+					profileId: profile.id,
+					authUserId: profile.authUserId,
+					email: profile.email,
+				},
+			});
+
+			return ok<AccountDeletionPayload>(c, { deleted: true });
+		} catch (error) {
+			console.error("Customer account deletion failed", {
 				profileId: profile.id,
 				authUserId: profile.authUserId,
-				email: profile.email,
-			},
-		});
-
-		return ok<AccountDeletionPayload>(c, { deleted: true });
+				businessId: profile.businessId,
+				failedStep,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			throw new ApiError("internal_error", "Something went wrong. Please try again.");
+		}
 	})
 
 	.post("/loyalty-code", async (c) => {
