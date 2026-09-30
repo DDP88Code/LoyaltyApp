@@ -12,6 +12,7 @@ import {
 	POINTS_PROMOTION_TYPES,
 } from "../../../shared/points";
 import { createdAt, flag, json, pk, updatedAt } from "./_columns";
+import { billEvents } from "./bills";
 import { businesses, locations } from "./business";
 import { loyaltyPrograms, loyaltyTransactions } from "./loyalty";
 import { profiles } from "./profiles";
@@ -74,6 +75,9 @@ export const pointsAwards = sqliteTable(
 		customerId: text("customer_id")
 			.notNull()
 			.references(() => profiles.id, { onDelete: "restrict" }),
+		billEventId: text("bill_event_id").references(() => billEvents.id, {
+			onDelete: "set null",
+		}),
 		locationId: text("location_id")
 			.notNull()
 			.references(() => locations.id, { onDelete: "restrict" }),
@@ -124,6 +128,7 @@ export const pointsAwards = sqliteTable(
 		),
 		index("points_awards_customer_idx").on(t.customerId, t.createdAt),
 		index("points_awards_business_created_idx").on(t.businessId, t.createdAt),
+		index("points_awards_bill_event_idx").on(t.billEventId),
 		index("points_awards_staff_idx").on(t.staffId),
 		index("points_awards_location_day_idx").on(t.locationId, t.businessDay),
 		index("points_awards_mult_promo_idx").on(t.multiplierPromotionId),

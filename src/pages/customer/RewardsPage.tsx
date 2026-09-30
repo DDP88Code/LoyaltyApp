@@ -527,6 +527,32 @@ function PointsPanel({
 				{error && <p className="mt-2 text-sm text-brand-danger">{error}</p>}
 			</div>
 
+			{points.campaigns.length > 0 && (
+				<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
+					<p className="text-sm font-semibold">Item Campaigns</p>
+					<div className="mt-3 flex flex-col gap-2">
+						{points.campaigns.map((campaign) => (
+							<div
+								key={campaign.campaignId}
+								className="rounded-lg border border-brand-border px-3 py-2"
+							>
+								<p className="font-medium">{campaign.name}</p>
+								<p className="text-xs text-brand-muted">
+									{campaign.progressInActiveCycle}/{campaign.targetQuantity} this cycle
+									 {campaign.inCatchUp
+										? `• Catch-up needed: ${campaign.catchUpQuantity}`
+										: `• ${campaign.remainingToNextReward} to next ${campaign.rewardName}`}
+								</p>
+								<p className="text-xs text-brand-muted">
+									Net purchased: {campaign.netQuantity}
+									 {campaign.earnsRewardPoints ? "• Counts for points" : "• Excluded from points"}
+								</p>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
 			<div className="rounded-xl border border-brand-border bg-brand-surface p-4">
 				<p className="text-sm font-semibold">Points History</p>
 				{points.history.length === 0 ? (

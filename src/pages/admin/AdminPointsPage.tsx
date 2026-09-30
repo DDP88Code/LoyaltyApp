@@ -6,17 +6,23 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/States";
 import { useAdminLookups } from "@/features/admin/core/api";
 import {
+	useAdminItemCampaignActivity,
+	useAdminItemCampaignReport,
+	useAdminItemCampaigns,
 	useAdminPointsActivity,
 	useAdminPointsCatalogue,
 	useAdminPointsProgram,
 	useAdminPointsPromotions,
 	useAdminPointsReport,
+	useCreateAdminItemCampaign,
 	useCreatePointsAdjustment,
 	useCreatePointsCatalogueItem,
 	useCreatePointsPromotion,
 	useDeletePointsCatalogueItem,
 	useDeletePointsPromotion,
+	useReverseBillEvent,
 	useReversePointsAward,
+	useUpdateAdminItemCampaign,
 	useUpdateAdminPointsProgram,
 } from "@/features/admin/points/api";
 import { AdminPanel, AdminStatCard } from "@/features/admin/core/widgets";
@@ -111,14 +117,23 @@ export function AdminPointsPage() {
 	const catalogue = useAdminPointsCatalogue();
 	const activity = useAdminPointsActivity();
 	const report = useAdminPointsReport();
+	const itemCampaigns = useAdminItemCampaigns();
+	const itemCampaignActivity = useAdminItemCampaignActivity({
+		limit: 30,
+		offset: 0,
+	});
+	const itemCampaignReport = useAdminItemCampaignReport({});
 	const lookups = useAdminLookups();
 
 	const updateProgram = useUpdateAdminPointsProgram();
 	const createPromotion = useCreatePointsPromotion();
+	const createItemCampaign = useCreateAdminItemCampaign();
+	const updateItemCampaign = useUpdateAdminItemCampaign();
 	const deletePromotion = useDeletePointsPromotion();
 	const createCatalogue = useCreatePointsCatalogueItem();
 	const deleteCatalogue = useDeletePointsCatalogueItem();
 	const reverseAward = useReversePointsAward();
+	const reverseBillEvent = useReverseBillEvent();
 	const createAdjustment = useCreatePointsAdjustment();
 
 	const [programName, setProgramName] = useState("");
@@ -151,12 +166,28 @@ export function AdminPointsPage() {
 	const [adjustQuantity, setAdjustQuantity] = useState("50");
 	const [adjustReason, setAdjustReason] = useState("");
 
+	const [campaignName, setCampaignName] = useState("");
+	const [campaignDescription, setCampaignDescription] = useState("");
+	const [campaignItemReference, setCampaignItemReference] = useState("");
+	const [campaignUnitPriceRand, setCampaignUnitPriceRand] = useState("35.00");
+	const [campaignTargetQuantity, setCampaignTargetQuantity] = useState("10");
+	const [campaignRewardDefinitionId, setCampaignRewardDefinitionId] = useState("");
+	const [campaignStatus, setCampaignStatus] = useState<"active" | "disabled">("active");
+	const [campaignEarnsPoints, setCampaignEarnsPoints] = useState(false);
+	const [campaignMaxPerBill, setCampaignMaxPerBill] = useState("");
+	const [campaignStartAt, setCampaignStartAt] = useState("");
+	const [campaignEndAt, setCampaignEndAt] = useState("");
+	const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
+
 	if (
 		program.isPending ||
 		promotions.isPending ||
 		catalogue.isPending ||
 		activity.isPending ||
 		report.isPending ||
+		itemCampaigns.isPending ||
+		itemCampaignActivity.isPending ||
+		itemCampaignReport.isPending ||
 		lookups.isPending
 	) {
 		return <LoadingState label="Loading points admin..." />;
@@ -168,6 +199,9 @@ export function AdminPointsPage() {
 		catalogue.isError ||
 		activity.isError ||
 		report.isError ||
+		itemCampaigns.isError ||
+		itemCampaignActivity.isError ||
+		itemCampaignReport.isError ||
 		lookups.isError
 	) {
 		return (
@@ -180,6 +214,9 @@ export function AdminPointsPage() {
 						catalogue.error?.message ??
 						activity.error?.message ??
 						report.error?.message ??
+						itemCampaigns.error?.message ??
+						itemCampaignActivity.error?.message ??
+						itemCampaignReport.error?.message ??
 						lookups.error?.message ??
 						"Unknown error"
 					}
@@ -190,6 +227,9 @@ export function AdminPointsPage() {
 							catalogue.refetch(),
 							activity.refetch(),
 							report.refetch(),
+							itemCampaigns.refetch(),
+							itemCampaignActivity.refetch(),
+							itemCampaignReport.refetch(),
 							lookups.refetch(),
 						]);
 					}}
@@ -261,6 +301,66 @@ export function AdminPointsPage() {
 		} catch (cause) {
 			setProgramFormError(
 				cause instanceof Error ? cause.message : "Could not save programme settings.",
+			);
+		}
+	}
+
+	async function addItemCampaign() {
+		setCampaignFormError(null);
+		try {
+			if (campaignName.trim().length < 2) {
+				throw new Error("Campaign name must be at least 2 characters.");
+			}
+			if (!campaignRewardDefinitionId) {
+				throw new Error("Select a reward definition.");
+			}
+			const unitPriceCents = parseRandToCents(campaignUnitPriceRand);
+			if (!unitPriceCents || unitPriceCents <= 0) {
+				throw new Error("Unit price must be a valid Rand amount greater than zero.");
+			}
+			const targetQuantity = parsePositiveInt(campaignTargetQuantity);
+			if (!targetQuantity || targetQuantity < 2) {
+				throw new Error("Target quantity must be at least 2.");
+			}
+			const maxPerBill = campaignMaxPerBill.trim()
+				? parsePositiveInt(campaignMaxPerBill)
+				: null;
+			if (campaignMaxPerBill.trim() && maxPerBill == null) {
+				throw new Error("Max quantity per bill must be a whole number greater than zero.");
+			}
+			if (campaignEndAt && campaignStartAt) {
+				if (new Date(campaignEndAt).getTime() <= new Date(campaignStartAt).getTime()) {
+					throw new Error("Campaign end must be after campaign start.");
+				}
+			}
+
+			await createItemCampaign.mutateAsync({
+				name: campaignName.trim(),
+				description: campaignDescription.trim() || null,
+				itemReference: campaignItemReference.trim(),
+				unitPriceCents,
+				targetQuantity,
+				rewardDefinitionId: campaignRewardDefinitionId,
+				earnsRewardPoints: campaignEarnsPoints,
+				status: campaignStatus,
+				startAt: campaignStartAt ? toIso(campaignStartAt) : null,
+				endAt: campaignEndAt ? toIso(campaignEndAt) : null,
+				maxQuantityPerBill: maxPerBill,
+				sortOrder: 0,
+			});
+
+			setCampaignName("");
+			setCampaignDescription("");
+			setCampaignItemReference("");
+			setCampaignUnitPriceRand("35.00");
+			setCampaignTargetQuantity("10");
+			setCampaignRewardDefinitionId("");
+			setCampaignMaxPerBill("");
+			setCampaignStartAt("");
+			setCampaignEndAt("");
+		} catch (cause) {
+			setCampaignFormError(
+				cause instanceof Error ? cause.message : "Could not create item campaign.",
 			);
 		}
 	}
@@ -702,6 +802,199 @@ export function AdminPointsPage() {
 									</li>
 								))}
 							</ul>
+						)}
+					</div>
+				</AdminPanel>
+			</section>
+
+			<section className="mt-6">
+				<AdminPanel title="Item Campaigns" description="Configure item-quantity campaigns that issue rewards when thresholds are reached.">
+					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+						<Input
+							label="Campaign name"
+							value={campaignName}
+							onChange={(event) => setCampaignName(event.target.value)}
+						/>
+						<Input
+							label="Item reference"
+							value={campaignItemReference}
+							onChange={(event) => setCampaignItemReference(event.target.value)}
+						/>
+						<Input
+							label="Unit price (Rand)"
+							value={campaignUnitPriceRand}
+							onChange={(event) => setCampaignUnitPriceRand(event.target.value)}
+						/>
+						<Input
+							label="Target quantity"
+							type="number"
+							value={campaignTargetQuantity}
+							onChange={(event) => setCampaignTargetQuantity(event.target.value)}
+						/>
+						<div className="grid gap-1 md:col-span-2">
+							<label className="text-sm font-medium" htmlFor="campaignRewardDefinition">Reward definition</label>
+							<select
+								id="campaignRewardDefinition"
+								value={campaignRewardDefinitionId}
+								onChange={(event) => setCampaignRewardDefinitionId(event.target.value)}
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
+							>
+								<option value="">Select reward definition</option>
+								{itemCampaigns.data.eligibleRewards.map((reward) => (
+									<option key={reward.id} value={reward.id}>
+										{reward.name} - {rewardTypeLabel(reward.rewardType)}
+									</option>
+								))}
+							</select>
+						</div>
+						<Input
+							label="Max quantity per bill (optional)"
+							type="number"
+							value={campaignMaxPerBill}
+							onChange={(event) => setCampaignMaxPerBill(event.target.value)}
+						/>
+						<Input
+							label="Campaign start (optional)"
+							type="datetime-local"
+							value={campaignStartAt}
+							onChange={(event) => setCampaignStartAt(event.target.value)}
+						/>
+						<Input
+							label="Campaign end (optional)"
+							type="datetime-local"
+							value={campaignEndAt}
+							onChange={(event) => setCampaignEndAt(event.target.value)}
+						/>
+						<label className="inline-flex min-h-12 items-center gap-2 text-sm">
+							<input
+								type="checkbox"
+								checked={campaignEarnsPoints}
+								onChange={(event) => setCampaignEarnsPoints(event.target.checked)}
+								className="size-4 accent-brand-primary"
+							/>
+							<span>Campaign line spend earns points</span>
+						</label>
+						<div className="grid gap-1">
+							<label className="text-sm font-medium" htmlFor="campaignStatus">Status</label>
+							<select
+								id="campaignStatus"
+								value={campaignStatus}
+								onChange={(event) => setCampaignStatus(event.target.value as "active" | "disabled")}
+								className="min-h-12 w-full min-w-0 rounded-xl border border-brand-border bg-brand-surface px-3"
+							>
+								<option value="active">Active</option>
+								<option value="disabled">Disabled</option>
+							</select>
+						</div>
+					</div>
+					<Input
+						label="Description"
+						value={campaignDescription}
+						onChange={(event) => setCampaignDescription(event.target.value)}
+					/>
+					<div className="mt-3">
+						<Button loading={createItemCampaign.isPending} onClick={() => void addItemCampaign()}>
+							Create item campaign
+						</Button>
+					</div>
+					{campaignFormError && (
+						<p className="mt-3 text-sm text-brand-danger">{campaignFormError}</p>
+					)}
+
+					<div className="mt-4 grid gap-2">
+						{itemCampaigns.data.campaigns.length === 0 ? (
+							<EmptyState title="No item campaigns yet" />
+						) : (
+							itemCampaigns.data.campaigns.map((campaign) => (
+								<div key={campaign.id} className="rounded-lg border border-brand-border px-3 py-2">
+									<p className="font-medium">{campaign.name}</p>
+									<p className="text-xs text-brand-muted">
+										{campaign.itemReference} • R{(campaign.unitPriceCents / 100).toFixed(2)} • target {campaign.targetQuantity}
+										 • {campaign.rewardName} • {campaign.status}
+									</p>
+									<div className="mt-2 flex gap-2">
+										<Button
+											size="sm"
+											variant="outline"
+											loading={updateItemCampaign.isPending}
+											onClick={() =>
+												void updateItemCampaign.mutateAsync({
+													id: campaign.id,
+													status: campaign.status === "active" ? "disabled" : "active",
+												})
+											}
+										>
+											{campaign.status === "active" ? "Disable" : "Enable"}
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											loading={updateItemCampaign.isPending}
+											onClick={() =>
+												void updateItemCampaign.mutateAsync({
+													id: campaign.id,
+													status: "archived",
+												})
+											}
+										>
+											Archive
+										</Button>
+									</div>
+								</div>
+							))
+						)}
+					</div>
+
+					<div className="mt-4 grid gap-2">
+						<p className="text-sm font-semibold">Campaign activity</p>
+						{itemCampaignActivity.data.rows.length === 0 ? (
+							<p className="text-sm text-brand-muted">No campaign transactions yet.</p>
+						) : (
+							itemCampaignActivity.data.rows.map((row) => (
+								<div key={row.id} className="rounded-lg border border-brand-border px-3 py-2">
+									<p className="font-medium">{row.campaignName} • {row.customerName}</p>
+									<p className="text-xs text-brand-muted">
+										{row.transactionType} {row.quantity} • {row.billReference ?? "No reference"}
+										 • {new Date(row.createdAt).toLocaleString("en-ZA")}
+									</p>
+									{row.transactionType === "purchase" && (
+										<div className="mt-2">
+											<Button
+												size="sm"
+												variant="outline"
+												loading={reverseBillEvent.isPending}
+												onClick={() => {
+													const reason = window.prompt("Reversal reason (min 5 chars)", "");
+													if (!reason) return;
+													void reverseBillEvent.mutateAsync({
+														billEventId: row.billEventId,
+														reason,
+													});
+												}}
+											>
+												Reverse bill
+											</Button>
+										</div>
+									)}
+								</div>
+							))
+						)}
+					</div>
+
+					<div className="mt-4 grid gap-2">
+						<p className="text-sm font-semibold">Campaign report (30 day default)</p>
+						{itemCampaignReport.data.rows.length === 0 ? (
+							<p className="text-sm text-brand-muted">No campaign report data available.</p>
+						) : (
+							itemCampaignReport.data.rows.map((row) => (
+								<div key={row.campaignId} className="rounded-lg border border-brand-border px-3 py-2 text-sm">
+									<p className="font-medium">{row.campaignName}</p>
+									<p className="text-brand-muted">
+										Purchased {row.unitsPurchased} • Reversed {row.unitsReversed} • Net {row.netUnits}
+										 • Rewards {row.rewardsIssued} • Participants {row.participants}
+									</p>
+								</div>
+							))
 						)}
 					</div>
 				</AdminPanel>

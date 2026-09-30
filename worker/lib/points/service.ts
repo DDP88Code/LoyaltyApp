@@ -24,6 +24,7 @@ import type { Db } from "@worker/db/client";
 import { newId } from "@worker/db/ids";
 import {
 	auditLogs,
+	billEvents,
 	businesses,
 	locations,
 	loyaltyTransactions,
@@ -35,6 +36,10 @@ import {
 	rewardDefinitions,
 } from "@worker/db/schema";
 import { ApiError } from "@worker/lib/http";
+import {
+	listCustomerItemCampaignProgress,
+	listStaffItemCampaignContext,
+} from "@worker/lib/itemCampaigns/service";
 import {
 	calculatePointsQuote,
 	type PointsQuote,
@@ -197,6 +202,11 @@ export async function getStaffPointsContext(
 ): Promise<StaffPointsPromotionContext> {
 	const program = await readPointsProgramForAdmin(db, businessId);
 	if (!program || !program.active) {
+		const itemCampaigns = await listStaffItemCampaignContext({
+			db,
+			businessId,
+			customerId,
+		});
 		return {
 			enabled: false,
 			programName: program?.name ?? null,
@@ -204,12 +214,18 @@ export async function getStaffPointsContext(
 			recoveryPoints: 0,
 			inRecovery: false,
 			activePromotionSummary: null,
+			itemCampaigns,
 		};
 	}
 
-	const [rawBalance, activePromotions] = await Promise.all([
+	const [rawBalance, activePromotions, itemCampaigns] = await Promise.all([
 		getRawBalance(db, customerId, program.id),
 		listActivePromotions(db, businessId, new Date()),
+		listStaffItemCampaignContext({
+			db,
+			businessId,
+			customerId,
+		}),
 	]);
 
 	const highestMultiplier = activePromotions
@@ -234,6 +250,7 @@ export async function getStaffPointsContext(
 		recoveryPoints: Math.max(0, -rawBalance),
 		inRecovery: rawBalance < 0,
 		activePromotionSummary: summaryParts.length > 0 ? summaryParts.join(" + ") : null,
+		itemCampaigns,
 	};
 }
 
@@ -665,6 +682,12 @@ export async function listCustomerPointsPayload(params: {
 		};
 	});
 
+	const campaigns = await listCustomerItemCampaignProgress({
+		db,
+		businessId,
+		customerId,
+	});
+
 	return {
 		summary,
 		catalogue: catalogueRows.map((row) => ({
@@ -684,6 +707,7 @@ export async function listCustomerPointsPayload(params: {
 			limitPeriodDays: row.limitPeriodDays,
 		})),
 		history,
+		campaigns,
 	};
 }
 
@@ -955,7 +979,7 @@ export async function reversePointsAward(params: {
 	const reverseEarnId = newId();
 	const reverseBonusId = newId();
 
-	const batchOps = [
+	const batchOps: any[] = [
 		db.insert(loyaltyTransactions).values({
 			id: reverseEarnId,
 			businessId,
@@ -982,6 +1006,27 @@ export async function reversePointsAward(params: {
 			})
 			.where(eq(pointsAwards.id, award.id)),
 	];
+
+	if (award.billEventId) {
+		batchOps.push(
+			db
+				.update(billEvents)
+				.set({
+					reversedAt: now,
+					reversedBy: actorProfileId,
+					reversalReason: cleanReason,
+					releasedGuardKey: billEvents.dedupeGuardKey,
+					dedupeGuardKey: null,
+					rewardsSettledAt: null,
+				})
+				.where(
+					and(
+						eq(billEvents.id, award.billEventId),
+						isNull(billEvents.reversedAt),
+					),
+				),
+		);
+	}
 
 	if (award.bonusPoints > 0) {
 		batchOps.push(

@@ -13,8 +13,8 @@ import { CoffeeStampGrid } from "@/features/customer/CoffeeStampGrid";
 import { AddCoffeeDialog } from "@/features/staff/AddCoffeeDialog";
 import {
 	useAddCoffee,
-	useAwardStaffPoints,
-	useQuoteStaffPoints,
+	useCommitStaffCampaignBill,
+	useQuoteStaffCampaignBill,
 	useRedeemReward,
 } from "@/features/staff/api";
 import { RedeemDialog } from "@/features/staff/RedeemDialog";
@@ -43,15 +43,17 @@ export function ResolvedCustomerView({
 	const isOnline = useOnlineStatus();
 	const addCoffee = useAddCoffee();
 	const redeemReward = useRedeemReward();
-	const quotePoints = useQuoteStaffPoints();
-	const awardPoints = useAwardStaffPoints();
+	const quoteBill = useQuoteStaffCampaignBill();
+	const commitBill = useCommitStaffCampaignBill();
 	const [addCoffeeOpen, setAddCoffeeOpen] = useState(false);
 	const [redeemTarget, setRedeemTarget] = useState<RewardSummary | null>(null);
 	const [justIssued, setJustIssued] = useState<CoffeeEarnResultPayload | null>(null);
 	const [awardPointsOpen, setAwardPointsOpen] = useState(false);
-	const [eligibleSpendRand, setEligibleSpendRand] = useState("");
+	const [billTotalRand, setBillTotalRand] = useState("");
+	const [otherExcludedSpendRand, setOtherExcludedSpendRand] = useState("0");
 	const [billReference, setBillReference] = useState("");
 	const [duplicateOverrideReason, setDuplicateOverrideReason] = useState("");
+	const [campaignQuantities, setCampaignQuantities] = useState<Record<string, string>>({});
 
 	const handleAddCoffee = (input: { quantity: number; billReference: string | null }) => {
 		if (!isOnline) return;
@@ -98,7 +100,14 @@ export function ResolvedCustomerView({
 
 	const canOverrideDuplicate = staffRole === "admin" || staffRole === "owner";
 
-	const quote = quotePoints.data;
+	const quote = quoteBill.data;
+
+	const campaignLines = customer.points.itemCampaigns
+		.map((campaign) => ({
+			campaignId: campaign.campaignId,
+			quantity: Number(campaignQuantities[campaign.campaignId] ?? "0"),
+		}))
+		.filter((line) => Number.isInteger(line.quantity) && line.quantity > 0);
 
 	return (
 		<div className="flex flex-col gap-4 p-5">
@@ -149,6 +158,26 @@ export function ResolvedCustomerView({
 							{customer.points.recoveryPoints.toLocaleString("en-ZA")} points are in recovery.
 							 Earned points will reduce this before redemptions are available.
 						</p>
+					)}
+					{customer.points.itemCampaigns.length > 0 && (
+						<div className="mt-4 space-y-2">
+							<p className="text-sm font-semibold text-brand-text">Active item campaigns</p>
+							{customer.points.itemCampaigns.map((campaign) => (
+								<div
+									key={campaign.campaignId}
+									className="rounded-lg border border-brand-border px-3 py-2 text-sm"
+								>
+									<p className="font-medium">{campaign.name}</p>
+									<p className="text-brand-muted">
+										{campaign.currentNetQuantity}/{campaign.targetQuantity} in current progression
+										 {campaign.inCatchUp
+											? `(catch-up ${campaign.catchUpQuantity})`
+											: `(remaining ${campaign.remainingToNextReward})`}
+									</p>
+									<p className="text-brand-muted">Reward: {campaign.rewardName}</p>
+								</div>
+							))}
+						</div>
 					)}
 				</Card>
 			)}
@@ -204,10 +233,10 @@ export function ResolvedCustomerView({
 					disabled={!isOnline}
 					onClick={() => {
 						setAwardPointsOpen(true);
-						quotePoints.reset();
+						quoteBill.reset();
 					}}
 				>
-					Award Bill Points
+					Capture Bill (Points + Campaigns)
 				</Button>
 			)}
 
@@ -230,36 +259,64 @@ export function ResolvedCustomerView({
 
 			<ConfirmDialog
 				open={awardPointsOpen}
-				title="Award Bill Points"
-				description="Exclude qualifying coffee purchases from this amount."
-				confirmLabel="Preview points"
-				loading={quotePoints.isPending}
+				title="Capture Bill"
+				description="Capture the full bill, excluded spend, and any item campaign quantities."
+				confirmLabel="Preview bill"
+				loading={quoteBill.isPending}
 				onConfirm={() => {
-					quotePoints.mutate({
+					quoteBill.mutate({
 						customerId: customer.customerId,
 						locationId,
-						eligibleSpendRand,
-						billReference,
+						billTotalRand,
+						otherExcludedSpendRand,
+						campaignLines,
 					});
 				}}
 				onCancel={() => {
 					setAwardPointsOpen(false);
-					quotePoints.reset();
+					quoteBill.reset();
 				}}
 			>
 				<div className="flex flex-col gap-3">
 					<Input
-						label="Points-eligible bill amount (Rand)"
+						label="Full bill amount (Rand)"
 						inputMode="decimal"
-						placeholder="350.00"
-						value={eligibleSpendRand}
-						onChange={(event) => setEligibleSpendRand(event.target.value)}
+						placeholder="450.00"
+						value={billTotalRand}
+						onChange={(event) => setBillTotalRand(event.target.value)}
+					/>
+					<Input
+						label="Other excluded spend (Rand)"
+						inputMode="decimal"
+						placeholder="0.00"
+						value={otherExcludedSpendRand}
+						onChange={(event) => setOtherExcludedSpendRand(event.target.value)}
 					/>
 					<Input
 						label="Bill / receipt reference"
 						value={billReference}
 						onChange={(event) => setBillReference(event.target.value)}
 					/>
+					{customer.points.itemCampaigns.length > 0 && (
+						<div className="space-y-2 rounded-xl border border-brand-border p-3">
+							<p className="text-sm font-semibold">Item campaign quantities</p>
+							{customer.points.itemCampaigns.map((campaign) => (
+								<Input
+									key={campaign.campaignId}
+									label={`${campaign.name} (${(campaign.unitPriceCents / 100).toFixed(2)} each)`}
+									inputMode="numeric"
+									placeholder="0"
+									value={campaignQuantities[campaign.campaignId] ?? ""}
+									onChange={(event) =>
+										setCampaignQuantities((prev) => ({
+											...prev,
+											[campaign.campaignId]: event.target.value,
+										}))
+									}
+								/>
+							))}
+						</div>
+					)}
 					{canOverrideDuplicate && (
 						<Input
 							label="Duplicate override reason (optional)"
@@ -268,8 +325,8 @@ export function ResolvedCustomerView({
 							onChange={(event) => setDuplicateOverrideReason(event.target.value)}
 						/>
 					)}
-					{quotePoints.isError && (
-						<p className="text-sm text-brand-danger">{quotePoints.error.message}</p>
+					{quoteBill.isError && (
+						<p className="text-sm text-brand-danger">{quoteBill.error.message}</p>
 					)}
 				</div>
 			</ConfirmDialog>
@@ -289,15 +346,17 @@ export function ResolvedCustomerView({
 					) : null
 				}
 				confirmLabel="Award points"
-				loading={awardPoints.isPending}
+				loading={commitBill.isPending}
 				onConfirm={() => {
 					if (!quote) return;
-					awardPoints.mutate(
+					commitBill.mutate(
 						{
 							customerId: customer.customerId,
 							locationId,
-							eligibleSpendRand,
+							billTotalRand,
+							otherExcludedSpendRand,
 							billReference,
+							campaignLines,
 							requestIdempotencyKey: newIdempotencyKey(),
 							duplicateOverrideReason:
 								duplicateOverrideReason.trim() || undefined,
@@ -305,10 +364,12 @@ export function ResolvedCustomerView({
 						{
 							onSuccess: (result) => {
 								setAwardPointsOpen(false);
-								quotePoints.reset();
-								setEligibleSpendRand("");
+								quoteBill.reset();
+								setBillTotalRand("");
+								setOtherExcludedSpendRand("0");
 								setBillReference("");
 								setDuplicateOverrideReason("");
+								setCampaignQuantities({});
 								onUpdated({
 									...customer,
 									points: {
@@ -324,11 +385,11 @@ export function ResolvedCustomerView({
 					);
 				}}
 				onCancel={() => {
-					quotePoints.reset();
+					quoteBill.reset();
 				}}
 			>
-				{awardPoints.isError && (
-					<p className="text-sm text-brand-danger">{awardPoints.error.message}</p>
+				{commitBill.isError && (
+					<p className="text-sm text-brand-danger">{commitBill.error.message}</p>
 				)}
 			</ConfirmDialog>
 		</div>

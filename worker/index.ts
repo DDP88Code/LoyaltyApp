@@ -14,6 +14,7 @@ import {
 import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
 import { createNotificationService } from "@worker/lib/notifications/service";
+import { settleOutstandingCampaignBillRewards } from "@worker/lib/itemCampaigns/service";
 import { requestOrigin } from "@worker/lib/session";
 import { verifyTurnstileForAuthRequest } from "@worker/lib/turnstile";
 import { admin } from "@worker/routes/admin";
@@ -118,6 +119,12 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 
 		for (const business of activeBusinesses) {
 			if (runDailyMaintenance) {
+				const settlementSummary = await settleOutstandingCampaignBillRewards({
+					db,
+					businessId: business.id,
+					limit: 250,
+				});
+
 				if (welcomeClaimHashSecret) {
 					const backfill = await backfillWelcomeClaimMarkersForBusiness(
 						db,
@@ -165,6 +172,7 @@ async function handleScheduled(_event: ScheduledEvent, env: Env) {
 
 				console.log("Daily notification maintenance summary", {
 					businessId: business.id,
+					settlementSummary,
 					birthdaySummary,
 					expirySummary,
 				});

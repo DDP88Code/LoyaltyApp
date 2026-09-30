@@ -2,6 +2,10 @@ import { and, asc, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type {
+	AdminItemCampaignActivityPayload,
+	AdminItemCampaignPayload,
+	AdminItemCampaignReportPayload,
+	AdminItemCampaignsPayload,
 	AdminPointsActivityPayload,
 	AdminPointsCatalogueItemPayload,
 	AdminPointsEligibleRewardPayload,
@@ -33,6 +37,15 @@ import {
 	listPointsReport,
 	reversePointsAward,
 } from "@worker/lib/points/service";
+import {
+	createAdminItemCampaign,
+	listAdminItemCampaignActivity,
+	listAdminItemCampaignReport,
+	listAdminItemCampaigns,
+	reverseBillEventWithCampaigns,
+	settleCampaignRewardsForBillEvent,
+	updateAdminItemCampaign,
+} from "@worker/lib/itemCampaigns/service";
 import {
 	ensurePointsProgram,
 	readPointsProgramForAdmin,
@@ -151,6 +164,40 @@ const adjustmentSchema = z.object({
 	}),
 	reason: z.string().trim().min(5).max(500),
 	idempotencyKey: z.string().trim().min(8).max(128),
+});
+
+const itemCampaignCreateSchema = z.object({
+	name: z.string().trim().min(2).max(120),
+	description: z.string().trim().max(500).nullable().optional(),
+	itemReference: z.string().trim().min(1).max(120),
+	unitPriceCents: z.coerce.number().int().min(1).max(5_000_000),
+	targetQuantity: z.coerce.number().int().min(2).max(1_000),
+	rewardDefinitionId: z.string().trim().min(1).max(64),
+	earnsRewardPoints: z.boolean().default(false),
+	status: z.enum(["active", "disabled", "archived"]).default("active"),
+	startAt: z.coerce.date().nullable().optional(),
+	endAt: z.coerce.date().nullable().optional(),
+	maxQuantityPerBill: z.coerce.number().int().min(1).max(500).nullable().optional(),
+	sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
+});
+
+const itemCampaignUpdateSchema = itemCampaignCreateSchema
+	.partial()
+	.refine((value) => Object.keys(value).length > 0, {
+		message: "At least one field must be provided.",
+	});
+
+const itemCampaignActivityQuerySchema = z.object({
+	campaignId: z.string().trim().min(1).max(64).optional(),
+	from: z.coerce.date().optional(),
+	to: z.coerce.date().optional(),
+	limit: z.coerce.number().int().min(1).max(200).default(50),
+	offset: z.coerce.number().int().min(0).default(0),
+});
+
+const itemCampaignReportQuerySchema = z.object({
+	from: z.coerce.date().optional(),
+	to: z.coerce.date().optional(),
 });
 
 function isPointsCatalogueRewardType(value: string): value is "free_item" | "voucher" {
@@ -704,6 +751,117 @@ export const adminPoints = new Hono<AppEnv>()
 		await db.delete(pointsCatalogueItems).where(eq(pointsCatalogueItems.id, existing.id));
 		return ok(c, { deleted: true });
 	})
+	.get("/campaigns", async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const [campaigns, rewardRows] = await Promise.all([
+			listAdminItemCampaigns({ db, businessId: profile.businessId }),
+			db
+				.select({
+					id: rewardDefinitions.id,
+					name: rewardDefinitions.name,
+					rewardType: rewardDefinitions.rewardType,
+					valueCents: rewardDefinitions.valueCents,
+					active: rewardDefinitions.active,
+					welcomeReward: rewardDefinitions.welcomeReward,
+					itemReference: rewardDefinitions.itemReference,
+				})
+				.from(rewardDefinitions)
+				.where(eq(rewardDefinitions.businessId, profile.businessId))
+				.orderBy(asc(rewardDefinitions.name)),
+		]);
+
+		const eligibleRewards = rewardRows
+			.filter((row) => row.active)
+			.filter((row) => isPointsCatalogueRewardType(row.rewardType))
+			.filter((row) => !row.welcomeReward)
+			.filter((row) => !isReservedBirthdayReward(row))
+			.map((row) => ({
+				id: row.id,
+				name: row.name,
+				rewardType: row.rewardType as "free_item" | "voucher",
+				valueCents: row.valueCents,
+			})) satisfies AdminPointsEligibleRewardPayload[];
+
+		return ok<AdminItemCampaignsPayload>(c, {
+			campaigns,
+			eligibleRewards,
+		});
+	})
+	.post("/campaigns", validate("json", itemCampaignCreateSchema), async (c) => {
+		const profile = c.get("profile");
+		const input = c.req.valid("json");
+		const payload = await createAdminItemCampaign({
+			db: getDb(c.env),
+			businessId: profile.businessId,
+			actorUserId: profile.authUserId,
+			actorRole: profile.role,
+			input: {
+				name: input.name,
+				description: input.description ?? null,
+				itemReference: input.itemReference,
+				unitPriceCents: input.unitPriceCents,
+				targetQuantity: input.targetQuantity,
+				rewardDefinitionId: input.rewardDefinitionId,
+				earnsRewardPoints: input.earnsRewardPoints,
+				status: input.status,
+				startAt: input.startAt ?? null,
+				endAt: input.endAt ?? null,
+				maxQuantityPerBill: input.maxQuantityPerBill ?? null,
+				sortOrder: input.sortOrder,
+			},
+		});
+		return ok<AdminItemCampaignPayload>(c, payload, 201);
+	})
+	.patch(
+		"/campaigns/:campaignId",
+		validate("json", itemCampaignUpdateSchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const payload = await updateAdminItemCampaign({
+				db: getDb(c.env),
+				businessId: profile.businessId,
+				campaignId: c.req.param("campaignId"),
+				actorUserId: profile.authUserId,
+				actorRole: profile.role,
+				input: c.req.valid("json"),
+			});
+			return ok<AdminItemCampaignPayload>(c, payload);
+		},
+	)
+	.get(
+		"/campaigns/activity",
+		validate("query", itemCampaignActivityQuerySchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const query = c.req.valid("query");
+			const payload = await listAdminItemCampaignActivity({
+				db: getDb(c.env),
+				businessId: profile.businessId,
+				campaignId: query.campaignId,
+				from: query.from,
+				to: query.to,
+				limit: query.limit,
+				offset: query.offset,
+			});
+			return ok<AdminItemCampaignActivityPayload>(c, payload);
+		},
+	)
+	.get(
+		"/campaigns/report",
+		validate("query", itemCampaignReportQuerySchema),
+		async (c) => {
+			const profile = c.get("profile");
+			const query = c.req.valid("query");
+			const payload = await listAdminItemCampaignReport({
+				db: getDb(c.env),
+				businessId: profile.businessId,
+				from: query.from,
+				to: query.to,
+			});
+			return ok<AdminItemCampaignReportPayload>(c, payload);
+		},
+	)
 	.get("/activity", async (c) => {
 		const profile = c.get("profile");
 		const payload = await listPointsAdminActivity({
@@ -719,6 +877,41 @@ export const adminPoints = new Hono<AppEnv>()
 			businessId: profile.businessId,
 		});
 		return ok<AdminPointsReportPayload>(c, payload);
+	})
+	.post("/bills/:billEventId/reverse", validate("json", reversalSchema), async (c) => {
+		const profile = c.get("profile");
+		const db = getDb(c.env);
+		const reason = c.req.valid("json").reason;
+		const billEventId = c.req.param("billEventId");
+
+		const reversal = await reverseBillEventWithCampaigns({
+			db,
+			businessId: profile.businessId,
+			billEventId,
+			actorProfileId: profile.id,
+			actorUserId: profile.authUserId,
+			actorRole: profile.role,
+			reason,
+		});
+
+		if (reversal.pointsAwardId) {
+			await reversePointsAward({
+				db,
+				businessId: profile.businessId,
+				awardId: reversal.pointsAwardId,
+				actorProfileId: profile.id,
+				actorUserId: profile.authUserId,
+				actorRole: profile.role,
+				reason,
+			});
+		}
+
+		await settleCampaignRewardsForBillEvent({ db, billEventId });
+
+		return ok(c, {
+			reversed: true,
+			pointsReversed: Boolean(reversal.pointsAwardId),
+		});
 	})
 	.post("/awards/:awardId/reverse", validate("json", reversalSchema), async (c) => {
 		const profile = c.get("profile");

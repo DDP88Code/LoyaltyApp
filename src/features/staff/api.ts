@@ -6,6 +6,9 @@ import type {
 	StaffResolvedCustomerPayload,
 } from "@shared/loyaltyCode";
 import type {
+	StaffCampaignBillCommitPayload,
+	StaffCampaignBillLineInput,
+	StaffCampaignBillQuotePayload,
 	StaffPointsAwardPayload,
 	StaffPointsQuotePayload,
 } from "@shared/rewardPoints";
@@ -73,6 +76,20 @@ export interface StaffPointsAwardInput extends StaffPointsQuoteInput {
 	duplicateOverrideReason?: string | null;
 }
 
+export interface StaffCampaignBillQuoteInput {
+	customerId: string;
+	locationId: string;
+	billTotalRand: string;
+	otherExcludedSpendRand: string;
+	campaignLines: StaffCampaignBillLineInput[];
+}
+
+export interface StaffCampaignBillCommitInput extends StaffCampaignBillQuoteInput {
+	billReference: string;
+	requestIdempotencyKey: string;
+	duplicateOverrideReason?: string | null;
+}
+
 export function useRedeemReward() {
 	return useMutation({
 		mutationFn: ({ customerId, rewardId, ...body }: RedeemRewardInput) =>
@@ -100,5 +117,31 @@ export function useAwardStaffPoints() {
 				method: "POST",
 				body: JSON.stringify(body),
 			}),
+	});
+}
+
+export function useQuoteStaffCampaignBill() {
+	return useMutation({
+		mutationFn: ({ customerId, ...body }: StaffCampaignBillQuoteInput) =>
+			apiFetch<StaffCampaignBillQuotePayload>(
+				`/api/staff/points/customers/${customerId}/bill/quote`,
+				{
+					method: "POST",
+					body: JSON.stringify(body),
+				},
+			),
+	});
+}
+
+export function useCommitStaffCampaignBill() {
+	return useMutation({
+		mutationFn: ({ customerId, ...body }: StaffCampaignBillCommitInput) =>
+			apiFetch<StaffCampaignBillCommitPayload>(
+				`/api/staff/points/customers/${customerId}/bill`,
+				{
+					method: "POST",
+					body: JSON.stringify(body),
+				},
+			),
 	});
 }

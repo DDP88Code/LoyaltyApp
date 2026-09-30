@@ -71,6 +71,13 @@
       "when": 1790544973317,
       "tag": "0009_reward_points_system",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790762127028,
+      "tag": "0010_smart_morlocks",
+      "breakpoints": true
     }
   ]
 }
