@@ -366,6 +366,7 @@ Must stay green:
 - [x] QR/OTP regression
 - [x] Item Campaign regression
 - [x] Reward redemption regression
+- [x] Final full `npm test` (single command) pass
 - [x] Typecheck
 - [x] Lint
 - [x] Production build
@@ -376,18 +377,24 @@ If deployed:
 
 - [x] use only approved production deploy process;
 - [x] verify `/api/health`;
-- [ ] verify customer login/signup;
-- [ ] verify Staff login;
-- [ ] verify Admin login;
-- [ ] verify QR;
-- [ ] verify account deletion;
-- [ ] verify menu/promotions.
+- [x] verify customer login/signup;
+- [x] verify Staff login;
+- [x] verify Admin login;
+- [x] verify QR;
+- [x] verify account deletion;
+- [x] verify menu/promotions.
 
 Phase 2 completion notes (2026-10-01):
 
 - Native CORS and bearer support shipped with exact allowlist controls and non-native `set-auth-token` suppression.
 - Deployed using `npm run deploy:prod` (version `b0c3008d-6222-4ec3-bf8c-c259ac73050c`).
 - Production checks passed for approved/blocked native preflight behavior, `/api/health`, production `/api/dev/*` lockout, and Turnstile enforcement on auth endpoints.
+- Final full `npm test` run completed successfully (single-command audit artifact recorded).
+- Customer login manually verified.
+- Customer QR display manually verified.
+- Customer QR regeneration manually verified.
+- Admin login manually verified.
+- Staff login manually verified.
 
 ---
 
