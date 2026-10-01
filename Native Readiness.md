@@ -218,6 +218,18 @@ Cookie auth stays the right choice for web/PWA.
 
 ---
 
+## 10.1 Phase 2 implementation status (2026-10-01)
+
+- Implemented exact native-origin CORS handling with env-driven allowlist and strict preflight behavior.
+- Added Better Auth bearer support while preserving web/PWA cookie sessions.
+- Added response hardening to suppress `set-auth-token` for non-native origins.
+- Extended Better Auth `trustedOrigins` with approved native origins only.
+- Extended Turnstile expected-hostname handling to include native hostname support (`app.fivessportsbar.app`) via config.
+- Added `scripts/native-api-smoke.mjs` coverage for native preflight, bearer auth, token shielding, invalid token rejection, and logout revocation.
+- Post-deploy production checks passed for approved/blocked native preflight, `/api/health`, `/api/dev/*` lockout, and Turnstile enforcement.
+
+---
+
 ## 11. QR findings
 
 - FivesCodePage calls `POST /api/customer/loyalty-code` and gets back `{otp, qrToken, expiresAt}`. The QR code is an SVG from `react-qr-code`, with a timer countdown.

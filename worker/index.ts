@@ -11,10 +11,12 @@ import {
 	backfillWelcomeClaimMarkersForBusiness,
 	getWelcomeClaimHashSecret,
 } from "@worker/lib/welcomeRewardClaims";
+import { stripAuthTokenForNonNativeOrigin } from "@worker/lib/nativeAuth";
 import { notifyActivePromotionsAwaitingBroadcast } from "@worker/lib/notifications/promotionBroadcast";
 import { notifyRewardsExpiringInDays } from "@worker/lib/notifications/rewardExpiry";
 import { createNotificationService } from "@worker/lib/notifications/service";
 import { settleOutstandingCampaignBillRewards } from "@worker/lib/itemCampaigns/service";
+import { nativeApiCors } from "@worker/middleware/nativeCors";
 import { requestOrigin } from "@worker/lib/session";
 import { verifyTurnstileForAuthRequest } from "@worker/lib/turnstile";
 import { admin } from "@worker/routes/admin";
@@ -41,7 +43,15 @@ const api = new Hono<AppEnv>()
 			);
 		}
 
-		return getAuth(c.env, requestOrigin(c.req.url)).handler(c.req.raw);
+		const authResponse = await getAuth(
+			c.env,
+			requestOrigin(c.req.url),
+		).handler(c.req.raw);
+		return stripAuthTokenForNonNativeOrigin(
+			c.env,
+			c.req.header("Origin") ?? null,
+			authResponse,
+		);
 	})
 	.route("/health", health)
 	.route("/me", me)
@@ -63,6 +73,7 @@ app.use("/api/media/public/*", async (c, next) => {
 });
 
 app.use("*", secureHeaders());
+app.use("/api/*", nativeApiCors);
 
 app.route("/api", api);
 

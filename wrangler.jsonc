@@ -21,7 +21,9 @@
 
 	"vars": {
 		"APP_ENV": "development",
-		"BUSINESS_SLUG": "fives-pub-and-grill"
+		"BUSINESS_SLUG": "fives-pub-and-grill",
+		"NATIVE_APP_ORIGINS": "https://app.fivessportsbar.app",
+		"TURNSTILE_ALLOWED_HOSTNAMES": "fivessportsbar.app,app.fivessportsbar.app"
 	},
 
 	// Top-level bindings are for local dev only. Never use them for production.
@@ -55,7 +57,9 @@
 			},
 			"vars": {
 				"APP_ENV": "production",
-				"BUSINESS_SLUG": "fives-pub-and-grill"
+				"BUSINESS_SLUG": "fives-pub-and-grill",
+				"NATIVE_APP_ORIGINS": "https://app.fivessportsbar.app",
+				"TURNSTILE_ALLOWED_HOSTNAMES": "fivessportsbar.app,app.fivessportsbar.app"
 			},
 			"d1_databases": [
 				{

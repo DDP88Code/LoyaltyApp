@@ -1,8 +1,7 @@
+import { getExpectedTurnstileHostnames } from "@worker/lib/nativeAuth";
+
 const TURNSTILE_SITEVERIFY_URL =
 	"https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const PRODUCTION_TURNSTILE_HOSTNAMES = [
-	"fivessportsbar.app",
-] as const;
 const TURNSTILE_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 const consumedTurnstileTokens = new Map<string, number>();
@@ -184,7 +183,7 @@ export async function verifyTurnstileForAuthRequest(
 
 	const expectedHostnames =
 		(env as { APP_ENV?: string }).APP_ENV === "production"
-			? PRODUCTION_TURNSTILE_HOSTNAMES
+			? getExpectedTurnstileHostnames(env)
 			: null;
 
 	return verifyTurnstileToken({

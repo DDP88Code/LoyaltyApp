@@ -1,9 +1,11 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
+import { bearer } from "better-auth/plugins";
 import { BRAND } from "@shared/branding";
 import { authSchemaOptions } from "@worker/auth/config";
 import { getDb } from "@worker/db/client";
+import { getTrustedAuthOrigins } from "@worker/lib/nativeAuth";
 import * as schema from "@worker/db/schema";
 import { buildPasswordResetEmail } from "@worker/lib/notifications/passwordResetEmail";
 import {
@@ -23,7 +25,8 @@ function createAuth(env: Env, baseURL: string) {
 		secret: env.BETTER_AUTH_SECRET,
 		basePath: "/api/auth",
 		baseURL,
-		trustedOrigins: [baseURL],
+		trustedOrigins: getTrustedAuthOrigins(env, baseURL),
+		plugins: [bearer()],
 		emailAndPassword: {
 			enabled: true,
 			minPasswordLength: 10,

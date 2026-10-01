@@ -17,6 +17,7 @@
     "test:webpush": "node ./scripts/webpush-payload-smoke.mjs",
     "test:promotion-media": "node ./scripts/promotion-media-cache-smoke.mjs",
     "test:reset-link": "node ./scripts/password-reset-link-smoke.mjs",
+    "test:native-api": "node ./scripts/native-api-smoke.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",

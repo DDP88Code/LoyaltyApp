@@ -291,26 +291,26 @@ Add exact native-origin CORS handling before auth/business routes.
 
 Requirements:
 
-- [ ] Exact allowlist only.
-- [ ] No `*` origin.
-- [ ] Do not echo arbitrary origins.
-- [ ] Allow required methods only.
-- [ ] Allow headers:
+- [x] Exact allowlist only.
+- [x] No `*` origin.
+- [x] Do not echo arbitrary origins.
+- [x] Allow required methods only.
+- [x] Allow headers:
   - `Content-Type`
   - `Authorization`
   - `cf-turnstile-response`
   - `Accept`
-- [ ] Expose `set-auth-token` only to approved native origins.
-- [ ] Native CORS must not weaken normal web security.
+- [x] Expose `set-auth-token` only to approved native origins.
+- [x] Native CORS must not weaken normal web security.
 
 ## 5.1 Better Auth native support
 
-- [ ] Add Better Auth bearer support.
-- [ ] Add exact approved native origins to `trustedOrigins`.
-- [ ] Preserve web cookie authentication exactly.
-- [ ] Do not disable CSRF checks.
-- [ ] Do not disable origin checks.
-- [ ] Do not migrate normal web/PWA sessions to bearer tokens.
+- [x] Add Better Auth bearer support.
+- [x] Add exact approved native origins to `trustedOrigins`.
+- [x] Preserve web cookie authentication exactly.
+- [x] Do not disable CSRF checks.
+- [x] Do not disable origin checks.
+- [x] Do not migrate normal web/PWA sessions to bearer tokens.
 
 Expected split:
 
@@ -323,65 +323,71 @@ NATIVE   -> Authorization: Bearer <session token>
 
 Critical:
 
-- [ ] Web JavaScript must not be able to read native auth tokens.
-- [ ] Strip/suppress token header for non-native origins.
+- [x] Web JavaScript must not be able to read native auth tokens.
+- [x] Strip/suppress token header for non-native origins.
 
 ## 5.3 Turnstile preparation
 
-- [ ] Reserve/approve `app.fivessportsbar.app`.
-- [ ] Add native hostname to server expected-hostname handling.
-- [ ] Configure Turnstile hostname support.
-- [ ] Prefer separate native Turnstile widget if operationally straightforward.
-- [ ] Never bypass Turnstile because a request claims to be native.
-- [ ] Never trust a custom request header as proof of native origin.
+- [x] Reserve/approve `app.fivessportsbar.app`.
+- [x] Add native hostname to server expected-hostname handling.
+- [x] Configure Turnstile hostname support.
+- [x] Prefer separate native Turnstile widget if operationally straightforward.
+- [x] Never bypass Turnstile because a request claims to be native.
+- [x] Never trust a custom request header as proof of native origin.
 
 ## 5.4 Add native API smoke coverage
 
 Automated tests should prove:
 
-- [ ] approved native origin preflight succeeds;
-- [ ] unknown origin is rejected;
-- [ ] native sign-in returns usable bearer token;
-- [ ] bearer token can call `/api/me`;
-- [ ] web login remains cookie based;
-- [ ] web cannot read `set-auth-token`;
-- [ ] expired/invalid token is rejected;
-- [ ] logout revokes native session.
+- [x] approved native origin preflight succeeds;
+- [x] unknown origin is rejected;
+- [x] native sign-in returns usable bearer token;
+- [x] bearer token can call `/api/me`;
+- [x] web login remains cookie based;
+- [x] web cannot read `set-auth-token`;
+- [x] expired/invalid token is rejected;
+- [x] logout revokes native session.
 
 ## 5.5 Full regression gate
 
 Must stay green:
 
-- [ ] Phase 13 smoke
-- [ ] Auth regression
-- [ ] Account deletion smoke
-- [ ] Reward Points smoke
-- [ ] Web Push payload smoke
-- [ ] Menu media cache smoke
-- [ ] Promotion media cache smoke
-- [ ] Password reset link smoke
-- [ ] Coffee regression
-- [ ] Birthday regression
-- [ ] Welcome regression
-- [ ] QR/OTP regression
-- [ ] Item Campaign regression
-- [ ] Reward redemption regression
-- [ ] Typecheck
-- [ ] Lint
-- [ ] Production build
+- [x] Phase 13 smoke
+- [x] Auth regression
+- [x] Account deletion smoke
+- [x] Reward Points smoke
+- [x] Web Push payload smoke
+- [x] Menu media cache smoke
+- [x] Promotion media cache smoke
+- [x] Password reset link smoke
+- [x] Coffee regression
+- [x] Birthday regression
+- [x] Welcome regression
+- [x] QR/OTP regression
+- [x] Item Campaign regression
+- [x] Reward redemption regression
+- [x] Typecheck
+- [x] Lint
+- [x] Production build
 
 ## 5.6 Production gate
 
 If deployed:
 
-- [ ] use only approved production deploy process;
-- [ ] verify `/api/health`;
+- [x] use only approved production deploy process;
+- [x] verify `/api/health`;
 - [ ] verify customer login/signup;
 - [ ] verify Staff login;
 - [ ] verify Admin login;
 - [ ] verify QR;
 - [ ] verify account deletion;
 - [ ] verify menu/promotions.
+
+Phase 2 completion notes (2026-10-01):
+
+- Native CORS and bearer support shipped with exact allowlist controls and non-native `set-auth-token` suppression.
+- Deployed using `npm run deploy:prod` (version `b0c3008d-6222-4ec3-bf8c-c259ac73050c`).
+- Production checks passed for approved/blocked native preflight behavior, `/api/health`, production `/api/dev/*` lockout, and Turnstile enforcement on auth endpoints.
 
 ---
 
