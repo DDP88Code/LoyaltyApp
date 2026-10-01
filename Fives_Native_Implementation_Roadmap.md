@@ -175,8 +175,10 @@ Target state:
 - [x] Confirm production config points at correct production resources.
 - [x] Confirm `/api/dev/*` is unavailable in production.
 - [x] Confirm normal PWA behaviour is unchanged.
-- [ ] Commit and push the safety fix.
+- [x] Commit and push the safety fix.
 - [ ] Return to a clean Git status.
+
+Remaining note (2026-10-01): repository still contains pre-existing untracked `Native Readiness.md`, intentionally left untouched.
 
 ### STOP / GO GATE
 
