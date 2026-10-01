@@ -24,6 +24,7 @@
 		"BUSINESS_SLUG": "fives-pub-and-grill"
 	},
 
+	// Top-level bindings are for local dev only. Never use them for production.
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -36,7 +37,7 @@
 	"r2_buckets": [
 		{
 			"binding": "MEDIA",
-			"bucket_name": "fives-rewards-media"
+			"bucket_name": "fives-rewards-media-local"
 		}
 	],
 

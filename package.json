@@ -8,7 +8,7 @@
     "build": "vite build",
     "build:prod": "cross-env CLOUDFLARE_ENV=production vite build",
     "preview": "npm run build && vite preview",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "node -e \"console.error('Blocked: npm run deploy is disabled to prevent accidental non-production Wrangler deployment against shared resources. Use npm run deploy:prod for intentional production releases.'); process.exit(1)\"",
     "deploy:prod": "npm run build:prod && wrangler deploy --env production",
     "lint": "npm run typecheck",
     "test": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/phase13-smoke.ps1 && pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/auth-regression-smoke.ps1 && node ./scripts/account-deletion-smoke.mjs && node ./scripts/points-smoke.mjs && node ./scripts/webpush-payload-smoke.mjs && node ./scripts/menu-media-cache-smoke.mjs && node ./scripts/promotion-media-cache-smoke.mjs && node ./scripts/password-reset-link-smoke.mjs",

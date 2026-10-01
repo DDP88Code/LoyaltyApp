@@ -13,6 +13,13 @@ const runBirthdayIssuanceSchema = z.object({
 	atIso: z.string().datetime({ offset: true }).optional(),
 });
 
+const LOCAL_DEV_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function isLocalDevelopmentHost(url: string): boolean {
+	const hostname = new URL(url).hostname.toLowerCase();
+	return LOCAL_DEV_HOSTS.has(hostname);
+}
+
 /**
  * Development-only utilities. Outside development these routes answer 404 like
  * any other unknown path, so a deployed Worker never admits they exist.
@@ -20,7 +27,7 @@ const runBirthdayIssuanceSchema = z.object({
 export const dev = new Hono<AppEnv>();
 
 dev.use("*", async (c, next) => {
-	if (c.env.APP_ENV !== "development") {
+	if (c.env.APP_ENV !== "development" || !isLocalDevelopmentHost(c.req.url)) {
 		return fail(
 			c,
 			"not_found",

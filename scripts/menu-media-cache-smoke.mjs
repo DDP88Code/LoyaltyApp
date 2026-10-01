@@ -87,6 +87,15 @@ function assert(condition, message) {
 	if (!condition) throw new Error(message);
 }
 
+async function hasPublicMenuImage(key) {
+	if (typeof key !== "string" || key.length === 0) {
+		return false;
+	}
+	const path = `/api/media/public/menu?key=${encodeURIComponent(key)}`;
+	const response = await new Session().request("GET", path);
+	return response.ok;
+}
+
 const ONE_PIXEL_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO8N7vEAAAAASUVORK5CYII=";
 
@@ -155,6 +164,10 @@ async function main() {
 		.flatMap((category) => category.items ?? [])
 		.map((item) => item.imageKey)
 		.find((key) => typeof key === "string" && key.length > 0);
+
+	if (firstImageKey && !(await hasPublicMenuImage(firstImageKey))) {
+		firstImageKey = null;
+	}
 
 	if (!firstImageKey) {
 		const uploaded = await uploadMenuImage(admin);
