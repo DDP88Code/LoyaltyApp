@@ -412,34 +412,34 @@ git pull
 git checkout -b native/capacitor
 ```
 
-- [ ] `main` is current.
-- [ ] `main` is clean.
-- [ ] Create `native/capacitor`.
-- [ ] Native project work stays on this branch initially.
-- [ ] Do not create a separate repository.
+- [x] `main` is current.
+- [x] `main` is clean.
+- [x] Create `native/capacitor`.
+- [x] Native project work stays on this branch initially.
+- [x] Do not create a separate repository.
 
 ### Commit native project source
 
 Eventually commit:
 
-- [ ] `capacitor.config.json`
-- [ ] native Vite config
-- [ ] `android/`
+- [x] `capacitor.config.json`
+- [x] native Vite config
+- [x] `android/`
 - [ ] `ios/` later
-- [ ] native integration source
+- [x] native integration source
 
 ### Ignore generated/secrets
 
-- [ ] `dist-native/`
-- [ ] `*.jks`
-- [ ] `*.keystore`
-- [ ] `keystore.properties`
-- [ ] `*.p8`
-- [ ] `*.p12`
-- [ ] `*.mobileprovision`
-- [ ] Android build outputs
-- [ ] iOS DerivedData
-- [ ] generated caches
+- [x] `dist-native/`
+- [x] `*.jks`
+- [x] `*.keystore`
+- [x] `keystore.properties`
+- [x] `*.p8`
+- [x] `*.p12`
+- [x] `*.mobileprovision`
+- [x] Android build outputs
+- [x] iOS DerivedData
+- [x] generated caches
 
 Never commit signing keys/secrets.
 
@@ -449,9 +449,9 @@ Never commit signing keys/secrets.
 
 ## 7. Install core packages
 
-- [ ] Install Capacitor 8-compatible core/CLI packages.
-- [ ] Add only required plugins initially.
-- [ ] Do not add native push yet.
+- [x] Install Capacitor 8-compatible core/CLI packages.
+- [x] Add only required plugins initially.
+- [x] Do not add native push yet.
 
 ## 7.1 Native Vite build
 
@@ -464,11 +464,11 @@ NATIVE  -> dist-native
 
 Native build must:
 
-- [ ] exclude Cloudflare Vite plugin;
-- [ ] exclude PWA/service-worker generation;
-- [ ] set `VITE_APP_TARGET=native` or equivalent;
-- [ ] set native production API origin to `https://fivessportsbar.app`;
-- [ ] never overwrite normal production web assets.
+- [x] exclude Cloudflare Vite plugin;
+- [x] exclude PWA/service-worker generation;
+- [x] set `VITE_APP_TARGET=native` or equivalent;
+- [x] set native production API origin to `https://fivessportsbar.app`;
+- [x] never overwrite normal production web assets.
 
 > `VITE_API_BASE_URL` should be the origin `https://fivessportsbar.app`, **not** `https://fivessportsbar.app/api`.
 
@@ -478,28 +478,28 @@ Use `capacitor.config.json` unless verified otherwise.
 
 Baseline:
 
-- [ ] appId = `app.fivessportsbar.rewards`
-- [ ] appName = `Fives Sports Bar Rewards`
-- [ ] webDir = `dist-native`
-- [ ] native hostname = approved Fives-owned hostname
-- [ ] no production `server.url`
-- [ ] no unsafe `allowNavigation`
-- [ ] no cleartext HTTP in release
-- [ ] no mixed-content relaxation in release
+- [x] appId = `app.fivessportsbar.rewards`
+- [x] appName = `Fives Sports Bar Rewards`
+- [x] webDir = `dist-native`
+- [x] native hostname = approved Fives-owned hostname
+- [x] no production `server.url`
+- [x] no unsafe `allowNavigation`
+- [x] no cleartext HTTP in release
+- [x] no mixed-content relaxation in release
 
 ## 7.3 Disable PWA SW in native
 
-- [ ] Native does not register service worker.
-- [ ] PWA still does.
-- [ ] Existing PWA cache/update behaviour remains unchanged.
+- [x] Native does not register service worker.
+- [x] PWA still does.
+- [x] Existing PWA cache/update behaviour remains unchanged.
 
 ## 7.4 Build gate
 
-- [ ] Web build succeeds.
-- [ ] Native build succeeds.
-- [ ] `dist-native` is separate.
-- [ ] Native bundle contains no PWA service-worker registration.
-- [ ] No production deployment occurs in this phase.
+- [x] Web build succeeds.
+- [x] Native build succeeds.
+- [x] `dist-native` is separate.
+- [x] Native bundle contains no PWA service-worker registration.
+- [x] No production deployment occurs in this phase.
 
 ---
 
@@ -522,9 +522,9 @@ Current audit indicated Node/JDK are already suitable, but Android tooling is no
 
 ### Baseline Android versions
 
-- [ ] minSdk 24
-- [ ] compile/target SDK 36
-- [ ] minimum WebView 111
+- [x] minSdk 24
+- [x] compile/target SDK 36
+- [x] minimum WebView 111
 
 ---
 
@@ -534,21 +534,40 @@ Current audit indicated Node/JDK are already suitable, but Android tooling is no
 
 Only after previous gates pass:
 
-- [ ] `cap add android`
-- [ ] Review generated project.
-- [ ] Confirm package ID.
-- [ ] Confirm display label.
-- [ ] Confirm SDK versions.
-- [ ] Confirm release has no dev URL.
-- [ ] Commit `android/`.
+- [x] `cap add android`
+- [x] Review generated project.
+- [x] Confirm package ID.
+- [x] Confirm display label.
+- [x] Confirm SDK versions.
+- [x] Confirm release has no dev URL.
+- [x] Commit `android/`.
 
 ### First emulator milestone
 
 - [ ] Native app launches.
 - [ ] React UI renders.
 - [ ] Native bundle reaches intended API.
-- [ ] No PWA production change.
-- [ ] No push/deep links yet.
+- [x] No PWA production change.
+- [x] No push/deep links yet.
+
+---
+
+Foundation implementation evidence (2026-10-01):
+
+- Scope: the requested Capacitor/Android foundation spans branch setup (Phase 3), core (Phase 4), generated SDK baseline (Phase 5) and Android source generation (Phase 6). Environment/device milestones remain pending; Phase 7 and later were not implemented.
+- Started from clean `main` at `799d3166aaca272940c85e7192bb72824a81fcaa`, verified against live `origin/main`; created `native/capacitor`. One repository; no merge or PR.
+- Node `22.17.1` / npm `10.9.2` meet Capacitor 8 requirements. Installed only direct packages `@capacitor/core`, `@capacitor/android`, and dev dependency `@capacitor/cli`, all pinned to `8.5.2`. No existing package versions changed.
+- `capacitor.config.json`: app ID `app.fivessportsbar.rewards`, app name and Android launcher label `Fives Sports Bar Rewards`, `webDir=dist-native`, hostname `app.fivessportsbar.app`, HTTPS Android scheme, start path `/app`, minimum WebView 111. No `server.url` or `allowNavigation`; cleartext and mixed content disabled.
+- `npm run build:native` uses `vite.native.config.ts --mode native`, centrally defines `VITE_APP_TARGET=native` and `VITE_API_BASE_URL=https://fivessportsbar.app`, and excludes Cloudflare/PWA plugins. Build assertions exercise the compiled platform/API/media helpers, including `/api/me` without `/api/api` duplication, using mocked fetch without production requests.
+- Native output is `dist-native`; web output remains `dist/client`. Native registration is replaced with an empty module at build time. Native artifacts contain no PWA worker/registration; web registration callbacks are preserved verbatim, and the web manifest/service worker still build normally.
+- `cap add android` and `npm run cap:sync` succeeded. Sync checks confirm copied asset/config equality, identity and display names, no installed native plugins and no `ios/`. Generated SDK values already match min 24 / compile 36 / target 36; Gradle 8.14.3, Android Gradle Plugin 8.13.0. Corrected the generated instrumented test's placeholder expected package ID.
+- Safe-area variables and environment fallbacks survive the native CSS build. Visual/device verification remains pending. Web routing, the public landing page, API/auth helpers, auth security, Worker bindings and database files are unchanged.
+- Validation passed: `npm run typecheck`, `npm run lint`, `npm run build:prod`, `npm run build:native`, `npm run cap:sync`, native build checks, Android sync checks and `git diff --check`.
+- Full `npm test` ran ONCE to natural completion (exit 0). Phase 13, auth, account deletion, points, Web Push payload, menu media, promotion media and password-reset suites all reported success. Caveats: the existing auth smoke emitted a local SQLite foreign-key error but continued to report success; local development skips Turnstile enforcement assertions, and the reset smoke confirmed `INVALID_REDIRECT_URL` under local trusted-origin restrictions. These were not changed or bypassed. Full local log: ignored `.native-regression.log`.
+- Android debug APK/emulator validation was not run: Android Studio/SDK were not found in standard locations, `adb` is absent from PATH, and `ANDROID_HOME` / `ANDROID_SDK_ROOT` are unset at process/user/machine levels. JDK 21.0.8 is available; `JAVA_HOME` is unset. No global tooling was installed and no SDK/Gradle downgrade was made. This is the expressly allowed environment-specific validation exception, not completion of the Phase 5 tooling or first-emulator gates.
+- Native auth/token storage and the Staff/Admin/Owner gate remain Phase 7. Back-button/keyboard handling and branding remain later work. This foundation is not a finished native customer release.
+- No Worker deployment was necessary or performed. No iOS, native push, deep links, store submission, migrations, production data changes, auth bypasses or Build My New App resource changes. Existing tests used local simulated storage only.
+- See `NATIVE_ANDROID.md` for build commands and remaining Android setup. Native source, Gradle wrapper, build checks and documentation are committed on `native/capacitor`; generated bundles, SDK paths, build outputs and signing material are ignored.
 
 ---
 
