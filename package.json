@@ -7,6 +7,9 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:prod": "cross-env CLOUDFLARE_ENV=production vite build",
+    "build:native": "vite build --config vite.native.config.ts --mode native && node ./scripts/native-build-check.mjs",
+    "cap:sync": "npm run build:native && cap sync android && node ./scripts/android-project-check.mjs",
+    "cap:android": "cap open android",
     "preview": "npm run build && vite preview",
     "deploy": "node -e \"console.error('Blocked: npm run deploy is disabled to prevent accidental non-production Wrangler deployment against shared resources. Use npm run deploy:prod for intentional production releases.'); process.exit(1)\"",
     "deploy:prod": "npm run build:prod && wrangler deploy --env production",
@@ -30,6 +33,8 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.2",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.102.8",
     "better-auth": "^1.7.2",
@@ -47,6 +52,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@cloudflare/vite-plugin": "^1.54.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.4.1",

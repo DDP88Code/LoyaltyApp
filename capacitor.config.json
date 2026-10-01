@@ -1,0 +1,15 @@
+{
+  "appId": "app.fivessportsbar.rewards",
+  "appName": "Fives Sports Bar Rewards",
+  "webDir": "dist-native",
+  "server": {
+    "hostname": "app.fivessportsbar.app",
+    "androidScheme": "https",
+    "appStartPath": "/app",
+    "cleartext": false
+  },
+  "android": {
+    "minWebViewVersion": 111,
+    "allowMixedContent": false
+  }
+}

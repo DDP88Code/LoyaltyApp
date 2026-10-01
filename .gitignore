@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-native/
 .wrangler/
 .vite/
 
@@ -19,3 +20,17 @@ dev-dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Native signing material and generated caches (Android also has its own ignores)
+*.jks
+*.keystore
+keystore.properties
+*.p8
+*.p12
+*.mobileprovision
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+Pods/
+DerivedData/
