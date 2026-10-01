@@ -7,6 +7,7 @@ import {
 import type { SessionPayload, SessionUser } from "@shared/api";
 import { ApiClientError, apiFetch } from "@/lib/api";
 import { authClient } from "@/lib/authClient";
+import { buildPasswordResetRedirectUrl } from "@/lib/platform";
 
 export const sessionQueryKey = ["session"] as const;
 
@@ -183,7 +184,7 @@ export function useRequestPasswordReset() {
 			assertOk(
 				await authClient.requestPasswordReset({
 					email,
-					redirectTo: `${window.location.origin}/reset-password`,
+					redirectTo: buildPasswordResetRedirectUrl(),
 					fetchOptions: turnstileToken
 						? { headers: { "cf-turnstile-response": turnstileToken } }
 						: undefined,

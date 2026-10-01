@@ -75,7 +75,7 @@ export function CustomerLayout() {
 	}, [compactHeader]);
 
 	return (
-		<div className="flex min-h-dvh flex-col pb-24">
+		<div className="flex min-h-dvh flex-col pb-[calc(6rem+var(--safe-area-bottom))]">
 			<MarketingOptInModal />
 
 			<header
@@ -152,7 +152,8 @@ export function CustomerLayout() {
 
 			<nav
 				aria-label="Primary"
-				className="fixed inset-x-0 bottom-0 border-t border-brand-border bg-brand-surface pb-[env(safe-area-inset-bottom)]"
+				className="fixed inset-x-0 bottom-0 border-t border-brand-border bg-brand-surface"
+				style={{ paddingBottom: "var(--safe-area-bottom)" }}
 			>
 				<div className="relative grid grid-cols-5 items-end px-2 pt-2 pb-2">
 					{TABS.slice(0, 2).map((tab) => (

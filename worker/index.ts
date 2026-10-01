@@ -57,6 +57,11 @@ const api = new Hono<AppEnv>()
 
 const app = new Hono<AppEnv>();
 
+app.use("/api/media/public/*", async (c, next) => {
+	await next();
+	c.res.headers.set("Cross-Origin-Resource-Policy", "cross-origin");
+});
+
 app.use("*", secureHeaders());
 
 app.route("/api", api);

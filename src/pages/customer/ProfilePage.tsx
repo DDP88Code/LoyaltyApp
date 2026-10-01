@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Link } from "react-router";
 import { z } from "zod";
 import { changePasswordSchema, type ChangePasswordInput } from "@shared/auth";
 import { birthdaySchema, mobileNumberSchema } from "@shared/profile";
@@ -334,13 +335,13 @@ export function ProfilePage() {
 			<Card>
 				<CardTitle>Legal</CardTitle>
 				<CardDescription>
-					<a href="/terms" className="text-brand-secondary underline">
+					<Link to="/terms" className="text-brand-secondary underline">
 						Terms of use
-					</a>{" "}
+					</Link>{" "}
 					·{" "}
-					<a href="/privacy" className="text-brand-secondary underline">
+					<Link to="/privacy" className="text-brand-secondary underline">
 						Privacy policy
-					</a>
+					</Link>
 				</CardDescription>
 			</Card>
 

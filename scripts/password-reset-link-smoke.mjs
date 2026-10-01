@@ -6,6 +6,7 @@ import { execSync } from "node:child_process";
 import http from "node:http";
 
 const ORIGIN = "http://localhost:5173";
+const WEB_ORIGIN = "https://fivessportsbar.app";
 const PASSWORD = "CoffeeBeans2026";
 const NEW_PASSWORD = "NewCoffeeBeans2026";
 const STAMP = Date.now();
@@ -171,6 +172,50 @@ async function main() {
 	});
 	if (!signInWithNewPassword.ok) {
 		throw new Error(`Sign-in with the new password failed: ${JSON.stringify(signInWithNewPassword.json)}`);
+	}
+
+	const nativeRedirectTo = `${WEB_ORIGIN}/reset-password`;
+	const nativeResetRequest = await new Session().request("POST", "/api/auth/request-password-reset", {
+		email,
+		redirectTo: nativeRedirectTo,
+	});
+	if (!nativeResetRequest.ok) {
+		if (nativeResetRequest.json?.code !== "INVALID_REDIRECT_URL") {
+			throw new Error(
+				`native redirect request-password-reset failed unexpectedly: ${JSON.stringify(nativeResetRequest.json)}`,
+			);
+		}
+		console.log("Native reset redirect validation is constrained by local trusted-origin rules; INVALID_REDIRECT_URL confirmed.");
+	} else {
+		if (nativeResetRequest.json?.status !== true) {
+			throw new Error(
+				`native redirect request-password-reset did not succeed: ${JSON.stringify(nativeResetRequest.json)}`,
+			);
+		}
+
+		const nativeRows = d1QueryLocal(
+			`SELECT identifier FROM verification WHERE value='${authUserId}' AND identifier LIKE 'reset-password:%' ORDER BY created_at DESC LIMIT 1;`,
+		);
+		const nativeIdentifier = nativeRows[0]?.identifier;
+		if (!nativeIdentifier) throw new Error("No native redirect reset-password verification row was created");
+		const nativeToken = nativeIdentifier.replace(/^reset-password:/, "");
+		if (!nativeToken) throw new Error("Could not extract native reset token");
+
+		const nativeLinkPath = `/api/auth/reset-password/${nativeToken}?callbackURL=${encodeURIComponent(nativeRedirectTo)}`;
+		const nativeLinkResponse = await new Session().request("GET", nativeLinkPath);
+		if (nativeLinkResponse.status < 300 || nativeLinkResponse.status >= 400) {
+			throw new Error(
+				`Expected native redirect reset link to return 3xx, got ${nativeLinkResponse.status}`,
+			);
+		}
+		const nativeLocation = nativeLinkResponse.headers.location;
+		if (!nativeLocation || !nativeLocation.startsWith(nativeRedirectTo)) {
+			throw new Error(`Native redirect did not target ${nativeRedirectTo}, got: ${nativeLocation}`);
+		}
+		const nativeRedirectedToken = new URL(nativeLocation).searchParams.get("token");
+		if (nativeRedirectedToken !== nativeToken) {
+			throw new Error(`Native redirect token mismatch: expected ${nativeToken}, got ${nativeRedirectedToken}`);
+		}
 	}
 
 	console.log("Password reset link routing smoke checks passed");

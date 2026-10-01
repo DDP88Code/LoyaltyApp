@@ -468,7 +468,7 @@ export function MenuPage() {
 						className="absolute inset-0 bg-black/65"
 						aria-label="Close item detail"
 					/>
-					<section className="absolute inset-x-0 bottom-0 max-h-[84vh] overflow-y-auto rounded-t-[1.8rem] border-t border-brand-border bg-brand-surface p-5 pb-8">
+					<section className="absolute inset-x-0 bottom-0 max-h-[84vh] overflow-y-auto rounded-t-[1.8rem] border-t border-brand-border bg-brand-surface p-5 pb-[calc(2rem+var(--safe-area-bottom))]">
 						<div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-brand-border" />
 						{detail.item.imageKey ? (
 							<img
@@ -528,7 +528,7 @@ export function MenuPage() {
 				<button
 					type="button"
 					onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-					className="fixed right-4 bottom-24 z-20 inline-flex items-center gap-1 rounded-full border border-brand-border bg-brand-surface px-3 py-2 text-xs font-semibold"
+					className="fixed right-4 bottom-[calc(6rem+var(--safe-area-bottom))] z-20 inline-flex items-center gap-1 rounded-full border border-brand-border bg-brand-surface px-3 py-2 text-xs font-semibold"
 				>
 					<ChevronUp className="size-4" aria-hidden />
 					Top

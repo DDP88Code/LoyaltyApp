@@ -238,6 +238,11 @@ async function main() {
 		`Expected image content-type, received: ${publicContentType}`,
 	);
 	assert(Boolean(publicImage.headers.etag), "Expected etag on public menu image response");
+	const publicCorp = String(publicImage.headers["cross-origin-resource-policy"] ?? "");
+	assert(
+		publicCorp === "cross-origin",
+		`Expected public menu CORP to be cross-origin, got: ${publicCorp}`,
+	);
 
 	const privateWithoutSession = await new Session().request(
 		"GET",
@@ -257,6 +262,11 @@ async function main() {
 	assert(
 		privateCacheControl.includes("private"),
 		`Expected private cache-control on authenticated media endpoint, got: ${privateCacheControl}`,
+	);
+	const privateCorp = String(privateWithSession.headers["cross-origin-resource-policy"] ?? "");
+	assert(
+		privateCorp === "same-origin",
+		`Expected private media CORP to remain same-origin, got: ${privateCorp}`,
 	);
 
 	console.log("Menu media cache smoke checks passed");

@@ -193,6 +193,11 @@ async function main() {
 		`Expected image content-type, got: ${publicContentType}`,
 	);
 	assert(Boolean(publicImage.headers.etag), "Expected etag on public promotion media response");
+	const publicCorp = String(publicImage.headers["cross-origin-resource-policy"] ?? "");
+	assert(
+		publicCorp === "cross-origin",
+		`Expected public promotion CORP to be cross-origin, got: ${publicCorp}`,
+	);
 
 	const privateWithoutSession = await new Session().request(
 		"GET",
@@ -212,6 +217,13 @@ async function main() {
 	assert(
 		privateCacheControl.includes("private"),
 		`Expected private cache-control for authenticated media route, got: ${privateCacheControl}`,
+	);
+	const privateCorp = String(
+		privateWithCustomerSession.headers["cross-origin-resource-policy"] ?? "",
+	);
+	assert(
+		privateCorp === "same-origin",
+		`Expected private media CORP to remain same-origin, got: ${privateCorp}`,
 	);
 
 	const uploadTwo = await uploadPromotionImage(admin, "two");

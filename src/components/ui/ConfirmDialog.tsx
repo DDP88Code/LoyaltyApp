@@ -47,7 +47,7 @@ export function ConfirmDialog({
 			ref={ref}
 			onClose={onCancel}
 			onCancel={onCancel}
-			className="w-full max-w-sm rounded-card border border-brand-border bg-brand-surface p-5 text-brand-text backdrop:bg-black/60"
+			className="w-full max-w-sm rounded-card border border-brand-border bg-brand-surface p-5 pb-[calc(1.25rem+var(--safe-area-bottom))] text-brand-text backdrop:bg-black/60"
 		>
 			<h2 className="text-lg">{title}</h2>
 			{description && (

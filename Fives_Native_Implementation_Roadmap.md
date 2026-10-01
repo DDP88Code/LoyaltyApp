@@ -206,9 +206,9 @@ Likely location:
 src/lib/platform.ts
 ```
 
-- [ ] Web defaults remain unchanged.
-- [ ] Native-specific behaviour is gated centrally.
-- [ ] Avoid scattered ad-hoc platform checks.
+- [x] Web defaults remain unchanged.
+- [x] Native-specific behaviour is gated centrally.
+- [x] Avoid scattered ad-hoc platform checks.
 
 ## 4.1 Password reset origin
 
@@ -216,27 +216,27 @@ Current native problem: reset callback is derived from `window.location.origin`.
 
 Phase-1 native behaviour:
 
-- [ ] Web keeps existing reset flow.
-- [ ] Native requests a reset using `https://fivessportsbar.app/reset-password`.
-- [ ] Reset completes in browser initially.
-- [ ] User returns to app and logs in.
-- [ ] Deep-link reset can be added later.
+- [x] Web keeps existing reset flow.
+- [x] Native requests a reset using `https://fivessportsbar.app/reset-password`.
+- [x] Reset completes in browser initially.
+- [x] User returns to app and logs in.
+- [x] Deep-link reset can be added later.
 
 ## 4.2 Legal/internal links
 
-- [ ] Replace unnecessary hard reloads to `/terms` and `/privacy` with router-safe navigation where appropriate.
-- [ ] Web behaviour remains unchanged.
+- [x] Replace unnecessary hard reloads to `/terms` and `/privacy` with router-safe navigation where appropriate.
+- [x] Web behaviour remains unchanged.
 
 ## 4.3 Safe-area groundwork
 
 Review and prepare:
 
-- [ ] sticky customer header;
-- [ ] bottom nav;
-- [ ] connectivity banner;
-- [ ] menu item sheet;
-- [ ] back-to-top controls;
-- [ ] dialogs/modals.
+- [x] sticky customer header;
+- [x] bottom nav;
+- [x] connectivity banner;
+- [x] menu item sheet;
+- [x] back-to-top controls;
+- [x] dialogs/modals.
 
 Do not create visible PWA regressions.
 
@@ -246,30 +246,40 @@ Current issue: public media may inherit `Cross-Origin-Resource-Policy: same-orig
 
 Target:
 
-- [ ] Public menu images can be loaded by native app.
-- [ ] Public promotion images can be loaded by native app.
-- [ ] Private/Admin media remains protected.
-- [ ] Existing immutable caching remains intact.
-- [ ] Existing menu-media cache smoke stays green.
-- [ ] Existing promotion-media cache smoke stays green.
+- [x] Public menu images can be loaded by native app.
+- [x] Public promotion images can be loaded by native app.
+- [x] Private/Admin media remains protected.
+- [x] Existing immutable caching remains intact.
+- [x] Existing menu-media cache smoke stays green.
+- [x] Existing promotion-media cache smoke stays green.
 
 ## 4.5 Phase 1 validation
 
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm test`
-- [ ] `npm run build:prod`
-- [ ] Password-reset smoke passes.
-- [ ] Menu media smoke passes.
-- [ ] Promotion media smoke passes.
-- [ ] Mobile PWA layout passes.
-- [ ] PWA is unchanged for customers.
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm test`
+- [x] `npm run build:prod`
+- [x] Password-reset smoke passes.
+- [x] Menu media smoke passes.
+- [x] Promotion media smoke passes.
+- [x] Mobile PWA layout passes.
+- [x] PWA is unchanged for customers.
 
 ### STOP / GO GATE
 
-- [ ] Web-safe readiness changes verified.
-- [ ] No Capacitor packages installed yet.
-- [ ] Git clean before Phase 2.
+- [x] Web-safe readiness changes verified.
+- [x] No Capacitor packages installed yet.
+- [x] Git clean before Phase 2.
+
+Phase 1 evidence note (2026-10-01):
+
+- Implemented central platform abstraction in `src/lib/platform.ts` (`APP_TARGET`, `IS_NATIVE`, `WEB_ORIGIN`) and wired password-reset redirect via `buildPasswordResetRedirectUrl()` in `src/features/auth/useSession.ts`.
+- Replaced Profile legal hard reload links with router `Link` navigation; added safe-area fallback variables/patterns and applied them to customer nav/banner/menu sheet/back-to-top/dialog spacing without Capacitor dependencies.
+- Applied public-media-only CORP override (`Cross-Origin-Resource-Policy: cross-origin`) for `/api/media/public/*` in `worker/index.ts`; private media remains `same-origin` and authenticated.
+- Expanded media smokes with CORP assertions and kept deterministic menu-media setup.
+- Validation executed: `node ./scripts/password-reset-link-smoke.mjs`, `node ./scripts/menu-media-cache-smoke.mjs`, `node ./scripts/promotion-media-cache-smoke.mjs`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build:prod`.
+- Production deploy executed with `npm run deploy:prod`; Worker version `ab129c04-7c6f-4265-9826-8a1d26fc01e8`.
+- Live checks: `GET /api/health` returned `environment=production`; `POST /api/dev/seed` returned `404`; public menu/promotion media returned `200` with immutable cache headers and `CORP=cross-origin`; private media unauthenticated returned `401` with `CORP=same-origin`.
 
 ---
 

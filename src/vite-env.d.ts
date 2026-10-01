@@ -3,6 +3,7 @@
 
 interface ImportMetaEnv {
 	readonly VITE_API_BASE_URL?: string;
+	readonly VITE_APP_TARGET?: "web" | "native";
 	readonly VITE_TURNSTILE_SITE_KEY?: string;
 }
 

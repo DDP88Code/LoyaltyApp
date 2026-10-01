@@ -17,6 +17,11 @@
 	--brand-muted: #a79b8d;
 	--brand-success: #4fa36b;
 	--brand-danger: #d9534f;
+
+	--safe-area-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+	--safe-area-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+	--safe-area-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+	--safe-area-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 }
 
 @theme inline {
@@ -48,8 +53,8 @@
 	body {
 		@apply bg-brand-background text-brand-text font-sans antialiased;
 		/* Respect notches and home indicators once installed as a PWA. */
-		padding: env(safe-area-inset-top) env(safe-area-inset-right)
-			env(safe-area-inset-bottom) env(safe-area-inset-left);
+		padding: var(--safe-area-top) var(--safe-area-right)
+			var(--safe-area-bottom) var(--safe-area-left);
 	}
 
 	h1,
