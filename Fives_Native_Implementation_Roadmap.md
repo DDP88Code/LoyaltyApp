@@ -575,23 +575,38 @@ Foundation implementation evidence (2026-10-01):
 
 ## 10. Secure token storage
 
-- [ ] Use Android secure storage / Keystore-backed plugin.
-- [ ] Read token on app startup.
-- [ ] Attach bearer token to native API requests.
-- [ ] Native requests do not rely on web cookies.
-- [ ] Token never logged.
-- [ ] Logout clears token.
-- [ ] Account deletion clears token.
-- [ ] Invalid session returns user to login.
+- [x] Use Android secure storage / Keystore-backed plugin.
+- [x] Read token on app startup.
+- [x] Attach bearer token to native API requests.
+- [x] Native requests do not rely on web cookies.
+- [x] Token never logged.
+- [x] Logout clears token.
+- [x] Account deletion clears token.
+- [x] Invalid session returns user to login.
+
+Implementation (2026-10-03): native API and Better Auth requests omit cookies,
+await secure token reads, and capture successful `set-auth-token` responses before
+loading the profile. Web cookie auth is unchanged. The secure-storage browser
+fallback is prohibited and Capacitor bridge logging is disabled. Logout clears
+locally even offline (server revocation requires connectivity). Focused frontend
+tests cover both targets, registration, password change, expiry, deletion, storage
+errors and logout. Local backend smoke covers bearer-only password change and
+revocation. These implementation checks do not complete all manual gates below.
 
 ## 10.1 Login tests
 
-- [ ] valid login;
+- [x] valid login;
 - [ ] wrong password;
 - [ ] Turnstile failure;
-- [ ] session survives app kill/restart;
-- [ ] logout revokes session;
+- [x] session survives app kill/restart;
+- [x] logout revokes session;
 - [ ] login works again after logout.
+
+API 36 emulator (2026-10-03): user completed real sign-in; secure storage held the
+token and `/api/me` returned 200. Force-stop/relaunch retained the session. Actual
+app API requests used `credentials: "omit"` with bearer headers. The app's Sign out
+button sent a bearer-only request (200), cleared secure storage, returned to
+`/login`, and the revoked token then received 401. No token values were logged.
 
 ## 10.2 Registration tests
 

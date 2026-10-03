@@ -26,6 +26,7 @@ import type {
 	UpdateProfileInput,
 } from "@shared/profile";
 import { ApiClientError, apiFetch } from "@/lib/api";
+import { clearNativeAuthToken } from "@/lib/nativeAuthToken";
 import { getStoredJson, setStoredJson } from "@/lib/storage";
 import { sessionQueryKey } from "@/features/auth/useSession";
 
@@ -287,7 +288,8 @@ export function useDeleteAccount() {
 			apiFetch<AccountDeletionPayload>("/api/customer/account", {
 				method: "DELETE",
 			}),
-		onSuccess: () => {
+		onSuccess: async () => {
+			await clearNativeAuthToken();
 			queryClient.setQueryData(sessionQueryKey, null);
 			void queryClient.invalidateQueries({
 				predicate: (query) => query.queryKey[0] !== sessionQueryKey[0],

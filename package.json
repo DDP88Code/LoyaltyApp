@@ -21,6 +21,7 @@
     "test:promotion-media": "node ./scripts/promotion-media-cache-smoke.mjs",
     "test:reset-link": "node ./scripts/password-reset-link-smoke.mjs",
     "test:native-api": "node ./scripts/native-api-smoke.mjs",
+    "test:native-auth": "node ./scripts/native-auth-client-smoke.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",
@@ -32,6 +33,7 @@
     "auth:generate": "auth generate --config auth.ts --output worker/db/schema/auth.ts -y"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@better-auth/drizzle-adapter": "^1.7.2",
     "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.5.2",

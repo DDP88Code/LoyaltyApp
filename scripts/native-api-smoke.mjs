@@ -248,12 +248,24 @@ async function main() {
 	);
 	assert(invalidBearer.status === 401, `Invalid bearer token expected 401, got ${invalidBearer.status}`);
 
-	describe("H: logout revokes native bearer session");
-	const signOut = await nativeSession.request(
+	describe("H: authenticated password change and logout work without cookies");
+	const bearerHeaders = {
+		Origin: APPROVED_NATIVE_ORIGIN,
+		"Content-Type": "application/json",
+		Authorization: `Bearer ${nativeToken}`,
+	};
+	const passwordChange = await rawRequest(
+		"POST",
+		"/api/auth/change-password",
+		bearerHeaders,
+		JSON.stringify({ currentPassword: PASSWORD, newPassword: `${PASSWORD}Updated` }),
+	);
+	assert(passwordChange.status === 200, `Bearer password change failed with ${passwordChange.status}`);
+	const signOut = await rawRequest(
 		"POST",
 		"/api/auth/sign-out",
-		{},
-		{ Authorization: `Bearer ${nativeToken}` },
+		bearerHeaders,
+		"{}",
 	);
 	assert(signOut.status >= 200 && signOut.status < 300, `Native sign-out failed with ${signOut.status}`);
 	const meAfterSignOut = await rawRequest(

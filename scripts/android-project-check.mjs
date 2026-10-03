@@ -19,7 +19,11 @@ for (const key of ["app_name", "title_activity_main"]) {
 }
 assert((await read("android/app/src/main/java/app/fivessportsbar/rewards/MainActivity.java"))
 	.includes(`package ${config.appId};`));
-assert.deepEqual(JSON.parse(await read("android/app/src/main/assets/capacitor.plugins.json")), []);
+assert.deepEqual(JSON.parse(await read("android/app/src/main/assets/capacitor.plugins.json")), [{
+	pkg: "@aparajita/capacitor-secure-storage",
+	classpath: "com.aparajita.capacitor.securestorage.SecureStorage",
+}]);
+assert.equal(config.loggingBehavior, "none", "Bridge logging can expose secure-storage payloads");
 const files = await readdir(resolve(root, config.webDir), { recursive: true, withFileTypes: true });
 for (const file of files.filter((entry) => entry.isFile())) {
 	const source = resolve(file.parentPath, file.name);
@@ -28,4 +32,4 @@ for (const file of files.filter((entry) => entry.isFile())) {
 		`Android bundle is stale: ${relative}`);
 }
 await assert.rejects(access(resolve(root, "ios")), { code: "ENOENT" });
-console.log("Android checks passed: synced assets/config, package, display name, SDK 24/36/36, no plugins, no iOS project.");
+console.log("Android checks passed: synced assets/config, package, display name, SDK 24/36/36, secure storage, bridge logging disabled, no iOS project.");

@@ -2,6 +2,7 @@
   "appId": "app.fivessportsbar.rewards",
   "appName": "Fives Sports Bar Rewards",
   "webDir": "dist-native",
+  "loggingBehavior": "none",
   "server": {
     "hostname": "app.fivessportsbar.app",
     "androidScheme": "https",

@@ -1,4 +1,6 @@
 import type { ApiErrorCode, ApiResponse } from "@shared/api";
+import { getNativeAuthToken } from "./nativeAuthToken";
+import { IS_NATIVE } from "./platform";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -39,18 +41,23 @@ export async function apiFetch<T>(
 		);
 	}
 
+	const headers = new Headers({
+		Accept: "application/json",
+		...(init.body && !isFormData ? { "Content-Type": "application/json" } : {}),
+	});
+	new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+	if (IS_NATIVE) {
+		const token = await getNativeAuthToken();
+		if (token) headers.set("Authorization", `Bearer ${token}`);
+		else headers.delete("Authorization");
+	}
+
 	try {
 		response = await fetch(`${BASE_URL}${path}`, {
-			// Better Auth session cookies must travel with every API call.
 			credentials: "include",
 			...init,
-			headers: {
-				Accept: "application/json",
-				...(init.body && !isFormData
-					? { "Content-Type": "application/json" }
-					: {}),
-				...init.headers,
-			},
+			...(IS_NATIVE ? { credentials: "omit" as const } : {}),
+			headers,
 		});
 	} catch {
 		throw new ApiClientError(

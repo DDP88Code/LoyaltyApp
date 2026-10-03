@@ -36,17 +36,22 @@ for (const side of ["top", "right", "bottom", "left"]) {
 
 // Exercise the actual platform/API/media modules with the native Vite config.
 // This catches wrong mode/env precedence and /api/api duplication without
-// contacting production or implementing the later native auth client.
+// contacting production. Only the native storage bridge is mocked.
 const entry = resolve(root, "scripts/native-build-probe.ts");
 const result = await build({
 	root,
 	configFile: resolve(root, "vite.native.config.ts"),
 	mode: "native",
 	logLevel: "silent",
+	resolve: { alias: {
+		"@capacitor/core": resolve(root, "scripts/fixtures/native-auth-mocks.mjs"),
+		"@aparajita/capacitor-secure-storage": resolve(root, "scripts/fixtures/native-auth-mocks.mjs"),
+	} },
 	build: {
 		write: false,
 		minify: false,
 		lib: { entry, formats: ["es"], fileName: "native-probe" },
+		rolldownOptions: { output: { codeSplitting: false } },
 	},
 });
 const output = (Array.isArray(result) ? result[0] : result).output;
@@ -59,12 +64,15 @@ assert.equal(probe.buildPasswordResetRedirectUrl(), "https://fivessportsbar.app/
 assert.equal(probe.menuMediaObjectUrl("test"), "https://fivessportsbar.app/api/media/public/menu?key=test");
 const originalFetch = globalThis.fetch;
 try {
-	globalThis.fetch = async (url) => {
+	globalThis.nativeAuthTest = { native: true, token: null, reads: 0 };
+	globalThis.fetch = async (url, init) => {
 		assert.equal(url, "https://fivessportsbar.app/api/me");
+		assert.equal(init.credentials, "omit");
 		return new Response(JSON.stringify({ success: true, data: { checked: true } }));
 	};
 	assert.deepEqual(await probe.apiFetch("/api/me"), { checked: true });
 } finally {
 	globalThis.fetch = originalFetch;
+	delete globalThis.nativeAuthTest;
 }
 console.log("Native build checks passed: identity, local bundle, no PWA registration, safe areas, native target and production API origin.");

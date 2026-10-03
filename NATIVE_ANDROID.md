@@ -1,7 +1,7 @@
 # Android foundation
 
 This branch contains the Capacitor shell and packaged frontend, not a completed
-native customer release. Native bearer-token storage, the Staff/Admin/Owner
+native customer release. Native bearer authentication is implemented; the Staff/Admin/Owner
 web-portal gate, push, deep links, back-button handling and keyboard polish remain
 in their later roadmap phases. Do not distribute this foundation as a finished app.
 
@@ -19,7 +19,40 @@ The native config fixes `VITE_APP_TARGET=native` and
 `VITE_API_BASE_URL=https://fivessportsbar.app` at build time, including when local
 environment values differ. Existing API helpers append `/api/...` themselves.
 The existing `.env` supplies the public Turnstile site key; secrets must never use
-the `VITE_` prefix. No token persistence or bearer-header injection is added here.
+the `VITE_` prefix.
+
+## Native authentication
+
+Native API and Better Auth requests use `credentials: "omit"` and read the bearer
+token from `@aparajita/capacitor-secure-storage@8.0.1`. Successful Better Auth
+responses persist `set-auth-token` before the caller loads `/api/me` or updates
+registration profile fields. Authenticated Better Auth actions, including password
+change and sign-out, use the same secure token. The first session request reads
+secure storage again after an app restart.
+
+Logout attempts server revocation before clearing the local token in `finally`,
+including on network failure. Offline logout cannot confirm server revocation.
+Successful account deletion and an unauthenticated session response also clear
+the token. Storage errors fail explicitly; there is no browser-storage fallback.
+Capacitor bridge logging is disabled, including debug builds, because bridge
+payloads can contain tokens. Do not enable it when testing with real accounts.
+
+Web/PWA requests retain cookie authentication and never access token storage or
+capture `set-auth-token`. Backend CORS, auth configuration and database schema are
+unchanged.
+
+`npm run test:native-auth` tests both frontend targets with mocked native storage
+and actual Better Auth client hooks. `npm run test:native-api` exercises the local
+backend, including cookie-free password change and logout. For that test, run the
+built Worker directly: Vite's dev server intercepts OPTIONS before Worker CORS.
+
+```powershell
+npm run build
+npx wrangler dev --config dist/fives_rewards/wrangler.json --persist-to .wrangler/state --port 8787
+# In a second terminal, using the existing local database:
+$env:NATIVE_API_SMOKE_BASE_URL = 'http://localhost:8787'
+npm run test:native-api
+```
 
 Capacitor serves the bundled UI at `https://app.fivessportsbar.app` and starts at
 `/app`, which uses the existing customer/session routes. There is no remote
@@ -49,12 +82,30 @@ cd android
 ```
 
 The APK will be under `android/app/build/outputs/apk/debug/`.
-On the implementation machine JDK 21 is available, but Android Studio/SDK were
-not found in their standard locations, `adb` is absent from PATH, and
-`ANDROID_HOME`, `ANDROID_SDK_ROOT` and `JAVA_HOME` are unset. APK compilation,
-emulator startup, on-device API access and safe-area appearance remain unverified.
-No global tooling was installed. Default generated launcher/splash artwork remains
-for the later branding/polish phase; no native plugins were added.
+On 2026-10-03, Java 21 at `C:\Users\deand\.jdks\jbr-21.0.11` and the SDK at
+`C:\Users\deand\AppData\Local\Android\Sdk` were used successfully for
+`assembleDebug`. The debug APK was installed on the running API 36 emulator.
+The project check now verifies the secure-storage plugin and disabled bridge
+logging alongside synced assets, identity and SDK versions. No tooling versions
+were changed. Default generated launcher/splash artwork remains for the later
+branding/polish phase. Visual safe-area validation remains separate.
+
+Runtime validation on API 36: real customer sign-in succeeded; `/api/me` returned
+200 using the securely stored token; force-stop/relaunch preserved authentication.
+Observed app requests omitted cookies and carried bearer authentication. The
+actual Sign out button returned 200, cleared secure storage, and returned to
+`/login`; reuse of the revoked session returned 401. No service worker was
+registered. Token values were never printed or saved to diagnostics.
+
+Validation on 2026-10-03 passed: `npm run typecheck` (also the lint script),
+`npm run test:native-auth`, local `npm run test:native-api`, `npm run build`,
+`npm run cap:sync`, Android project checks, `gradlew.bat assembleDebug`, and one
+completed full `npm test` run. An initial full-suite attempt stopped in its first
+suite because the sandbox denied a helper process; the permitted retry completed
+with exit 0. The auth regression script again printed the already-documented local
+SQLite foreign-key error before reporting success. Local Turnstile enforcement
+checks are skipped and reset redirect validation reports the existing
+`INVALID_REDIRECT_URL` limitation. See ignored `.native-auth-regression.log`.
 
 Generated web assets, build outputs, SDK paths, caches and signing material are
 ignored. Commit Android source and the Gradle wrapper. This foundation requires no

@@ -6,7 +6,8 @@ import {
 } from "@tanstack/react-query";
 import type { SessionPayload, SessionUser } from "@shared/api";
 import { ApiClientError, apiFetch } from "@/lib/api";
-import { authClient } from "@/lib/authClient";
+import { authClient, signOut } from "@/lib/authClient";
+import { clearNativeAuthToken } from "@/lib/nativeAuthToken";
 import { buildPasswordResetRedirectUrl } from "@/lib/platform";
 
 export const sessionQueryKey = ["session"] as const;
@@ -18,6 +19,7 @@ async function fetchSession(): Promise<SessionUser | null> {
 		return user;
 	} catch (error) {
 		if (error instanceof ApiClientError && error.code === "unauthenticated") {
+			await clearNativeAuthToken();
 			return null;
 		}
 		throw error;
@@ -144,9 +146,7 @@ export function useRegister() {
 export function useSignOut() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: async () => {
-			await authClient.signOut();
-		},
+		mutationFn: signOut,
 		onSettled: () => {
 			// Publish the signed-out session first: this notifies the mounted route
 			// guards, which redirect. Removing the query instead would destroy it and
