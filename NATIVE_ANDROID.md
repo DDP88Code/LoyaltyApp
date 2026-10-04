@@ -1,8 +1,8 @@
 # Android foundation
 
 This branch contains the Capacitor shell and packaged frontend, not a completed
-native customer release. Native bearer authentication is implemented; the Staff/Admin/Owner
-web-portal gate, push, deep links, back-button handling and keyboard polish remain
+native customer release. Native bearer authentication and the Staff/Admin/Owner
+web-portal gate are implemented; push, deep links, back-button handling and keyboard polish remain
 in their later roadmap phases. Do not distribute this foundation as a finished app.
 
 ## Identity and build
@@ -64,7 +64,59 @@ registration module with an empty module. Web builds retain the original service
 worker registration/update behavior and output to `dist/client`. Existing safe-area
 CSS variables and environment fallbacks are checked in the built native CSS.
 
+## Customer-only native access
+
+Native Staff, Admin and Owner sessions render a web-portal gate before any
+protected layout or feature mounts. Login sends these roles to `/app`; restored
+sessions, app restarts and direct protected-route attempts encounter the same
+gate. Customers retain their existing native routes. Signed-out login/register
+and web/PWA cookie authentication and role routing are unchanged.
+
+**Open Web Portal** uses the fixed `https://fivessportsbar.app/login` URL with no
+token, query parameters, return path or referrer. The production portal has a
+different origin from the native bundle, so Capacitor's existing Android
+navigation handler launches the system browser using ACTION_VIEW. Do not add
+this domain to `allowNavigation`. The browser uses its own web session; the native
+bearer token is never transferred. **Sign Out** uses the existing native logout
+flow, including server revocation and secure-storage cleanup.
+
+Validation on 2026-10-04:
+
+- `npm run test:native-routing` passed native/web cases for all four roles,
+  restored sessions, protected routes, signed-out access, fixed token-free portal
+  links and gate logout. Mock storage/backend assertions complement device checks.
+- `npm run test:native-auth`, `npm run typecheck`, `npm run build:native`,
+  `npm run build`, `npx cap sync android`,
+  `node scripts/android-project-check.mjs` and `gradlew.bat assembleDebug` passed.
+  The updated debug APK was installed on API 36; toolchain versions are unchanged.
+- Customer emulator checks passed: session restored after restart, `/api/me` 200,
+  customer UI retained, Staff/Admin route attempts returned to `/app`, logout
+  cleared secure storage and the revoked token received 401.
+- Owner emulator checks passed: real login after logout, gate appearance,
+  force-stop/restart persistence, direct `/staff`, `/admin/settings`,
+  `/admin/owner` and `/app/profile` gating, external Chrome ACTION_VIEW launch
+  with exactly the fixed portal URL, return to the gate, and gate logout. Logout
+  returned to `/login`, cleared secure storage and revoked the session (401 on
+  reuse). Diagnostics never printed or saved bearer tokens.
+- Full `npm test` ran once and completed with exit 0. The existing local SQLite
+  foreign-key diagnostic still precedes auth success; local Turnstile assertions
+  are skipped, and reset validation reports the known `INVALID_REDIRECT_URL`
+  limitation. Build output retains the existing large-chunk warning.
+- Staff/Admin real-account emulator verification remains pending: no designated
+  accounts were available. Their routing and logout are covered automatically.
+  The other Phase 7 manual registration/error checks remain on the roadmap.
+
 ## Android tools and remaining validation
+
+### Phase 8 offline issue (recorded 2026-10-04)
+
+When Android loses Wi-Fi/mobile connectivity, Home/Profile and cached menu content
+remain available, but Rewards and QR generation can hang indefinitely. Phase 8
+must add explicit offline UX, prevent endless loading, and verify reconnection
+without changing server-side QR rules. This issue was recorded, not fixed, during
+the Phase 7 role-gate work.
+
+### Build environment
 
 The generated project uses min SDK **24**, compile/target SDK **36**, Gradle
 **8.14.3**, Android Gradle Plugin **8.13.0**, and minimum WebView **111**.

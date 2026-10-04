@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router";
 import { type SignInInput, signInSchema } from "@shared/auth";
 import { BRAND } from "@shared/branding";
-import { ROLE_HOME } from "@shared/roles";
+import { signedInDestination } from "@/features/auth/roleRouting";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthLayout, FormError } from "@/features/auth/AuthLayout";
@@ -61,7 +61,7 @@ export function LoginPage() {
 		setTurnstileMessage(null);
 		signIn.mutate({ ...values, turnstileToken: token }, {
 			onSuccess: (user) => {
-				void navigate(from ?? ROLE_HOME[user.role], { replace: true });
+				void navigate(signedInDestination(user.role, from), { replace: true });
 			},
 			onError: () => {
 				if (!turnstileEnabled) return;

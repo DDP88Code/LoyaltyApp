@@ -22,6 +22,7 @@
     "test:reset-link": "node ./scripts/password-reset-link-smoke.mjs",
     "test:native-api": "node ./scripts/native-api-smoke.mjs",
     "test:native-auth": "node ./scripts/native-auth-client-smoke.mjs",
+    "test:native-routing": "node ./scripts/native-routing-smoke.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",

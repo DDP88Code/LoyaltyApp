@@ -600,7 +600,7 @@ revocation. These implementation checks do not complete all manual gates below.
 - [ ] Turnstile failure;
 - [x] session survives app kill/restart;
 - [x] logout revokes session;
-- [ ] login works again after logout.
+- [x] login works again after logout.
 
 API 36 emulator (2026-10-03): user completed real sign-in; secure storage held the
 token and `/api/me` returned 200. Force-stop/relaunch retained the session. Actual
@@ -619,12 +619,46 @@ button sent a bearer-only request (200), cleared secure storage, returned to
 
 ## 10.3 Staff/Admin native gate
 
-- [ ] Staff sees web-portal message.
-- [ ] Admin sees web-portal message.
-- [ ] Owner sees web-portal message.
-- [ ] "Open in browser" works.
-- [ ] "Sign out" works.
-- [ ] Native app does not expose Staff scanner/Admin management UI.
+- [x] Staff sees web-portal message (automated; designated-account emulator check pending).
+- [x] Admin sees web-portal message (automated; designated-account emulator check pending).
+- [x] Owner sees web-portal message (automated and API 36 emulator).
+- [x] "Open Web Portal" opens the system browser.
+- [x] "Sign Out" revokes the native session and clears secure storage.
+- [x] Native app does not expose Staff scanner/Admin management UI.
+
+Implementation and evidence (2026-10-04, based on `f366055`):
+
+- Native non-customer login redirects to `/app`, where the protected-route guard
+  renders the portal gate before any customer, Staff or Admin layout mounts.
+  Restored sessions and direct protected-route navigation use the same guard.
+- The fixed `https://fivessportsbar.app/login` link opens externally through
+  Capacitor's existing Android navigation handling. No token, return path or
+  other user data is added; referrers are disabled. Gate logout reuses the
+  existing bearer sign-out and secure-storage cleanup.
+- Customer routes and web/PWA role redirects remain unchanged. No server
+  permissions, auth/storage implementation, CORS, schema or dependencies changed.
+- `npm run test:native-routing` covers all four roles, restored sessions,
+  direct routes, signed-out login/register access, pending session checks,
+  token-free portal markup, gate logout and the existing web role matrix.
+  Its storage/backend fixtures are supplemented by real emulator checks below.
+- API 36 customer: restored session after restart, `/api/me` 200, customer UI,
+  Staff/Admin route attempts redirected to `/app`, and actual logout cleared
+  storage and revoked the session (reuse returned 401).
+- API 36 Owner: real login after customer logout reached the gate; force-stop /
+  relaunch and direct `/staff`, `/admin/settings`, `/admin/owner` and
+  `/app/profile` attempts stayed gated without protected interfaces. Portal
+  action launched Chrome with an ACTION_VIEW intent containing only the fixed
+  URL; returning preserved the gate. Gate Sign Out returned to `/login`, cleared
+  secure storage, and the revoked session received 401. No tokens were logged.
+- Passed: native routing/auth tests, TypeScript checks, native and web builds,
+  Android sync/project checks, `assembleDebug`, and one full `npm test` run
+  (exit 0). Existing local-suite caveats remain: SQLite foreign-key diagnostic
+  before auth success, skipped local Turnstile enforcement assertions, and
+  `INVALID_REDIRECT_URL` under local reset trusted-origin restrictions.
+- Remaining manual gate checks: Staff and Admin on designated accounts, which
+  were unavailable. Registration, wrong-password and Turnstile checkboxes above
+  remain separate acceptance work; these results do not mark all Phase 7 manual
+  checks complete. Phase 8 offline issue is recorded below without a fix.
 
 ---
 
@@ -665,6 +699,19 @@ Priority:
 5. never unexpectedly navigate to public landing page.
 
 Test throughout the app.
+
+## 11.4 Offline states — recorded for Phase 8
+
+Observed on Android (2026-10-04): after Wi-Fi/mobile connectivity is lost,
+Home/Profile and cached menu content remain available, but Rewards and QR
+generation can hang indefinitely.
+
+- [ ] Add explicit offline messaging and recovery actions for Rewards and QR.
+- [ ] Prevent endless loading states when requests cannot complete offline.
+- [ ] Verify disconnect/reconnect while opening Rewards or generating a QR.
+- [ ] Preserve available cached Home/Profile/menu content and server-side QR rules.
+
+Recorded only during the Phase 7 role-gate work; no offline behaviour was changed.
 
 ---
 

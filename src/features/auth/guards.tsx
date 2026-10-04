@@ -1,7 +1,9 @@
 import { Navigate, Outlet, useLocation } from "react-router";
-import { ROLE_HOME, type Role } from "@shared/roles";
+import type { Role } from "@shared/roles";
 import { useSession } from "@/features/auth/useSession";
 import { ErrorState, LoadingState } from "@/components/ui/States";
+import { NativeWebPortalGate } from "./NativeWebPortalGate";
+import { requiresNativeWebPortal, signedInDestination } from "./roleRouting";
 
 /** Sends signed-out visitors to the sign-in page, remembering where they were headed. */
 export function RequireAuth() {
@@ -19,6 +21,7 @@ export function RequireAuth() {
 		);
 	}
 	if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+	if (requiresNativeWebPortal(user.role)) return <NativeWebPortalGate />;
 
 	return <Outlet />;
 }
@@ -32,8 +35,9 @@ export function RequireRole({ allow }: { allow: readonly Role[] }) {
 
 	if (isPending) return <LoadingState label="Checking your session…" />;
 	if (!user) return <Navigate to="/login" replace />;
+	if (requiresNativeWebPortal(user.role)) return <NativeWebPortalGate />;
 	if (!allow.includes(user.role)) {
-		return <Navigate to={ROLE_HOME[user.role]} replace />;
+		return <Navigate to={signedInDestination(user.role)} replace />;
 	}
 
 	return <Outlet />;
@@ -44,7 +48,7 @@ export function RedirectIfSignedIn() {
 	const { data: user, isPending } = useSession();
 
 	if (isPending) return <LoadingState label="Checking your session…" />;
-	if (user) return <Navigate to={ROLE_HOME[user.role]} replace />;
+	if (user) return <Navigate to={signedInDestination(user.role)} replace />;
 
 	return <Outlet />;
 }
